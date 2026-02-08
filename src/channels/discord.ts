@@ -8,8 +8,11 @@ import {
 
 import type { MicroclawConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
+import { chunkText } from '../core/text-chunk.js'
 import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
+
+const DISCORD_MESSAGE_MAX = 1800
 
 /**
  * Discord adapter using discord.js gateway client + channel send API.
@@ -89,7 +92,9 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    await channel.send({ content: message.content })
+    for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
+      await channel.send({ content: part })
+    }
   }
 
   private async onMessage(message: Message): Promise<void> {

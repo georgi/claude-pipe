@@ -1,5 +1,6 @@
 import type { MicroclawConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
+import { chunkText } from '../core/text-chunk.js'
 import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
@@ -12,6 +13,8 @@ type TelegramUpdate = {
     from?: { id: number }
   }
 }
+
+const TELEGRAM_MESSAGE_MAX = 3800
 
 /**
  * Telegram adapter using Bot API long polling.
@@ -54,22 +57,27 @@ export class TelegramChannel implements Channel {
 
     const token = this.config.channels.telegram.token
     const url = `https://api.telegram.org/bot${token}/sendMessage`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: Number(message.chatId),
-        text: message.content
-      })
-    })
+    const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
 
-    if (!response.ok) {
-      const body = await response.text()
-      this.logger.error('channel.telegram.send_failed', {
-        chatId: message.chatId,
-        status: response.status,
-        body
+    for (const part of chunks) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: Number(message.chatId),
+          text: part
+        })
       })
+
+      if (!response.ok) {
+        const body = await response.text()
+        this.logger.error('channel.telegram.send_failed', {
+          chatId: message.chatId,
+          status: response.status,
+          body
+        })
+        break
+      }
     }
   }
 
