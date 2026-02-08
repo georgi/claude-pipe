@@ -1,5 +1,6 @@
 import type { MicroclawConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
+import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
 import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
@@ -15,6 +16,8 @@ type TelegramUpdate = {
 }
 
 const TELEGRAM_MESSAGE_MAX = 3800
+const SEND_RETRY_ATTEMPTS = 2
+const SEND_RETRY_BACKOFF_MS = 50
 
 /**
  * Telegram adapter using Bot API long polling.
@@ -60,21 +63,32 @@ export class TelegramChannel implements Channel {
     const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
 
     for (const part of chunks) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: Number(message.chatId),
-          text: part
-        })
-      })
+      try {
+        await retry(
+          async () => {
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: Number(message.chatId),
+                text: part
+              })
+            })
 
-      if (!response.ok) {
-        const body = await response.text()
+            if (!response.ok) {
+              const body = await response.text()
+              throw new Error(`telegram send failed (${response.status}): ${body}`)
+            }
+          },
+          {
+            attempts: SEND_RETRY_ATTEMPTS,
+            backoffMs: SEND_RETRY_BACKOFF_MS
+          }
+        )
+      } catch (error) {
         this.logger.error('channel.telegram.send_failed', {
           chatId: message.chatId,
-          status: response.status,
-          body
+          error: error instanceof Error ? error.message : String(error)
         })
         break
       }

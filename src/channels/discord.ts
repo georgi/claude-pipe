@@ -8,11 +8,14 @@ import {
 
 import type { MicroclawConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
+import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
 import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
+const SEND_RETRY_ATTEMPTS = 2
+const SEND_RETRY_BACKOFF_MS = 50
 
 /**
  * Discord adapter using discord.js gateway client + channel send API.
@@ -93,7 +96,23 @@ export class DiscordChannel implements Channel {
     }
 
     for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
-      await channel.send({ content: part })
+      try {
+        await retry(
+          async () => {
+            await channel.send({ content: part })
+          },
+          {
+            attempts: SEND_RETRY_ATTEMPTS,
+            backoffMs: SEND_RETRY_BACKOFF_MS
+          }
+        )
+      } catch (error) {
+        this.logger.error('channel.discord.send_failed', {
+          chatId: message.chatId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        break
+      }
     }
   }
 
