@@ -13,6 +13,7 @@ This repository includes a working local runtime with:
 - outbound response chunking for Telegram and Discord limits
 - channel send retry/backoff policy for transient failures
 - optional transcript logging toggle (off by default)
+- size-based transcript rotation policy
 - unit and acceptance-style tests
 
 ## Implemented vs Pending
@@ -28,6 +29,7 @@ This repository includes a working local runtime with:
 | Discord adapter | Implemented | Gateway message events + channel send + chunking + retry |
 | Tool safety boundaries | Implemented | Workspace path guards + exec deny patterns |
 | Transcript logging toggle | Implemented | Optional JSONL event stream |
+| Transcript rotation | Implemented | Size-based file rotation with suffixes (`.1`, `.2`, ...) |
 | Acceptance harness | Implemented | Telegram summary flow test |
 | `spawn` subagents | Out of scope | Deferred by PRD |
 | cron/heartbeat | Out of scope | Deferred by PRD |
@@ -87,12 +89,19 @@ Each tool executes with:
 
 This allows the `message` tool to route back to the active conversation by default.
 
-### Transcript logging (optional)
+### Transcript logging and rotation (optional)
 When enabled, runtime writes JSONL entries for user/assistant/system stream events.
 - `MICROCLAW_TRANSCRIPT_LOG_ENABLED=true`
 - `MICROCLAW_TRANSCRIPT_LOG_PATH=/absolute/path/to/transcript.jsonl`
+- `MICROCLAW_TRANSCRIPT_LOG_MAX_BYTES=1000000`
+- `MICROCLAW_TRANSCRIPT_LOG_MAX_FILES=3`
 
-Default is disabled.
+Rotation behavior:
+- when current transcript exceeds `MAX_BYTES`, it rotates
+- current file becomes `.1`, older `.1` becomes `.2`, etc.
+- keeps up to `MAX_FILES` rotated files
+
+Default transcript logging is disabled.
 
 ## Modules and Responsibilities
 
@@ -113,6 +122,7 @@ Claude SDK V2 wrapper for:
 
 ### `/Users/mg/workspace/microclaw/src/core/transcript-logger.ts`
 JSONL logger used when transcript logging is enabled.
+Supports size-based rotation.
 
 ### `/Users/mg/workspace/microclaw/src/core/retry.ts`
 Shared retry helper used by channel send paths for transient outbound failures.
@@ -162,6 +172,7 @@ Per your requirement, implementation follows this order for each task:
 - `/Users/mg/workspace/microclaw/tests/response-chunking.test.ts`
 - `/Users/mg/workspace/microclaw/tests/channel-retry.test.ts`
 - `/Users/mg/workspace/microclaw/tests/transcript-logger.test.ts`
+- `/Users/mg/workspace/microclaw/tests/transcript-rotation.test.ts`
 - `/Users/mg/workspace/microclaw/tests/config.test.ts`
 - `/Users/mg/workspace/microclaw/tests/acceptance-telegram-summary.test.ts`
 
@@ -177,7 +188,7 @@ cp /Users/mg/workspace/microclaw/.env.example /Users/mg/workspace/microclaw/.env
 - allow lists as needed
 - workspace path
 - optional Brave search key
-- optional transcript logging flags
+- optional transcript logging + rotation settings
 
 3. Install and validate:
 ```bash
@@ -209,6 +220,6 @@ npm run dev
 
 ## Next Implementation Targets
 
-1. Add optional transcript rotation policy (size/day based).
-2. Add richer workspace summary prompt template controls.
-3. Add integration tests for Discord end-to-end summary flow.
+1. Add richer workspace summary prompt template controls.
+2. Add integration tests for Discord end-to-end summary flow.
+3. Add optional channel-specific formatting profiles.
