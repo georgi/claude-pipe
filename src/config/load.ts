@@ -23,7 +23,7 @@ export function loadConfig(): MicroclawConfig {
     'Provide a concise summary with key files and actionable insights.'
 
   return configSchema.parse({
-    model: process.env.MICROCLAW_MODEL ?? 'claude-sonnet-4-5',
+    model: process.env.MICROCLAW_MODEL ?? 'GLM-4.7',
     workspace: process.env.MICROCLAW_WORKSPACE ?? process.cwd(),
     channels: {
       telegram: {

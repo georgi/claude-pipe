@@ -2,7 +2,7 @@ import type { MicroclawConfig } from '../config/schema.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import { ClaudeClient } from './claude-client.js'
-import type { InboundMessage, Logger } from './types.js'
+import type { AgentTurnUpdate, InboundMessage, Logger } from './types.js'
 
 /**
  * Central message-processing loop.
@@ -11,6 +11,7 @@ import type { InboundMessage, Logger } from './types.js'
  */
 export class AgentLoop {
   private running = false
+  private readonly lastProgressByConversation = new Map<string, { key: string; at: number }>()
 
   constructor(
     private readonly bus: MessageBus,
@@ -81,10 +82,54 @@ export class AgentLoop {
       this.config.workspace
     )
 
+    const publishProgress = async (update: AgentTurnUpdate): Promise<void> => {
+      const key = `${update.kind}:${update.toolName ?? ''}:${update.toolUseId ?? ''}`
+
+      const now = Date.now()
+      const recent = this.lastProgressByConversation.get(conversationKey)
+      const throttled =
+        recent != null &&
+        recent.key === key &&
+        now - recent.at < 1200 &&
+        update.kind !== 'tool_call_started'
+      if (throttled) return
+      this.lastProgressByConversation.set(conversationKey, { key, at: now })
+
+      if (
+        update.kind === 'tool_call_started' ||
+        update.kind === 'tool_call_finished' ||
+        update.kind === 'tool_call_failed'
+      ) {
+        this.logger.info('ui.channel.update', {
+          conversationKey,
+          channel: inbound.channel,
+          chatId: inbound.chatId,
+          kind: update.kind,
+          toolName: update.toolName,
+          toolUseId: update.toolUseId,
+          message: update.message
+        })
+      }
+
+      await this.bus.publishOutbound({
+        channel: inbound.channel,
+        chatId: inbound.chatId,
+        content: '',
+        metadata: {
+          kind: 'progress',
+          progressKind: update.kind,
+          message: update.message,
+          ...(update.toolName ? { toolName: update.toolName } : {}),
+          ...(update.toolUseId ? { toolUseId: update.toolUseId } : {})
+        }
+      })
+    }
+
     const content = await this.claude.runTurn(conversationKey, modelInput, {
       workspace: this.config.workspace,
       channel: inbound.channel,
-      chatId: inbound.chatId
+      chatId: inbound.chatId,
+      onUpdate: publishProgress
     })
 
     await this.bus.publishOutbound({

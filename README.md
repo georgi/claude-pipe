@@ -1,18 +1,19 @@
 # microclaw
 
-TypeScript reimplementation of nanobot core flows using Claude Agent SDK V1.
+TypeScript reimplementation of nanobot core flows using Claude Code CLI stream-json subprocesses.
 
 ## Current State
 
 This repository includes a working local runtime with:
 - real Telegram inbound/outbound integration (Bot API long polling)
 - real Discord inbound/outbound integration (`discord.js` gateway client)
-- Claude SDK V1 turn execution with session resume persistence
+- Claude CLI turn execution with session resume persistence
 - workspace boundary guardrails for file and shell tools
 - outbound response chunking for Telegram and Discord limits
 - channel send retry/backoff policy for transient failures
 - configurable summary prompt templating for workspace-summary requests
 - optional transcript logging toggle (off by default)
+- streamed progress updates for important events (tool calls, turn start)
 - size-based transcript rotation policy
 - unit and acceptance-style tests
 
@@ -23,7 +24,7 @@ This repository includes a working local runtime with:
 | Config loading/validation | Implemented | `zod` schema + `.env` mapping |
 | Session persistence | Implemented | JSON map: `conversation_key -> session_id` |
 | Agent loop | Implemented | Inbound -> Claude turn -> outbound |
-| Claude SDK V1 sessioning | Implemented | `query()` with `resume` + streaming result handling |
+| Claude CLI sessioning | Implemented | `claude --print --output-format stream-json` with `--resume` |
 | Tool calling | Implemented | MCP server generated from `ToolRegistry` |
 | Telegram adapter | Implemented | Long polling + sendMessage + chunking + retry |
 | Discord adapter | Implemented | Gateway message events + channel send + chunking + retry |
@@ -48,7 +49,7 @@ Telegram/Discord adapters
       AgentLoop
         |
         v
-    ClaudeClient (SDK V1 query)
+    ClaudeClient (CLI subprocess)
         |
         v
     MessageBus (outbound)
@@ -109,6 +110,14 @@ Rotation behavior:
 
 Default transcript logging is disabled.
 
+### Claude CLI streaming behavior
+Microclaw executes Claude as a subprocess with:
+- `--print`
+- `--output-format stream-json`
+- `--resume <session_id>` when a saved session exists
+
+Progress updates are streamed to channels for important events such as tool calls.
+
 Guardrails:
 - File tools enforce workspace-bound paths.
 - `exec` enforces workspace-bounded `working_dir` and deny-pattern command blocking.
@@ -135,6 +144,7 @@ cp /Users/mg/workspace/microclaw/.env.example /Users/mg/workspace/microclaw/.env
 - optional Brave search key
 - optional summary prompt template settings
 - optional transcript logging + rotation settings
+- subprocess-based Claude CLI execution settings
 
 3. Install and validate:
 ```bash

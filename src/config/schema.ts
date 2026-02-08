@@ -10,7 +10,7 @@ const channelSchema = z.object({
  * Runtime configuration schema for Microclaw.
  */
 export const configSchema = z.object({
-  model: z.literal('claude-sonnet-4-5').default('claude-sonnet-4-5'),
+  model: z.string(),
   workspace: z.string(),
   channels: z.object({
     telegram: channelSchema,

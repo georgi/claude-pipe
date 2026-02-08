@@ -62,6 +62,10 @@ export class TelegramChannel implements Channel {
   /** Sends a text response to Telegram chat. */
   async send(message: OutboundMessage): Promise<void> {
     if (!this.config.channels.telegram.enabled) return
+    if (message.metadata?.kind === 'progress') {
+      await this.sendChatAction(message.chatId, 'typing')
+      return
+    }
 
     const token = this.config.channels.telegram.token
     const url = `https://api.telegram.org/bot${token}/sendMessage`
@@ -76,7 +80,8 @@ export class TelegramChannel implements Channel {
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({
                 chat_id: Number(message.chatId),
-                text: part
+                text: part,
+                parse_mode: 'Markdown'
               })
             })
 

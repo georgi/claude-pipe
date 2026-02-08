@@ -40,6 +40,22 @@ export interface ToolContext {
   workspace: string
   channel: ChannelName
   chatId: string
+  onUpdate?: (event: AgentTurnUpdate) => Promise<void> | void
+}
+
+export type AgentTurnUpdateKind =
+  | 'turn_started'
+  | 'tool_call_started'
+  | 'tool_call_finished'
+  | 'tool_call_failed'
+  | 'turn_finished'
+
+export interface AgentTurnUpdate {
+  kind: AgentTurnUpdateKind
+  conversationKey: string
+  message: string
+  toolName?: string
+  toolUseId?: string
 }
 
 /**

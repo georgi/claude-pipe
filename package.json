@@ -2,7 +2,7 @@
   "name": "microclaw",
   "version": "0.1.0",
   "private": true,
-  "description": "TypeScript reimplementation of nanobot core flows using Claude Agent SDK V2",
+  "description": "TypeScript reimplementation of nanobot core flows using Claude Code CLI stream-json subprocesses",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -16,7 +16,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "latest",
     "discord.js": "^14.24.2",
     "dotenv": "^16.4.5",
     "zod": "^4.0.15"

@@ -95,6 +95,28 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    if (message.metadata?.kind === 'progress') {
+      if ('sendTyping' in channel && typeof channel.sendTyping === 'function') {
+        try {
+          await retry(
+            async () => {
+              await channel.sendTyping()
+            },
+            {
+              attempts: SEND_RETRY_ATTEMPTS,
+              backoffMs: SEND_RETRY_BACKOFF_MS
+            }
+          )
+        } catch (error) {
+          this.logger.error('channel.discord.typing_failed', {
+            chatId: message.chatId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+      return
+    }
+
     for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
       try {
         await retry(
