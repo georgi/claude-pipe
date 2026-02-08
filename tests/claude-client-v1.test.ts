@@ -1,9 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-vi.mock('../src/core/mcp-server.js', () => ({
-  createToolMcpServer: vi.fn(() => ({ type: 'sdk', name: 'microclaw', instance: {} }))
-}))
-
 const queryMock = vi.fn()
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: queryMock
@@ -29,7 +25,7 @@ function makeConfig() {
       telegram: { enabled: false, token: '', allowFrom: [] },
       discord: { enabled: false, token: '', allowFrom: [] }
     },
-    tools: { execTimeoutSec: 60, webSearchApiKey: undefined },
+    tools: { execTimeoutSec: 60 },
     summaryPrompt: { enabled: true, template: 'Workspace: {{workspace}} Request: {{request}}' },
     transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
@@ -71,7 +67,6 @@ describe('ClaudeClient (SDK v1 query)', () => {
     const client = new ClaudeClient(
       makeConfig(),
       store as never,
-      { list: () => [] } as never,
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     )
 
@@ -126,7 +121,6 @@ describe('ClaudeClient (SDK v1 query)', () => {
     const client = new ClaudeClient(
       makeConfig(),
       store as never,
-      { list: () => [] } as never,
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     )
 

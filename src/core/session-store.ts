@@ -41,6 +41,13 @@ export class SessionStore {
     await this.persist()
   }
 
+  /** Deletes conversation mapping and persists if it existed. */
+  async clear(conversationKey: string): Promise<void> {
+    if (!(conversationKey in this.map)) return
+    delete this.map[conversationKey]
+    await this.persist()
+  }
+
   private async persist(): Promise<void> {
     const tmp = `${this.path}.tmp`
     await writeFile(tmp, JSON.stringify(this.map, null, 2), 'utf-8')

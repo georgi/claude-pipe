@@ -37,10 +37,6 @@ export function loadConfig(): MicroclawConfig {
         allowFrom: parseCsv(process.env.MICROCLAW_DISCORD_ALLOW_FROM)
       }
     },
-    tools: {
-      execTimeoutSec: Number(process.env.MICROCLAW_EXEC_TIMEOUT_SEC ?? 60),
-      webSearchApiKey: process.env.MICROCLAW_WEB_SEARCH_API_KEY
-    },
     summaryPrompt: {
       enabled: process.env.MICROCLAW_SUMMARY_PROMPT_ENABLED !== 'false',
       template: process.env.MICROCLAW_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate

@@ -8,7 +8,6 @@ This repository includes a working local runtime with:
 - real Telegram inbound/outbound integration (Bot API long polling)
 - real Discord inbound/outbound integration (`discord.js` gateway client)
 - Claude SDK V1 turn execution with session resume persistence
-- tool calling through an in-process MCP server backed by local TypeScript tools
 - workspace boundary guardrails for file and shell tools
 - outbound response chunking for Telegram and Discord limits
 - channel send retry/backoff policy for transient failures
@@ -50,12 +49,6 @@ Telegram/Discord adapters
         |
         v
     ClaudeClient (SDK V1 query)
-        |
-        v
- MCP tool server (from ToolRegistry)
-        |
-        v
-    local tool modules
         |
         v
     MessageBus (outbound)
@@ -116,54 +109,6 @@ Rotation behavior:
 
 Default transcript logging is disabled.
 
-## Modules and Responsibilities
-
-### `/Users/mg/workspace/microclaw/src/index.ts`
-Bootstraps config, session store, tools, channel manager, and agent loop.
-
-### `/Users/mg/workspace/microclaw/src/core/agent-loop.ts`
-Main processing loop. Reads inbound events, executes one Claude turn, emits outbound response.
-Includes `processOnce()` for deterministic integration/acceptance testing.
-Applies summary prompt template for summary-like requests when enabled.
-
-### `/Users/mg/workspace/microclaw/src/core/prompt-template.ts`
-Summary prompt template application logic and request detection heuristics.
-
-### `/Users/mg/workspace/microclaw/src/core/claude-client.ts`
-Claude SDK V1 wrapper for:
-- per-turn `query()` execution
-- persisted `resume` usage per conversation
-- stream parsing
-- MCP tool server attachment
-- optional transcript logging
-
-### `/Users/mg/workspace/microclaw/src/core/transcript-logger.ts`
-JSONL logger used when transcript logging is enabled.
-Supports size-based rotation.
-
-### `/Users/mg/workspace/microclaw/src/core/retry.ts`
-Shared retry helper used by channel send paths for transient outbound failures.
-
-### `/Users/mg/workspace/microclaw/src/core/mcp-server.ts`
-Converts registered TypeScript tools into SDK MCP tools via `createSdkMcpServer`.
-
-### `/Users/mg/workspace/microclaw/src/channels/telegram.ts`
-Telegram Bot API polling loop (`getUpdates`) and outbound `sendMessage` with chunking and retry.
-
-### `/Users/mg/workspace/microclaw/src/channels/discord.ts`
-Discord gateway adapter via `discord.js`, consumes `messageCreate`, posts outbound channel messages with chunking and retry.
-
-### `/Users/mg/workspace/microclaw/src/tools/*`
-v1 tool implementations:
-- `read_file`
-- `write_file`
-- `edit_file`
-- `list_dir`
-- `exec`
-- `web_search`
-- `web_fetch`
-- `message`
-
 Guardrails:
 - File tools enforce workspace-bound paths.
 - `exec` enforces workspace-bounded `working_dir` and deny-pattern command blocking.
@@ -175,26 +120,6 @@ Per your requirement, implementation follows this order for each task:
 2. implement or refactor code
 3. run tests and build
 4. commit the completed step
-
-### Current tests
-- `/Users/mg/workspace/microclaw/tests/bus.test.ts`
-- `/Users/mg/workspace/microclaw/tests/session-store.test.ts`
-- `/Users/mg/workspace/microclaw/tests/channel-base.test.ts`
-- `/Users/mg/workspace/microclaw/tests/tool-registry.test.ts`
-- `/Users/mg/workspace/microclaw/tests/agent-loop.test.ts`
-- `/Users/mg/workspace/microclaw/tests/prompt-template.test.ts`
-- `/Users/mg/workspace/microclaw/tests/telegram.test.ts`
-- `/Users/mg/workspace/microclaw/tests/discord.test.ts`
-- `/Users/mg/workspace/microclaw/tests/tool-safety.test.ts`
-- `/Users/mg/workspace/microclaw/tests/exec-guard.test.ts`
-- `/Users/mg/workspace/microclaw/tests/response-chunking.test.ts`
-- `/Users/mg/workspace/microclaw/tests/channel-retry.test.ts`
-- `/Users/mg/workspace/microclaw/tests/transcript-logger.test.ts`
-- `/Users/mg/workspace/microclaw/tests/transcript-rotation.test.ts`
-- `/Users/mg/workspace/microclaw/tests/claude-client-v1.test.ts`
-- `/Users/mg/workspace/microclaw/tests/config.test.ts`
-- `/Users/mg/workspace/microclaw/tests/acceptance-telegram-summary.test.ts`
-- `/Users/mg/workspace/microclaw/tests/acceptance-discord-summary.test.ts`
 
 ## Setup
 

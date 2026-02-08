@@ -4,9 +4,7 @@ import { AgentLoop } from './core/agent-loop.js'
 import { MessageBus } from './core/bus.js'
 import { ClaudeClient } from './core/claude-client.js'
 import { logger } from './core/logger.js'
-import { registerTools } from './core/register-tools.js'
 import { SessionStore } from './core/session-store.js'
-import { ToolRegistry } from './core/tool-registry.js'
 
 /** Boots the Microclaw runtime and starts channel + agent loops. */
 async function main(): Promise<void> {
@@ -16,16 +14,12 @@ async function main(): Promise<void> {
   const sessionStore = new SessionStore(config.sessionStorePath)
   await sessionStore.init()
 
-  const toolRegistry = new ToolRegistry()
-  registerTools(toolRegistry, config, bus)
-
   logger.info('startup.config', {
     workspace: config.workspace,
-    model: config.model,
-    tools: toolRegistry.list().map((t) => t.name)
+    model: config.model
   })
 
-  const claude = new ClaudeClient(config, sessionStore, toolRegistry, logger)
+  const claude = new ClaudeClient(config, sessionStore, logger)
   const agent = new AgentLoop(bus, config, claude, logger)
   const channels = new ChannelManager(config, bus, logger)
 

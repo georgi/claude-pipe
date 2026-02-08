@@ -12,7 +12,7 @@ function makeConfig(): MicroclawConfig {
       telegram: { enabled: false, token: '', allowFrom: [] },
       discord: { enabled: false, token: '', allowFrom: [] }
     },
-    tools: { execTimeoutSec: 60, webSearchApiKey: undefined },
+    tools: { execTimeoutSec: 60 },
     summaryPrompt: { enabled: true, template: 'Workspace: {{workspace}} Request: {{request}}' },
     transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
@@ -25,6 +25,7 @@ describe('AgentLoop', () => {
     const bus = new MessageBus()
     const claude = {
       runTurn: vi.fn(async () => 'assistant reply'),
+      startNewSession: vi.fn(async () => undefined),
       closeAll: vi.fn()
     }
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
@@ -50,6 +51,35 @@ describe('AgentLoop', () => {
       channel: 'telegram',
       chatId: '42'
     })
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('starts a new session when receiving /new command', async () => {
+    const bus = new MessageBus()
+    const claude = {
+      runTurn: vi.fn(async () => 'assistant reply'),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const loop = new AgentLoop(bus, makeConfig(), claude as never, logger)
+    const run = loop.start()
+
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: '/new',
+      timestamp: new Date().toISOString()
+    })
+
+    const outbound = await bus.consumeOutbound()
+    expect(outbound.content).toBe('Started a new session for this chat.')
+    expect(claude.startNewSession).toHaveBeenCalledWith('telegram:42')
+    expect(claude.runTurn).not.toHaveBeenCalled()
 
     loop.stop()
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])

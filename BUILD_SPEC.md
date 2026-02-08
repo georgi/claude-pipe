@@ -14,7 +14,7 @@ Build a local TypeScript bot that reimplements nanobot core flows for Telegram a
 - Session scope: per channel/chat (`channel:chat_id`).
 - Persistence: session id map only.
 - Workspace: configurable default path.
-- Tool scope: `read_file`, `write_file`, `edit_file`, `list_dir`, `exec`, `web_search`, `web_fetch`, `message`.
+- Tool scope: `read_file`, `write_file`, `edit_file`, `list_dir`, `exec`, `web_fetch`, `message`.
 - Excluded: `spawn`, cron, heartbeat, media ingestion.
 - Model: `claude-sonnet-4-5`.
 - Runtime: local only.
@@ -37,7 +37,6 @@ microclaw/
       logger.ts
       session-store.ts
       claude-client.ts
-      tool-registry.ts
       agent-loop.ts
     channels/
       base.ts
@@ -51,7 +50,6 @@ microclaw/
       edit-file.ts
       list-dir.ts
       exec.ts
-      web-search.ts
       web-fetch.ts
       message.ts
   data/
@@ -115,7 +113,6 @@ export interface MicroclawConfig {
   }
   tools: {
     execTimeoutSec: number
-    webSearchApiKey?: string
   }
   sessionStorePath: string // default: ./data/sessions.json
 }
@@ -175,7 +172,6 @@ Rules:
 - `edit_file(path, old_text, new_text)`: single-target replace with ambiguity warning.
 - `list_dir(path)`: directory listing.
 - `exec(command, working_dir?)`: shell execution with timeout.
-- `web_search(query, count?)`: web search provider wrapper.
 - `web_fetch(url, mode?, maxChars?)`: fetch and readable extraction.
 - `message(content, channel?, chat_id?)`: send chat message using current context defaults.
 

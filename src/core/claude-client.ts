@@ -1,17 +1,23 @@
 import {
   query,
-  type SDKMessage,
-  type McpSdkServerConfigWithInstance
+  type SDKMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 import type { MicroclawConfig } from '../config/schema.js'
-import type { ToolRegistry } from './tool-registry.js'
-import { createToolMcpServer } from './mcp-server.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
-import type { Logger, ToolContext } from './types.js'
+import type { Logger } from './types.js'
 
 type AssistantTextBlock = { type: 'text'; text: string }
+
+function getClaudeCodeExecutablePath(): string {
+  const localPath = join(homedir(), '.claude', 'local', 'claude')
+  if (existsSync(localPath)) return localPath
+  return 'claude'
+}
 
 function isTextBlock(block: unknown): block is AssistantTextBlock {
   if (!block || typeof block !== 'object') return false
@@ -38,22 +44,13 @@ function getAssistantText(msg: SDKMessage): string {
  * and passed back via the `resume` option on subsequent turns.
  */
 export class ClaudeClient {
-  private readonly mcpServer: McpSdkServerConfigWithInstance
   private readonly transcript: TranscriptLogger
-  private activeToolContext: ToolContext | null = null
 
   constructor(
     private readonly config: MicroclawConfig,
     private readonly store: SessionStore,
-    private readonly registry: ToolRegistry,
     private readonly logger: Logger
   ) {
-    this.mcpServer = createToolMcpServer(
-      this.registry,
-      () => this.activeToolContext,
-      this.logger
-    )
-
     const transcriptOptions = {
       enabled: this.config.transcriptLog.enabled,
       path: this.config.transcriptLog.path,
@@ -71,23 +68,21 @@ export class ClaudeClient {
   /**
    * Executes a single conversational turn with tool support.
    */
-  async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
+  async runTurn(conversationKey: string, userText: string, _context: unknown): Promise<string> {
     const savedSession = this.store.get(conversationKey)
     const queryOptions = {
       model: this.config.model,
       cwd: this.config.workspace,
+      pathToClaudeCodeExecutable: getClaudeCodeExecutablePath(),
       permissionMode: 'bypassPermissions' as const,
       allowDangerouslySkipPermissions: true,
+      tools: { type: 'preset' as const, preset: 'claude_code' as const },
       systemPrompt: {
         type: 'preset' as const,
         preset: 'claude_code' as const,
         append:
-          'You are microclaw. Prefer MCP tools for file/web/shell operations. ' +
+          'You are microclaw. Use Claude Agent SDK built-in tools for file/web/shell operations when needed. ' +
           'For normal chat replies, return direct text responses.'
-      },
-      tools: [] as string[],
-      mcpServers: {
-        microclaw: this.mcpServer
       },
       ...(savedSession ? { resume: savedSession.sessionId } : {})
     }
@@ -99,8 +94,6 @@ export class ClaudeClient {
 
     let responseText = ''
     let observedSessionId: string | undefined = savedSession?.sessionId
-
-    this.activeToolContext = context
 
     try {
       await this.transcript.log(conversationKey, { type: 'user', text: userText })
@@ -145,13 +138,16 @@ export class ClaudeClient {
         error: error instanceof Error ? error.message : String(error)
       })
       return 'Sorry, I hit an error while processing that request.'
-    } finally {
-      this.activeToolContext = null
     }
   }
 
   /** Closes all live sessions and releases process resources. */
   closeAll(): void {
     // No-op for SDK V1 query() mode: each turn uses a fresh query stream.
+  }
+
+  /** Clears persisted session mapping so the next turn starts a fresh Claude session. */
+  async startNewSession(conversationKey: string): Promise<void> {
+    await this.store.clear(conversationKey)
   }
 }

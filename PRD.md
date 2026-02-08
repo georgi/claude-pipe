@@ -39,7 +39,6 @@ As the bot owner, I send a Telegram message asking to summarize files in the wor
   - `edit_file`
   - `list_dir`
   - `exec`
-  - `web_search`
   - `web_fetch`
   - `message`
 

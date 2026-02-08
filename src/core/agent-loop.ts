@@ -46,12 +46,34 @@ export class AgentLoop {
     this.claude.closeAll()
   }
 
+  private isNewSessionCommand(input: string): boolean {
+    const value = input.trim().toLowerCase()
+    return (
+      value === '/new' ||
+      value === '/newsession' ||
+      value === '/new_session' ||
+      value === '/reset' ||
+      value === '/reset_session'
+    )
+  }
+
   private async processMessage(inbound: InboundMessage): Promise<void> {
     const conversationKey = `${inbound.channel}:${inbound.chatId}`
     this.logger.info('agent.inbound', {
       conversationKey,
       senderId: inbound.senderId
     })
+
+    if (this.isNewSessionCommand(inbound.content)) {
+      await this.claude.startNewSession(conversationKey)
+      await this.bus.publishOutbound({
+        channel: inbound.channel,
+        chatId: inbound.chatId,
+        content: 'Started a new session for this chat.'
+      })
+      this.logger.info('agent.new_session', { conversationKey })
+      return
+    }
 
     const modelInput = applySummaryTemplate(
       inbound.content,

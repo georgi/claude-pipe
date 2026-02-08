@@ -16,10 +16,6 @@ export const configSchema = z.object({
     telegram: channelSchema,
     discord: channelSchema
   }),
-  tools: z.object({
-    execTimeoutSec: z.number().int().positive(),
-    webSearchApiKey: z.string().optional()
-  }),
   summaryPrompt: z
     .object({
       enabled: z.boolean().default(true),

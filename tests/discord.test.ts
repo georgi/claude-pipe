@@ -12,7 +12,7 @@ function makeConfig(): MicroclawConfig {
       telegram: { enabled: false, token: '', allowFrom: [] },
       discord: { enabled: true, token: 'discord-token', allowFrom: ['u1'] }
     },
-    tools: { execTimeoutSec: 60, webSearchApiKey: undefined },
+    tools: { execTimeoutSec: 60 },
     summaryPrompt: { enabled: true, template: 'Workspace: {{workspace}} Request: {{request}}' },
     transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
