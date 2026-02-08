@@ -12,6 +12,7 @@ This repository includes a working local runtime with:
 - workspace boundary guardrails for file and shell tools
 - outbound response chunking for Telegram and Discord limits
 - channel send retry/backoff policy for transient failures
+- configurable summary prompt templating for workspace-summary requests
 - optional transcript logging toggle (off by default)
 - size-based transcript rotation policy
 - unit and acceptance-style tests
@@ -28,6 +29,7 @@ This repository includes a working local runtime with:
 | Telegram adapter | Implemented | Long polling + sendMessage + chunking + retry |
 | Discord adapter | Implemented | Gateway message events + channel send + chunking + retry |
 | Tool safety boundaries | Implemented | Workspace path guards + exec deny patterns |
+| Summary prompt templating | Implemented | Request-aware template expansion |
 | Transcript logging toggle | Implemented | Optional JSONL event stream |
 | Transcript rotation | Implemented | Size-based file rotation with suffixes (`.1`, `.2`, ...) |
 | Acceptance harness | Implemented | Telegram summary flow test |
@@ -89,6 +91,17 @@ Each tool executes with:
 
 This allows the `message` tool to route back to the active conversation by default.
 
+### Summary prompt templating
+For summary-like requests (e.g., "summarize files in workspace"), `AgentLoop` can transform user input using a template before sending to Claude.
+
+Template variables:
+- `{{workspace}}`
+- `{{request}}`
+
+Config:
+- `MICROCLAW_SUMMARY_PROMPT_ENABLED`
+- `MICROCLAW_SUMMARY_PROMPT_TEMPLATE`
+
 ### Transcript logging and rotation (optional)
 When enabled, runtime writes JSONL entries for user/assistant/system stream events.
 - `MICROCLAW_TRANSCRIPT_LOG_ENABLED=true`
@@ -111,6 +124,10 @@ Bootstraps config, session store, tools, channel manager, and agent loop.
 ### `/Users/mg/workspace/microclaw/src/core/agent-loop.ts`
 Main processing loop. Reads inbound events, executes one Claude turn, emits outbound response.
 Includes `processOnce()` for deterministic integration/acceptance testing.
+Applies summary prompt template for summary-like requests when enabled.
+
+### `/Users/mg/workspace/microclaw/src/core/prompt-template.ts`
+Summary prompt template application logic and request detection heuristics.
 
 ### `/Users/mg/workspace/microclaw/src/core/claude-client.ts`
 Claude SDK V2 wrapper for:
@@ -165,6 +182,7 @@ Per your requirement, implementation follows this order for each task:
 - `/Users/mg/workspace/microclaw/tests/channel-base.test.ts`
 - `/Users/mg/workspace/microclaw/tests/tool-registry.test.ts`
 - `/Users/mg/workspace/microclaw/tests/agent-loop.test.ts`
+- `/Users/mg/workspace/microclaw/tests/prompt-template.test.ts`
 - `/Users/mg/workspace/microclaw/tests/telegram.test.ts`
 - `/Users/mg/workspace/microclaw/tests/discord.test.ts`
 - `/Users/mg/workspace/microclaw/tests/tool-safety.test.ts`
@@ -188,6 +206,7 @@ cp /Users/mg/workspace/microclaw/.env.example /Users/mg/workspace/microclaw/.env
 - allow lists as needed
 - workspace path
 - optional Brave search key
+- optional summary prompt template settings
 - optional transcript logging + rotation settings
 
 3. Install and validate:
@@ -220,6 +239,6 @@ npm run dev
 
 ## Next Implementation Targets
 
-1. Add richer workspace summary prompt template controls.
-2. Add integration tests for Discord end-to-end summary flow.
-3. Add optional channel-specific formatting profiles.
+1. Add integration tests for Discord end-to-end summary flow.
+2. Add optional channel-specific formatting profiles.
+3. Add structured result modes for specific workflows (e.g., repo summary JSON).
