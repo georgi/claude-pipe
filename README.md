@@ -11,6 +11,7 @@ This repository includes a working local runtime with:
 - tool calling through an in-process MCP server backed by local TypeScript tools
 - workspace boundary guardrails for file and shell tools
 - outbound response chunking for Telegram and Discord limits
+- channel send retry/backoff policy for transient failures
 - optional transcript logging toggle (off by default)
 - unit and acceptance-style tests
 
@@ -23,8 +24,8 @@ This repository includes a working local runtime with:
 | Agent loop | Implemented | Inbound -> Claude turn -> outbound |
 | Claude SDK V2 sessioning | Implemented | create/resume + streaming result handling |
 | Tool calling | Implemented | MCP server generated from `ToolRegistry` |
-| Telegram adapter | Implemented | Long polling + sendMessage + chunking |
-| Discord adapter | Implemented | Gateway message events + channel send + chunking |
+| Telegram adapter | Implemented | Long polling + sendMessage + chunking + retry |
+| Discord adapter | Implemented | Gateway message events + channel send + chunking + retry |
 | Tool safety boundaries | Implemented | Workspace path guards + exec deny patterns |
 | Transcript logging toggle | Implemented | Optional JSONL event stream |
 | Acceptance harness | Implemented | Telegram summary flow test |
@@ -113,14 +114,17 @@ Claude SDK V2 wrapper for:
 ### `/Users/mg/workspace/microclaw/src/core/transcript-logger.ts`
 JSONL logger used when transcript logging is enabled.
 
+### `/Users/mg/workspace/microclaw/src/core/retry.ts`
+Shared retry helper used by channel send paths for transient outbound failures.
+
 ### `/Users/mg/workspace/microclaw/src/core/mcp-server.ts`
 Converts registered TypeScript tools into SDK MCP tools via `createSdkMcpServer`.
 
 ### `/Users/mg/workspace/microclaw/src/channels/telegram.ts`
-Telegram Bot API polling loop (`getUpdates`) and outbound `sendMessage` with chunking.
+Telegram Bot API polling loop (`getUpdates`) and outbound `sendMessage` with chunking and retry.
 
 ### `/Users/mg/workspace/microclaw/src/channels/discord.ts`
-Discord gateway adapter via `discord.js`, consumes `messageCreate`, posts outbound channel messages with chunking.
+Discord gateway adapter via `discord.js`, consumes `messageCreate`, posts outbound channel messages with chunking and retry.
 
 ### `/Users/mg/workspace/microclaw/src/tools/*`
 v1 tool implementations:
@@ -156,6 +160,7 @@ Per your requirement, implementation follows this order for each task:
 - `/Users/mg/workspace/microclaw/tests/tool-safety.test.ts`
 - `/Users/mg/workspace/microclaw/tests/exec-guard.test.ts`
 - `/Users/mg/workspace/microclaw/tests/response-chunking.test.ts`
+- `/Users/mg/workspace/microclaw/tests/channel-retry.test.ts`
 - `/Users/mg/workspace/microclaw/tests/transcript-logger.test.ts`
 - `/Users/mg/workspace/microclaw/tests/config.test.ts`
 - `/Users/mg/workspace/microclaw/tests/acceptance-telegram-summary.test.ts`
@@ -193,6 +198,7 @@ npm run dev
 - If allow list is empty for a channel, all senders are allowed.
 - Model is fixed to `claude-sonnet-4-5` per PRD decision.
 - Permissions are configured to bypass checks in SDK session options, matching your v1 full-permission requirement.
+- Outbound sends retry once (2 attempts total) with short fixed backoff.
 
 ## Known Limitations
 
@@ -203,6 +209,6 @@ npm run dev
 
 ## Next Implementation Targets
 
-1. Add optional rate-limiting/backoff policy tests for channel send failures.
+1. Add optional transcript rotation policy (size/day based).
 2. Add richer workspace summary prompt template controls.
-3. Add optional transcript rotation policy (size/day based).
+3. Add integration tests for Discord end-to-end summary flow.
