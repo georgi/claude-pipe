@@ -1,4 +1,5 @@
 import type { MicroclawConfig } from '../config/schema.js'
+import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import { ClaudeClient } from './claude-client.js'
 import type { InboundMessage, Logger } from './types.js'
@@ -52,7 +53,13 @@ export class AgentLoop {
       senderId: inbound.senderId
     })
 
-    const content = await this.claude.runTurn(conversationKey, inbound.content, {
+    const modelInput = applySummaryTemplate(
+      inbound.content,
+      this.config.summaryPrompt,
+      this.config.workspace
+    )
+
+    const content = await this.claude.runTurn(conversationKey, modelInput, {
       workspace: this.config.workspace,
       channel: inbound.channel,
       chatId: inbound.chatId

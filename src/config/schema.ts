@@ -20,6 +20,24 @@ export const configSchema = z.object({
     execTimeoutSec: z.number().int().positive(),
     webSearchApiKey: z.string().optional()
   }),
+  summaryPrompt: z
+    .object({
+      enabled: z.boolean().default(true),
+      template: z
+        .string()
+        .default(
+          'Workspace: {{workspace}}\n' +
+            'Request: {{request}}\n' +
+            'Provide a concise summary with key files and actionable insights.'
+        )
+    })
+    .default({
+      enabled: true,
+      template:
+        'Workspace: {{workspace}}\n' +
+        'Request: {{request}}\n' +
+        'Provide a concise summary with key files and actionable insights.'
+    }),
   transcriptLog: z
     .object({
       enabled: z.boolean().default(false),

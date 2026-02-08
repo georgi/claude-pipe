@@ -13,6 +13,8 @@ function makeConfig(): MicroclawConfig {
       discord: { enabled: true, token: 'discord-token', allowFrom: ['u1'] }
     },
     tools: { execTimeoutSec: 60, webSearchApiKey: undefined },
+    summaryPrompt: { enabled: true, template: 'Workspace: {{workspace}} Request: {{request}}' },
+    transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
     maxToolIterations: 20
   }

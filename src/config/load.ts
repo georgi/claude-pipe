@@ -17,6 +17,11 @@ function parseCsv(input: string | undefined): string[] {
 export function loadConfig(): MicroclawConfig {
   loadEnv()
 
+  const defaultSummaryTemplate =
+    'Workspace: {{workspace}}\n' +
+    'Request: {{request}}\n' +
+    'Provide a concise summary with key files and actionable insights.'
+
   return configSchema.parse({
     model: process.env.MICROCLAW_MODEL ?? 'claude-sonnet-4-5',
     workspace: process.env.MICROCLAW_WORKSPACE ?? process.cwd(),
@@ -35,6 +40,10 @@ export function loadConfig(): MicroclawConfig {
     tools: {
       execTimeoutSec: Number(process.env.MICROCLAW_EXEC_TIMEOUT_SEC ?? 60),
       webSearchApiKey: process.env.MICROCLAW_WEB_SEARCH_API_KEY
+    },
+    summaryPrompt: {
+      enabled: process.env.MICROCLAW_SUMMARY_PROMPT_ENABLED !== 'false',
+      template: process.env.MICROCLAW_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate
     },
     transcriptLog: {
       enabled: process.env.MICROCLAW_TRANSCRIPT_LOG_ENABLED === 'true',
