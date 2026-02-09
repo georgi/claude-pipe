@@ -26,28 +26,25 @@ cd claude-pipe
 npm install
 ```
 
-**2. Configure**
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in the values:
-
-- **`CLAUDEPIPE_WORKSPACE`** — the directory Claude can access (e.g. your project folder)
-- **`CLAUDEPIPE_TELEGRAM_ENABLED`** / **`CLAUDEPIPE_DISCORD_ENABLED`** — turn on the channels you want
-- **`CLAUDEPIPE_TELEGRAM_TOKEN`** / **`CLAUDEPIPE_DISCORD_TOKEN`** — bot tokens from [BotFather](https://t.me/botfather) or the [Discord Developer Portal](https://discord.com/developers/applications)
-- **`CLAUDEPIPE_TELEGRAM_ALLOW_FROM`** / **`CLAUDEPIPE_DISCORD_ALLOW_FROM`** — restrict who can talk to the bot (leave empty to allow everyone)
-
-See `.env.example` for all available options, including transcript logging and summary prompt templates.
-
-**3. Run**
+**2. Run the onboarding wizard**
 
 ```bash
 npm run dev
 ```
 
-That's it. Send a message to your bot and Claude will reply.
+On first run, you'll be guided through an interactive setup:
+
+1. **Verify Claude Code CLI** — the wizard checks if `claude` is installed
+2. **Choose platform** — select Telegram or Discord
+3. **Enter bot token** — provide your bot token from [BotFather](https://t.me/botfather) (Telegram) or the [Discord Developer Portal](https://discord.com/developers/applications)
+4. **Select model** — choose Haiku, Sonnet 4.5, Opus 4.5, or enter a custom model name
+5. **Set workspace** — specify the directory Claude can access (defaults to current directory)
+
+Settings are saved to `~/.claude-pipe/settings.json`.
+
+**3. Start chatting**
+
+Send a message to your bot and Claude will reply.
 
 ## How it works
 
@@ -68,19 +65,33 @@ Claude operates within the workspace directory you configure. File access and sh
 
 ## Configuration reference
 
-All settings go in your `.env` file.
+Configuration is stored in `~/.claude-pipe/settings.json` and created by the onboarding wizard.
+
+```json
+{
+  "channel": "telegram",
+  "token": "your-bot-token",
+  "allowFrom": ["user-id-1", "user-id-2"],
+  "model": "claude-sonnet-4-5",
+  "workspace": "/path/to/your/workspace"
+}
+```
+
+| Setting | What it does |
+|---|---|
+| `channel` | Platform to use: `telegram` or `discord` |
+| `token` | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
+| `allowFrom` | Array of allowed user IDs (empty = allow everyone) |
+| `model` | Claude model to use (e.g., `claude-haiku-4`, `claude-sonnet-4-5`, `claude-opus-4-5`) |
+| `workspace` | Root directory Claude can access |
+
+### Advanced configuration
+
+For advanced options like transcript logging or custom summary prompts, you can still use a `.env` file alongside the settings file. The settings file takes priority for core options.
 
 | Variable | What it does |
 |---|---|
-| `CLAUDEPIPE_WORKSPACE` | Root directory Claude can access |
-| `CLAUDEPIPE_SESSION_STORE_PATH` | Where to save session data (default: `data/sessions.json`) |
-| `CLAUDEPIPE_TELEGRAM_ENABLED` | Enable Telegram (`true`/`false`) |
-| `CLAUDEPIPE_TELEGRAM_TOKEN` | Telegram bot token |
-| `CLAUDEPIPE_TELEGRAM_ALLOW_FROM` | Comma-separated list of allowed Telegram user IDs |
-| `CLAUDEPIPE_DISCORD_ENABLED` | Enable Discord (`true`/`false`) |
-| `CLAUDEPIPE_DISCORD_TOKEN` | Discord bot token |
-| `CLAUDEPIPE_DISCORD_ALLOW_FROM` | Comma-separated list of allowed Discord user IDs |
-| `CLAUDEPIPE_EXEC_TIMEOUT_SEC` | Timeout for shell commands (default: 60) |
+| `CLAUDEPIPE_SESSION_STORE_PATH` | Where to save session data (default: `{workspace}/data/sessions.json`) |
 | `CLAUDEPIPE_MAX_TOOL_ITERATIONS` | Max tool calls per turn (default: 20) |
 | `CLAUDEPIPE_SUMMARY_PROMPT_ENABLED` | Enable summary prompt templates |
 | `CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE` | Template for summary requests (supports `{{workspace}}` and `{{request}}`) |
