@@ -1,5 +1,6 @@
 import { config as loadEnv } from 'dotenv'
 
+import { readSettings, settingsExist } from './settings.js'
 import { configSchema, type ClaudePipeConfig } from './schema.js'
 
 /** Parses comma-separated allow-list env values. */
@@ -12,15 +13,49 @@ function parseCsv(input: string | undefined): string[] {
 }
 
 /**
- * Loads runtime configuration from environment and validates shape/types.
+ * Loads runtime configuration.
+ *
+ * If a `~/.claude-pipe/settings.json` file exists it takes priority.
+ * Otherwise falls back to the legacy `.env` / environment-variable path.
  */
 export function loadConfig(): ClaudePipeConfig {
-  loadEnv()
-
   const defaultSummaryTemplate =
     'Workspace: {{workspace}}\n' +
     'Request: {{request}}\n' +
     'Provide a concise summary with key files and actionable insights.'
+
+  if (settingsExist()) {
+    const s = readSettings()
+
+    const telegramEnabled = s.channel === 'telegram'
+    const discordEnabled = s.channel === 'discord'
+
+    return configSchema.parse({
+      model: s.model,
+      workspace: s.workspace,
+      channels: {
+        telegram: {
+          enabled: telegramEnabled,
+          token: telegramEnabled ? s.token : '',
+          allowFrom: telegramEnabled ? s.allowFrom : []
+        },
+        discord: {
+          enabled: discordEnabled,
+          token: discordEnabled ? s.token : '',
+          allowFrom: discordEnabled ? s.allowFrom : []
+        }
+      },
+      summaryPrompt: {
+        enabled: true,
+        template: defaultSummaryTemplate
+      },
+      sessionStorePath: `${s.workspace}/data/sessions.json`,
+      maxToolIterations: 20
+    })
+  }
+
+  // Legacy .env fallback
+  loadEnv()
 
   return configSchema.parse({
     model: process.env.CLAUDEPIPE_MODEL ?? 'GLM-4.7',

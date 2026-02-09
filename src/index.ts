@@ -1,13 +1,20 @@
 import { ChannelManager } from './channels/manager.js'
 import { loadConfig } from './config/load.js'
+import { settingsExist } from './config/settings.js'
 import { AgentLoop } from './core/agent-loop.js'
 import { MessageBus } from './core/bus.js'
 import { ClaudeClient } from './core/claude-client.js'
 import { logger } from './core/logger.js'
 import { SessionStore } from './core/session-store.js'
+import { runOnboarding } from './onboarding/wizard.js'
 
 /** Boots the Claude Pipe runtime and starts channel + agent loops. */
 async function main(): Promise<void> {
+  if (!settingsExist()) {
+    await runOnboarding()
+    return
+  }
+
   const config = loadConfig()
   const bus = new MessageBus()
 
