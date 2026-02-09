@@ -1,3 +1,4 @@
+import type { ChannelName } from '../../core/types.js'
 import type { CommandDefinition, CommandResult } from '../types.js'
 
 /**
@@ -5,7 +6,7 @@ import type { CommandDefinition, CommandResult } from '../types.js'
  * Sends a prompt directly to Claude (convenience wrapper).
  */
 export function claudeAskCommand(
-  runTurn: (conversationKey: string, prompt: string) => Promise<string>
+  runTurn: (conversationKey: string, prompt: string, channel: ChannelName, chatId: string) => Promise<string>
 ): CommandDefinition {
   return {
     name: 'claude_ask',
@@ -18,7 +19,7 @@ export function claudeAskCommand(
       if (!ctx.rawArgs) {
         return { content: 'Usage: /claude_ask <prompt>', error: true }
       }
-      const reply = await runTurn(ctx.conversationKey, ctx.rawArgs)
+      const reply = await runTurn(ctx.conversationKey, ctx.rawArgs, ctx.channel, ctx.chatId)
       return { content: reply }
     }
   }

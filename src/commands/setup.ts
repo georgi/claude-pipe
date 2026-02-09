@@ -64,11 +64,11 @@ export function setupCommands(
 
   // --- Claude commands ---
   registry.register(
-    claudeAskCommand(async (conversationKey, prompt) =>
+    claudeAskCommand(async (conversationKey, prompt, channel, chatId) =>
       claude.runTurn(conversationKey, prompt, {
         workspace: config.workspace,
-        channel: 'telegram',
-        chatId: conversationKey.split(':')[1] ?? ''
+        channel,
+        chatId
       })
     )
   )

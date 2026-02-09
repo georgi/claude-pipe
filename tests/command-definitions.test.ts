@@ -144,7 +144,7 @@ describe('Claude commands', () => {
 
     const result = await cmd.execute(makeCtx({ rawArgs: 'hello world', args: ['hello', 'world'] }))
     expect(result.content).toBe('Claude says hello')
-    expect(runTurn).toHaveBeenCalledWith('telegram:42', 'hello world')
+    expect(runTurn).toHaveBeenCalledWith('telegram:42', 'hello world', 'telegram', '42')
   })
 
   it('/claude_ask with no prompt returns usage error', async () => {
