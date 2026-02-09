@@ -1,3 +1,4 @@
+import type { CommandMeta } from '../commands/types.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
@@ -201,5 +202,46 @@ export class TelegramChannel implements Channel {
     }
 
     await this.bus.publishInbound(inbound)
+  }
+
+  /**
+   * Registers bot commands with Telegram's BotFather via the `setMyCommands` API.
+   *
+   * Should be called once during deployment.
+   * Accepts command metadata from {@link CommandRegistry.toMeta()}.
+   */
+  static async registerBotCommands(
+    token: string,
+    commands: CommandMeta[],
+    logger: Logger
+  ): Promise<void> {
+    const body = commands.map((cmd) => ({
+      command: cmd.telegramName,
+      description: cmd.description
+    }))
+
+    const url = `https://api.telegram.org/bot${token}/setMyCommands`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands: body })
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      logger.error('channel.telegram.set_commands_failed', { status: response.status, body: text })
+      return
+    }
+
+    logger.info('channel.telegram.commands_registered', { count: body.length })
+  }
+
+  /**
+   * Generates a BotFather-compatible command list string.
+   *
+   * Useful for manual `/setcommands` configuration.
+   */
+  static formatBotFatherCommands(commands: CommandMeta[]): string {
+    return commands.map((cmd) => `${cmd.telegramName} - ${cmd.description}`).join('\n')
   }
 }

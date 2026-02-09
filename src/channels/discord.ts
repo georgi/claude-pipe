@@ -3,9 +3,13 @@ import {
   Client,
   GatewayIntentBits,
   Partials,
+  REST,
+  Routes,
+  type ChatInputCommandInteraction,
   type Message
 } from 'discord.js'
 
+import type { CommandMeta } from '../commands/types.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
@@ -56,6 +60,11 @@ export class DiscordChannel implements Channel {
 
     this.client.on('messageCreate', async (message) => {
       await this.onMessage(message)
+    })
+
+    this.client.on('interactionCreate', async (interaction) => {
+      if (!interaction.isChatInputCommand()) return
+      await this.onInteraction(interaction as ChatInputCommandInteraction)
     })
 
     this.client.on('error', (error) => {
@@ -169,5 +178,98 @@ export class DiscordChannel implements Channel {
     }
 
     await this.bus.publishInbound(inbound)
+  }
+
+  /**
+   * Handles Discord slash-command interactions.
+   *
+   * Converts `/command subcommand ...options` into a text-based command string
+   * (e.g. `/session_new`) and publishes it as an inbound message so the
+   * unified command handler in AgentLoop processes it.
+   */
+  private async onInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
+    const senderId = interaction.user.id
+    if (!isSenderAllowed(senderId, this.config.channels.discord.allowFrom)) {
+      this.logger.warn('channel.discord.denied', { senderId })
+      await interaction.reply({ content: 'You are not authorised.', ephemeral: true })
+      return
+    }
+
+    const subcommand = interaction.options.getSubcommand(false)
+    const commandName = subcommand
+      ? `/${interaction.commandName}_${subcommand}`
+      : `/${interaction.commandName}`
+
+    const promptOption = interaction.options.getString('prompt')
+    const content = promptOption ? `${commandName} ${promptOption}` : commandName
+
+    await interaction.deferReply()
+
+    const inbound: InboundMessage = {
+      channel: 'discord',
+      senderId,
+      chatId: interaction.channelId,
+      content,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        interactionId: interaction.id,
+        guildId: interaction.guildId ?? undefined
+      }
+    }
+
+    await this.bus.publishInbound(inbound)
+  }
+
+  /**
+   * Registers Discord application (slash) commands using the REST API.
+   *
+   * Should be called once during deployment, not on every start.
+   * Accepts command metadata from {@link CommandRegistry.toMeta()}.
+   */
+  static async registerSlashCommands(
+    token: string,
+    applicationId: string,
+    commands: CommandMeta[],
+    logger: Logger
+  ): Promise<void> {
+    const grouped = new Map<string, CommandMeta[]>()
+    const standalone: CommandMeta[] = []
+
+    for (const cmd of commands) {
+      if (cmd.group) {
+        const list = grouped.get(cmd.group) ?? []
+        list.push(cmd)
+        grouped.set(cmd.group, list)
+      } else {
+        standalone.push(cmd)
+      }
+    }
+
+    const body: Array<Record<string, unknown>> = []
+
+    // Standalone commands (e.g. /help, /ping)
+    for (const cmd of standalone) {
+      body.push({
+        name: cmd.name,
+        description: cmd.description
+      })
+    }
+
+    // Grouped commands as subcommands (e.g. /session new, /claude ask)
+    for (const [group, cmds] of grouped) {
+      body.push({
+        name: group,
+        description: `${group.charAt(0).toUpperCase() + group.slice(1)} commands`,
+        options: cmds.map((cmd) => ({
+          type: 1, // SUB_COMMAND
+          name: cmd.name,
+          description: cmd.description
+        }))
+      })
+    }
+
+    const rest = new REST({ version: '10' }).setToken(token)
+    await rest.put(Routes.applicationCommands(applicationId), { body })
+    logger.info('channel.discord.slash_commands_registered', { count: body.length })
   }
 }
