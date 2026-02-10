@@ -1,3 +1,6 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { WebSocketServer, type WebSocket } from 'ws'
+
 import type { CommandMeta } from '../commands/types.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
@@ -6,7 +9,7 @@ import { chunkText } from '../core/text-chunk.js'
 import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
-type TelegramUpdate = {
+export type TelegramUpdate = {
   update_id: number
   message?: {
     message_id: number
@@ -19,18 +22,24 @@ type TelegramUpdate = {
 const TELEGRAM_MESSAGE_MAX = 3800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
+const DEFAULT_WEBHOOK_PORT = 8443
 
 /** Telegram Bot API chat actions for typing indicators. */
 type ChatAction = 'typing' | 'upload_photo' | 'upload_video' | 'upload_audio' | 'upload_document' | 'find_location' | 'record_video' | 'record_voice'
 
 /**
- * Telegram adapter using Bot API long polling.
+ * Telegram adapter using WebSocket server for receiving updates.
+ *
+ * Starts an HTTP server that accepts Telegram webhook POST requests and a
+ * WebSocket server for real-time bidirectional communication. Both paths
+ * converge into the same update handler. Outbound messages are sent via
+ * the standard Telegram Bot HTTP API.
  */
 export class TelegramChannel implements Channel {
   readonly name = 'telegram' as const
   private running = false
-  private pollTask: Promise<void> | null = null
-  private nextOffset = 0
+  private httpServer: Server | null = null
+  private wss: WebSocketServer | null = null
   /** Tracks chat IDs pending responses for typing indicator cleanup. */
   private pendingTyping = new Set<string>()
 
@@ -40,7 +49,7 @@ export class TelegramChannel implements Channel {
     private readonly logger: Logger
   ) {}
 
-  /** Starts background polling when Telegram is enabled. */
+  /** Starts the HTTP + WebSocket server when Telegram is enabled. */
   async start(): Promise<void> {
     if (!this.config.channels.telegram.enabled) return
     if (!this.config.channels.telegram.token) {
@@ -49,15 +58,75 @@ export class TelegramChannel implements Channel {
     }
 
     this.running = true
-    this.pollTask = this.pollLoop()
-    this.logger.info('channel.telegram.start')
+
+    const port = this.config.channels.telegram.webhookPort ?? DEFAULT_WEBHOOK_PORT
+
+    this.httpServer = createServer((req, res) => {
+      void this.handleHttpRequest(req, res)
+    })
+
+    this.wss = new WebSocketServer({ server: this.httpServer })
+    this.wss.on('connection', (ws) => {
+      this.logger.info('channel.telegram.ws_client_connected')
+      ws.on('message', (data) => {
+        try {
+          const update = JSON.parse(String(data)) as TelegramUpdate
+          void this.handleUpdate(update)
+        } catch (error) {
+          this.logger.error('channel.telegram.ws_parse_error', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      })
+      ws.on('close', () => {
+        this.logger.info('channel.telegram.ws_client_disconnected')
+      })
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      this.httpServer!.once('error', reject)
+      this.httpServer!.listen(port, () => {
+        this.httpServer!.removeListener('error', reject)
+        resolve()
+      })
+    })
+
+    this.logger.info('channel.telegram.start', { port })
+
+    // Register webhook URL with Telegram if configured
+    const webhookUrl = this.config.channels.telegram.webhookUrl
+    if (webhookUrl) {
+      await this.setWebhook(webhookUrl)
+    }
   }
 
-  /** Stops polling and waits for loop completion. */
+  /** Stops the HTTP + WebSocket server. */
   async stop(): Promise<void> {
     this.running = false
-    await this.pollTask
+
+    if (this.wss) {
+      for (const client of this.wss.clients) {
+        client.close()
+      }
+      this.wss.close()
+      this.wss = null
+    }
+
+    if (this.httpServer) {
+      await new Promise<void>((resolve) => {
+        this.httpServer!.close(() => resolve())
+      })
+      this.httpServer = null
+    }
+
     this.logger.info('channel.telegram.stop')
+  }
+
+  /** Returns the address the HTTP server is listening on (useful for tests). */
+  get address(): { port: number; host: string } | null {
+    const addr = this.httpServer?.address()
+    if (!addr || typeof addr === 'string') return null
+    return { port: addr.port, host: addr.address }
   }
 
   /** Sends a text response to Telegram chat. */
@@ -109,6 +178,17 @@ export class TelegramChannel implements Channel {
     this.pendingTyping.delete(message.chatId)
   }
 
+  /** Broadcasts an event to all connected WebSocket clients. */
+  broadcast(data: Record<string, unknown>): void {
+    if (!this.wss) return
+    const payload = JSON.stringify(data)
+    for (const client of this.wss.clients) {
+      if (client.readyState === 1 /* WebSocket.OPEN */) {
+        client.send(payload)
+      }
+    }
+  }
+
   /** Sends a chat action (typing, uploading, etc.) to Telegram. */
   private async sendChatAction(chatId: string, action: ChatAction): Promise<void> {
     const token = this.config.channels.telegram.token
@@ -141,38 +221,53 @@ export class TelegramChannel implements Channel {
     }
   }
 
-  private async pollLoop(): Promise<void> {
-    while (this.running) {
-      try {
-        const updates = await this.getUpdates()
-        for (const update of updates) {
-          this.nextOffset = Math.max(this.nextOffset, update.update_id + 1)
-          if (!update.message) continue
-          await this.handleMessage(update)
-        }
-      } catch (error) {
-        this.logger.error('channel.telegram.poll_error', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+  /** Handles incoming HTTP requests (Telegram webhook POST). */
+  private async handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (req.method !== 'POST') {
+      res.writeHead(405)
+      res.end()
+      return
+    }
+
+    const body = await this.readBody(req)
+
+    // Verify webhook secret if configured
+    const secret = this.config.channels.telegram.webhookSecret
+    if (secret) {
+      const header = req.headers['x-telegram-bot-api-secret-token']
+      if (header !== secret) {
+        this.logger.warn('channel.telegram.webhook_auth_failed')
+        res.writeHead(403)
+        res.end()
+        return
       }
+    }
+
+    try {
+      const update = JSON.parse(body) as TelegramUpdate
+      void this.handleUpdate(update)
+      res.writeHead(200)
+      res.end('ok')
+    } catch {
+      res.writeHead(400)
+      res.end('invalid json')
     }
   }
 
-  private async getUpdates(): Promise<TelegramUpdate[]> {
-    const token = this.config.channels.telegram.token
-    const url = new URL(`https://api.telegram.org/bot${token}/getUpdates`)
-    url.searchParams.set('timeout', '25')
-    url.searchParams.set('offset', String(this.nextOffset))
+  /** Reads the full request body as a string. */
+  private readBody(req: IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      req.on('data', (chunk: Buffer) => { data += chunk.toString() })
+      req.on('end', () => resolve(data))
+      req.on('error', reject)
+    })
+  }
 
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Telegram getUpdates failed: ${response.status}`)
-    }
-
-    const json = (await response.json()) as { ok: boolean; result: TelegramUpdate[] }
-    if (!json.ok) return []
-    return json.result ?? []
+  /** Processes a Telegram update from any source (HTTP webhook or WebSocket). */
+  private async handleUpdate(update: TelegramUpdate): Promise<void> {
+    if (!update.message) return
+    await this.handleMessage(update)
   }
 
   private async handleMessage(update: TelegramUpdate): Promise<void> {
@@ -202,6 +297,40 @@ export class TelegramChannel implements Channel {
     }
 
     await this.bus.publishInbound(inbound)
+  }
+
+  /** Registers the webhook URL with Telegram's API. */
+  private async setWebhook(url: string): Promise<void> {
+    const token = this.config.channels.telegram.token
+    const secret = this.config.channels.telegram.webhookSecret
+
+    const body: Record<string, unknown> = { url }
+    if (secret) {
+      body['secret_token'] = secret
+    }
+
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        this.logger.error('channel.telegram.set_webhook_failed', {
+          status: response.status,
+          body: text
+        })
+        return
+      }
+
+      this.logger.info('channel.telegram.webhook_registered', { url })
+    } catch (error) {
+      this.logger.error('channel.telegram.set_webhook_failed', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   /**

@@ -41,7 +41,7 @@ describe('acceptance: telegram summary flow', () => {
     })) as unknown as typeof fetch
     global.fetch = fetchMock
 
-    await (telegram as any).handleMessage({
+    await (telegram as any).handleUpdate({
       update_id: 1,
       message: {
         message_id: 9,

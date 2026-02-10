@@ -18,10 +18,12 @@
   "dependencies": {
     "discord.js": "^14.24.2",
     "dotenv": "^16.4.5",
+    "ws": "^8.19.0",
     "zod": "^4.0.15"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

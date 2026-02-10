@@ -36,7 +36,8 @@ describe('TelegramChannel', () => {
     const bus = new MessageBus()
     const channel = new TelegramChannel(makeConfig(), bus, logger)
 
-    await (channel as any).handleMessage({
+    // handleUpdate is private but accessible for unit testing
+    await (channel as any).handleUpdate({
       update_id: 1,
       message: {
         message_id: 9,
@@ -57,7 +58,7 @@ describe('TelegramChannel', () => {
     const bus = new MessageBus()
     const channel = new TelegramChannel(makeConfig(), bus, logger)
 
-    await (channel as any).handleMessage({
+    await (channel as any).handleUpdate({
       update_id: 1,
       message: {
         message_id: 9,

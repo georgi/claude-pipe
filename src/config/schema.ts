@@ -6,6 +6,12 @@ const channelSchema = z.object({
   allowFrom: z.array(z.string())
 })
 
+const telegramChannelSchema = channelSchema.extend({
+  webhookPort: z.number().int().positive().optional(),
+  webhookUrl: z.string().optional(),
+  webhookSecret: z.string().optional()
+})
+
 /**
  * Runtime configuration schema for Claude Pipe.
  */
@@ -13,7 +19,7 @@ export const configSchema = z.object({
   model: z.string(),
   workspace: z.string(),
   channels: z.object({
-    telegram: channelSchema,
+    telegram: telegramChannelSchema,
     discord: channelSchema
   }),
   summaryPrompt: z
