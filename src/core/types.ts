@@ -1,4 +1,4 @@
-export type ChannelName = 'telegram' | 'discord'
+export type ChannelName = 'telegram' | 'discord' | 'cli'
 
 /**
  * Normalized inbound message emitted by a channel adapter.

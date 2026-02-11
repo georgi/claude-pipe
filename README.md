@@ -1,12 +1,12 @@
 # claude-pipe
 
-Talk to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) through Telegram or Discord. Send a message, and Claude responds — with full access to read files, run commands, and work with your codebase.
+Talk to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) through Telegram, Discord, or a local CLI channel. Send a message, and Claude responds — with full access to read files, run commands, and work with your codebase.
 
 Built with TypeScript. Runs locally on your machine. Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
 ## What it does
 
-Claude Pipe connects your chat apps to the Claude Code CLI. When you send a message in Telegram or Discord, it:
+Claude Pipe connects your chat apps (or terminal) to the Claude Code CLI. When you send a message, it:
 
 1. Picks up your message
 2. Passes it to Claude (with access to your workspace)
@@ -34,12 +34,13 @@ npm run dev
 
 First run starts the interactive setup wizard:
 
-1. **Verify Claude Code CLI** — the wizard checks if `claude` is installed
-2. **Choose platform** — select Telegram or Discord
-3. **Enter bot token** — provide your bot token from [BotFather](https://t.me/botfather) (Telegram) or the [Discord Developer Portal](https://discord.com/developers/applications)
-4. **Webhook mode** (optional) — configure webhook server for production (recommended for containers)
-5. **Select model** — choose Haiku, Sonnet 4.5, Opus 4.5, or enter a custom model name
-6. **Set workspace** — specify the directory Claude can access (defaults to current directory)
+1. **Choose LLM runtime** — select Claude Code CLI or OpenAI Codex CLI
+2. **Verify runtime CLI** — the wizard checks `claude` or `codex`
+3. **Choose platform** — select Telegram, Discord, or CLI (local terminal)
+4. **Enter bot token** — required for Telegram/Discord, skipped in CLI mode
+5. **Webhook mode** (optional) — configure webhook server for production (recommended for containers)
+6. **Select model** — provider-specific presets (Claude) or live Codex model list from your local CLI, with free-form fallback
+7. **Set workspace** — specify the directory the agent can access (defaults to current directory)
 
 Settings are saved to `~/.claude-pipe/settings.json`.
 
@@ -69,22 +70,23 @@ npm run dev -- --help    # or -h
 npm run dev -- --reconfigure   # or -r
 ```
 
-1. **Verify Claude Code CLI** — the wizard checks if `claude` is installed
-2. **Choose platform** — select Telegram or Discord
-3. **Enter bot token** — provide your bot token from [BotFather](https://t.me/botfather) (Telegram) or the [Discord Developer Portal](https://discord.com/developers/applications)
-4. **Select model** — choose Haiku, Sonnet 4.5, Opus 4.5, or enter a custom model name
-5. **Set workspace** — specify the directory Claude can access (defaults to current directory)
+1. **Choose LLM runtime** — Claude or Codex
+2. **Verify runtime CLI** — checks selected CLI binary
+3. **Choose platform** — Telegram, Discord, or CLI
+4. **Enter bot token** — required for Telegram/Discord, skipped for CLI
+5. **Select model** — provider-specific presets or custom model
+6. **Set workspace** — specify accessible workspace path
 
 Settings are saved to `~/.claude-pipe/settings.json`.
 
 **3. Start chatting**
 
-Send a message to your bot and Claude will reply.
+Send a message to your bot (or type in terminal if using CLI mode) and Claude will reply.
 
 ## How it works
 
 ```
-Telegram / Discord
+Telegram / Discord / CLI
        ↓
   Your message comes in
        ↓
@@ -104,6 +106,7 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 
 ```json
 {
+  "provider": "claude",
   "channel": "telegram",
   "token": "your-bot-token",
   "allowFrom": ["user-id-1", "user-id-2"],
@@ -114,7 +117,8 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 
 | Setting | What it does |
 |---|---|
-| `channel` | Platform to use: `telegram` or `discord` |
+| `provider` | LLM runtime: `claude` or `codex` |
+| `channel` | Platform to use: `telegram`, `discord`, or `cli` |
 | `token` | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
 | `allowFrom` | Array of allowed user IDs (empty = allow everyone) |
 | `model` | Claude model to use (e.g., `claude-haiku-4`, `claude-sonnet-4-5`, `claude-opus-4-5`) |
@@ -134,6 +138,13 @@ For advanced options like transcript logging or custom summary prompts, you can 
 | `CLAUDEPIPE_TRANSCRIPT_LOG_PATH` | Path for transcript log file |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep |
+| `CLAUDEPIPE_LLM_PROVIDER` | Runtime provider when using env config: `claude` or `codex` |
+| `CLAUDEPIPE_CODEX_COMMAND` | Codex executable path/command (default: `codex`) |
+| `CLAUDEPIPE_CODEX_ARGS` | Codex startup args (default: `app-server`) |
+| `CLAUDEPIPE_CLI_ENABLED` | Enable CLI channel (`true`/`false`) |
+| `CLAUDEPIPE_CLI_ALLOW_FROM` | Comma-separated allowed sender IDs for CLI mode |
+| `CLAUDEPIPE_CLI_SENDER_ID` | Sender ID used by CLI channel (default: `local-user`) |
+| `CLAUDEPIPE_CLI_CHAT_ID` | Chat ID used by CLI channel (default: `local-chat`) |
 
 ## Development
 

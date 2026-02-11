@@ -103,4 +103,54 @@ describe('loadConfig from settings file', () => {
     expect(parsed.channels.discord.token).toBe('tok_xyz')
     expect(parsed.channels.telegram.enabled).toBe(false)
   })
+
+  it('produces valid config from a cli settings file', () => {
+    fs.mkdirSync(settingsDir, { recursive: true })
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        channel: 'cli',
+        token: '',
+        allowFrom: ['local-user'],
+        model: 'gpt-5-codex',
+        workspace: '/tmp/ws-cli'
+      }),
+      'utf-8'
+    )
+
+    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+    const telegramEnabled = s.channel === 'telegram'
+    const discordEnabled = s.channel === 'discord'
+    const cliEnabled = s.channel === 'cli'
+
+    const parsed = configSchema.parse({
+      model: s.model,
+      workspace: s.workspace,
+      channels: {
+        telegram: {
+          enabled: telegramEnabled,
+          token: telegramEnabled ? s.token : '',
+          allowFrom: telegramEnabled ? s.allowFrom : []
+        },
+        discord: {
+          enabled: discordEnabled,
+          token: discordEnabled ? s.token : '',
+          allowFrom: discordEnabled ? s.allowFrom : []
+        },
+        cli: {
+          enabled: cliEnabled,
+          allowFrom: cliEnabled ? s.allowFrom : []
+        }
+      },
+      summaryPrompt: { enabled: true, template: 'test' },
+      sessionStorePath: '/tmp/sessions.json',
+      maxToolIterations: 20
+    })
+
+    expect(parsed.model).toBe('gpt-5-codex')
+    expect(parsed.channels.cli?.enabled).toBe(true)
+    expect(parsed.channels.cli?.allowFrom).toEqual(['local-user'])
+    expect(parsed.channels.telegram.enabled).toBe(false)
+    expect(parsed.channels.discord.enabled).toBe(false)
+  })
 })

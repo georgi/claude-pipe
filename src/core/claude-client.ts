@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import type { ClaudePipeConfig } from '../config/schema.js'
+import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
@@ -62,7 +63,7 @@ function summarizeToolResult(content: unknown): string {
 /**
  * Runs Claude Code through subprocess `stream-json` output and persists session IDs.
  */
-export class ClaudeClient {
+export class ClaudeClient implements ModelClient {
   private readonly transcript: TranscriptLogger
 
   constructor(

@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as readline from 'node:readline'
+import { spawn } from 'node:child_process'
 
 import { type Settings, writeSettings } from '../config/settings.js'
 
@@ -20,21 +21,144 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 1 – Check Claude Code CLI availability                        */
+/*  Step 1 – Choose provider + check CLI availability                  */
 /* ------------------------------------------------------------------ */
 
-async function checkClaudeCli(): Promise<void> {
-  const { execFileSync } = await import('node:child_process')
+type LlmProvider = 'claude' | 'codex'
+type JsonRecord = Record<string, unknown>
+
+interface CodexDiscoveredModel {
+  model: string
+  displayName: string
+  isDefault: boolean
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return Boolean(value) && typeof value === 'object'
+}
+
+async function fetchCodexModelsFromCli(): Promise<CodexDiscoveredModel[]> {
+  const child = spawn('codex', ['app-server'], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  })
+
+  let stdoutBuffer = ''
+  const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+  let nextId = 0
+
+  const request = (method: string, params: unknown): Promise<unknown> => {
+    const id = ++nextId
+    const payload = { jsonrpc: '2.0', id, method, params }
+    child.stdin.write(`${JSON.stringify(payload)}\n`)
+    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }))
+  }
+
+  const onError = (error: Error): void => {
+    for (const entry of pending.values()) entry.reject(error)
+    pending.clear()
+  }
+
+  child.on('error', onError)
+  child.on('close', (code) => {
+    if (code !== 0) onError(new Error(`codex app-server exited with code ${String(code)}`))
+  })
+
+  child.stdout.on('data', (chunk: Buffer | string) => {
+    stdoutBuffer += chunk.toString()
+    let newlineIndex = stdoutBuffer.indexOf('\n')
+    while (newlineIndex >= 0) {
+      const rawLine = stdoutBuffer.slice(0, newlineIndex).trim()
+      stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1)
+      if (rawLine) {
+        const parsed = JSON.parse(rawLine) as unknown
+        if (isRecord(parsed) && typeof parsed.id === 'number' && 'result' in parsed) {
+          const slot = pending.get(parsed.id)
+          if (slot) {
+            pending.delete(parsed.id)
+            slot.resolve(parsed.result)
+          }
+        } else if (isRecord(parsed) && typeof parsed.id === 'number' && isRecord(parsed.error)) {
+          const slot = pending.get(parsed.id)
+          if (slot) {
+            pending.delete(parsed.id)
+            const msg =
+              typeof parsed.error.message === 'string'
+                ? parsed.error.message
+                : 'unknown codex rpc error'
+            slot.reject(new Error(msg))
+          }
+        }
+      }
+      newlineIndex = stdoutBuffer.indexOf('\n')
+    }
+  })
+
   try {
-    execFileSync('claude', ['--version'], { stdio: 'pipe' })
+    await request('initialize', {
+      clientInfo: { name: 'claude-pipe-setup', title: 'claude-pipe setup', version: '0.1.0' },
+      capabilities: { experimentalApi: false }
+    })
+
+    const models: CodexDiscoveredModel[] = []
+    let cursor: string | null = null
+    let pages = 0
+    do {
+      const result = (await request('model/list', { cursor, limit: 100 })) as unknown
+      const record = isRecord(result) ? result : {}
+      const data = Array.isArray(record.data) ? record.data : []
+      for (const entry of data) {
+        if (!isRecord(entry)) continue
+        const model = typeof entry.model === 'string' ? entry.model : ''
+        if (!model) continue
+        models.push({
+          model,
+          displayName: typeof entry.displayName === 'string' ? entry.displayName : model,
+          isDefault: entry.isDefault === true
+        })
+      }
+      cursor = typeof record.nextCursor === 'string' ? record.nextCursor : null
+      pages += 1
+    } while (cursor && pages < 5)
+
+    const dedup = new Map<string, CodexDiscoveredModel>()
+    for (const item of models) {
+      dedup.set(item.model, item)
+    }
+    return Array.from(dedup.values())
+  } finally {
+    child.stdin.end()
+    child.kill('SIGTERM')
+  }
+}
+
+async function chooseProvider(
+  rl: readline.Interface,
+  current?: LlmProvider
+): Promise<LlmProvider> {
+  const currentLabel = current === 'claude' ? '1' : current === 'codex' ? '2' : '1'
+  console.log('Which LLM runtime do you want to use?\n  1) Claude Code CLI\n  2) OpenAI Codex CLI\n')
+  const choice = await ask(rl, `Enter 1 or 2 [${currentLabel}]: `)
+  if (choice === '2') return 'codex'
+  return 'claude'
+}
+
+async function checkSelectedCli(provider: LlmProvider): Promise<void> {
+  const { execFileSync } = await import('node:child_process')
+  const binary = provider === 'codex' ? 'codex' : 'claude'
+  try {
+    execFileSync(binary, ['--version'], { stdio: 'pipe' })
   } catch {
+    const installUrl =
+      provider === 'codex'
+        ? 'https://developers.openai.com/codex/cli'
+        : 'https://docs.anthropic.com/en/docs/claude-code'
     console.error(
-      '\n✖  Claude Code CLI not found.\n' +
-        '   Install it first: https://docs.anthropic.com/en/docs/claude-code\n'
+      `\n✖  ${provider === 'codex' ? 'OpenAI Codex CLI' : 'Claude Code CLI'} not found.\n` +
+        `   Install it first: ${installUrl}\n`
     )
     process.exit(1)
   }
-  console.log('✔  Claude Code CLI detected.\n')
+  console.log(`✔  ${provider === 'codex' ? 'OpenAI Codex CLI' : 'Claude Code CLI'} detected.\n`)
 }
 
 /* ------------------------------------------------------------------ */
@@ -43,11 +167,14 @@ async function checkClaudeCli(): Promise<void> {
 
 async function chooseChannel(
   rl: readline.Interface,
-  current?: 'telegram' | 'discord'
-): Promise<'telegram' | 'discord'> {
-  const currentLabel = current === 'telegram' ? '1' : current === 'discord' ? '2' : ''
-  console.log('Which messaging platform do you want to use?\n  1) Telegram\n  2) Discord\n')
-  const choice = await ask(rl, `Enter 1 or 2${current ? ` [${currentLabel}]` : ''}: `)
+  current?: 'telegram' | 'discord' | 'cli'
+): Promise<'telegram' | 'discord' | 'cli'> {
+  const currentLabel = current === 'telegram' ? '1' : current === 'discord' ? '2' : current === 'cli' ? '3' : ''
+  console.log(
+    'Which messaging platform do you want to use?\n  1) Telegram\n  2) Discord\n  3) CLI (local terminal)\n'
+  )
+  const choice = await ask(rl, `Enter 1, 2, or 3${current ? ` [${currentLabel}]` : ''}: `)
+  if (choice === '3') return 'cli'
   if (choice === '2') return 'discord'
   if (choice === '1') return 'telegram'
   return current ?? 'telegram'
@@ -59,9 +186,14 @@ async function chooseChannel(
 
 async function collectCredentials(
   rl: readline.Interface,
-  channel: 'telegram' | 'discord',
+  channel: 'telegram' | 'discord' | 'cli',
   currentToken?: string
 ): Promise<string> {
+  if (channel === 'cli') {
+    console.log('\nCLI mode does not require a bot token.\n')
+    return ''
+  }
+
   if (channel === 'telegram') {
     console.log(
       '\nCreate a Telegram bot:\n' +
@@ -126,10 +258,11 @@ async function detectPublicIp(): Promise<string | null> {
 
 async function configureWebhook(
   rl: readline.Interface,
-  channel: 'telegram' | 'discord',
+  channel: 'telegram' | 'discord' | 'cli',
   currentWebhook?: WebhookSettings
 ): Promise<WebhookSettings> {
   const disabled: WebhookSettings = { enabled: false, port: 3000, url: '', secret: '' }
+  if (channel === 'cli') return disabled
 
   const currentEnabled = currentWebhook?.enabled
   const defaultChoice = currentEnabled ? '2' : '1'
@@ -220,10 +353,15 @@ function generateSecret(): string {
 /*  Step 5 – Choose model                                              */
 /* ------------------------------------------------------------------ */
 
-const MODEL_PRESETS: Record<string, string> = {
+const CLAUDE_MODEL_PRESETS: Record<string, string> = {
   '1': 'claude-haiku-4',
   '2': 'claude-sonnet-4-5',
   '3': 'claude-opus-4-5'
+}
+const CODEX_MODEL_PRESETS: Record<string, string> = {
+  '1': 'gpt-5-codex',
+  '2': 'gpt-5',
+  '3': 'o4-mini'
 }
 
 function getModelChoiceNumber(model: string): string {
@@ -234,6 +372,71 @@ function getModelChoiceNumber(model: string): string {
 }
 
 async function chooseModel(rl: readline.Interface, currentModel?: string): Promise<string> {
+  return chooseModelForProvider(rl, 'claude', currentModel)
+}
+
+async function chooseModelForProvider(
+  rl: readline.Interface,
+  provider: LlmProvider,
+  currentModel?: string
+): Promise<string> {
+  if (provider === 'codex') {
+    try {
+      const discovered = await fetchCodexModelsFromCli()
+      if (discovered.length > 0) {
+        const sorted = [...discovered].sort((a, b) => {
+          if (a.isDefault && !b.isDefault) return -1
+          if (!a.isDefault && b.isDefault) return 1
+          return a.displayName.localeCompare(b.displayName)
+        })
+        console.log('\nWhich Codex model would you like to use?')
+        const maxShown = Math.min(sorted.length, 12)
+        for (let i = 0; i < maxShown; i++) {
+          const entry = sorted[i]
+          if (!entry) continue
+          console.log(
+            `  ${i + 1}) ${entry.displayName} (${entry.model})${entry.isDefault ? ' [default]' : ''}`
+          )
+        }
+        const otherIndex = maxShown + 1
+        console.log(`  ${otherIndex}) Other (free-form entry)\n`)
+
+        const currentIndex =
+          currentModel != null
+            ? sorted.findIndex((m) => m.model === currentModel) + 1
+            : sorted.findIndex((m) => m.isDefault) + 1
+        const fallbackIndex = currentIndex > 0 && currentIndex <= maxShown ? currentIndex : 1
+        const choice = await ask(rl, `Enter 1–${otherIndex} [${fallbackIndex}]: `)
+        const picked = Number(choice || String(fallbackIndex))
+        if (Number.isInteger(picked) && picked >= 1 && picked <= maxShown) {
+          const selected = sorted[picked - 1]
+          if (selected) return selected.model
+        }
+
+        const currentLabel = currentModel ? ` [${currentModel}]` : ''
+        const custom = await ask(rl, `Enter model name${currentLabel}: `)
+        return custom || currentModel || sorted[0]?.model || 'gpt-5-codex'
+      }
+    } catch {
+      console.log('⚠ Could not fetch live Codex model list. Falling back to local presets.')
+    }
+
+    const defaultChoice = currentModel ? getModelChoiceNumberCodex(currentModel) : '1'
+    console.log(
+      '\nWhich model would you like to use?\n' +
+        '  1) GPT-5 Codex\n' +
+        '  2) GPT-5\n' +
+        '  3) o4-mini\n' +
+        '  4) Other (free-form entry)\n'
+    )
+    const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
+    if (choice in CODEX_MODEL_PRESETS) return CODEX_MODEL_PRESETS[choice]!
+
+    const currentLabel = currentModel ? ` [${currentModel}]` : ''
+    const custom = await ask(rl, `Enter model name${currentLabel}: `)
+    return custom || currentModel || 'gpt-5-codex'
+  }
+
   const defaultChoice = currentModel ? getModelChoiceNumber(currentModel) : '2'
   console.log(
     '\nWhich model would you like to use?\n' +
@@ -243,11 +446,18 @@ async function chooseModel(rl: readline.Interface, currentModel?: string): Promi
       '  4) Other (free-form entry)\n'
   )
   const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
-  if (choice in MODEL_PRESETS) return MODEL_PRESETS[choice]!
+  if (choice in CLAUDE_MODEL_PRESETS) return CLAUDE_MODEL_PRESETS[choice]!
 
   const currentLabel = currentModel ? ` [${currentModel}]` : ''
   const custom = await ask(rl, `Enter model name (e.g. Minimax, GLM-4.7, Kimi)${currentLabel}: `)
   return custom || currentModel || 'claude-sonnet-4-5'
+}
+
+function getModelChoiceNumberCodex(model: string): string {
+  if (model === 'gpt-5-codex') return '1'
+  if (model === 'gpt-5') return '2'
+  if (model === 'o4-mini') return '3'
+  return '4'
 }
 
 /* ------------------------------------------------------------------ */
@@ -293,19 +503,20 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
       : "\n🚀 Welcome to Claude Pipe!\n   Let's get you set up.\n"
   )
 
-  if (!isReconfigure) {
-    await checkClaudeCli()
-  }
-
   const rl = createInterface()
   try {
+    const provider = await chooseProvider(rl, existingSettings?.provider ?? 'claude')
+    if (!isReconfigure || existingSettings?.provider !== provider) {
+      await checkSelectedCli(provider)
+    }
     const channel = await chooseChannel(rl, existingSettings?.channel)
     const token = await collectCredentials(rl, channel, existingSettings?.token)
     const webhook = await configureWebhook(rl, channel, existingSettings?.webhook)
-    const model = await chooseModel(rl, existingSettings?.model)
+    const model = await chooseModelForProvider(rl, provider, existingSettings?.model)
     const workspace = await chooseWorkspace(rl, existingSettings?.workspace)
 
     const settings: Settings = {
+      provider,
       channel,
       token,
       allowFrom: existingSettings?.allowFrom ?? [],

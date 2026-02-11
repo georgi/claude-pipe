@@ -6,7 +6,8 @@ import * as os from 'node:os'
  * Persisted settings stored in ~/.claude-pipe/settings.json.
  */
 export interface Settings {
-  channel: 'telegram' | 'discord'
+  provider?: 'claude' | 'codex'
+  channel: 'telegram' | 'discord' | 'cli'
   token: string
   allowFrom: string[]
   model: string

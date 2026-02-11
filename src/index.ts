@@ -4,9 +4,9 @@ import { loadConfig } from './config/load.js'
 import { readSettings, settingsExist } from './config/settings.js'
 import { AgentLoop } from './core/agent-loop.js'
 import { MessageBus } from './core/bus.js'
-import { ClaudeClient } from './core/claude-client.js'
+import { createModelClient, resolveProviderFromConfig } from './core/client-factory.js'
 import { createHeartbeat } from './core/heartbeat.js'
-import { logger } from './core/logger.js'
+import { logger, setLoggerMuted } from './core/logger.js'
 import { SessionStore } from './core/session-store.js'
 import { runOnboarding } from './onboarding/wizard.js'
 
@@ -61,6 +61,9 @@ async function main(): Promise<void> {
 
   // Normal startup
   const config = loadConfig()
+  if (config.channels.cli?.enabled) {
+    setLoggerMuted(true)
+  }
   const bus = new MessageBus()
 
   const sessionStore = new SessionStore(config.sessionStorePath)
@@ -68,15 +71,16 @@ async function main(): Promise<void> {
 
   logger.info('startup.config', {
     workspace: config.workspace,
-    model: config.model
+    model: config.model,
+    provider: resolveProviderFromConfig(config)
   })
 
-  const claude = new ClaudeClient(config, sessionStore, logger)
-  const agent = new AgentLoop(bus, config, claude, logger)
+  const modelClient = createModelClient(config, sessionStore, logger)
+  const agent = new AgentLoop(bus, config, modelClient, logger)
   const channels = new ChannelManager(config, bus, logger)
   const heartbeat = createHeartbeat(config, bus, logger)
 
-  const { handler } = setupCommands({ config, claude, sessionStore })
+  const { handler } = setupCommands({ config, claude: modelClient, sessionStore })
   agent.setCommandHandler(handler)
 
   const shutdown = async (signal: string): Promise<void> => {

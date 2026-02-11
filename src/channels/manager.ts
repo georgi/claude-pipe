@@ -2,6 +2,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import type { Logger } from '../core/types.js'
 import type { Channel } from './base.js'
+import { CliChannel } from './cli.js'
 import { DiscordChannel } from './discord.js'
 import { TelegramChannel } from './telegram.js'
 import { WebhookServer } from './webhook-server.js'
@@ -13,6 +14,7 @@ export class ChannelManager {
   private readonly channels: Channel[]
   private readonly telegram: TelegramChannel
   private readonly discord: DiscordChannel
+  private readonly cli: CliChannel
   private webhookServer: WebhookServer | null = null
   private dispatcherRunning = false
 
@@ -23,7 +25,8 @@ export class ChannelManager {
   ) {
     this.telegram = new TelegramChannel(config, bus, logger)
     this.discord = new DiscordChannel(config, bus, logger)
-    this.channels = [this.telegram, this.discord]
+    this.cli = new CliChannel(config, bus, logger)
+    this.channels = [this.telegram, this.discord, this.cli]
   }
 
   /** Starts all adapters and launches outbound dispatcher. */

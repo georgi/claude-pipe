@@ -95,7 +95,7 @@ describe('AgentLoop', () => {
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
   })
 
-  it('emits tool-call updates as progress metadata for UI channel consumers', async () => {
+  it('emits tool-call updates as plain outbound messages', async () => {
     const bus = new MessageBus()
     const claude = {
       runTurn: vi.fn(async (_conversationKey: string, _input: string, context: any) => {
@@ -135,22 +135,8 @@ describe('AgentLoop', () => {
     const progress2 = await bus.consumeOutbound()
     const final = await bus.consumeOutbound()
 
-    expect(progress1.metadata).toEqual(
-      expect.objectContaining({
-        kind: 'progress',
-        progressKind: 'tool_call_started',
-        toolName: 'WebSearch',
-        toolUseId: 'tool-1'
-      })
-    )
-    expect(progress2.metadata).toEqual(
-      expect.objectContaining({
-        kind: 'progress',
-        progressKind: 'tool_call_finished',
-        toolName: 'WebSearch',
-        toolUseId: 'tool-1'
-      })
-    )
+    expect(progress1.content).toBe('Using tool: WebSearch')
+    expect(progress2.content).toBe('Tool completed: WebSearch')
     expect(final.content).toBe('assistant reply')
     expect(logger.info).toHaveBeenCalledWith(
       'ui.channel.update',

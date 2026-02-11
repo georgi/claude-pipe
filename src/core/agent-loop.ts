@@ -2,7 +2,7 @@ import type { CommandHandler } from '../commands/handler.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
-import { ClaudeClient } from './claude-client.js'
+import type { ModelClient } from './model-client.js'
 import type { AgentTurnUpdate, InboundMessage, Logger } from './types.js'
 
 /**
@@ -19,7 +19,7 @@ export class AgentLoop {
   constructor(
     private readonly bus: MessageBus,
     private readonly config: ClaudePipeConfig,
-    private readonly claude: ClaudeClient,
+    private readonly client: ModelClient,
     private readonly logger: Logger
   ) {}
 
@@ -52,7 +52,7 @@ export class AgentLoop {
   /** Stops the loop and closes live Claude sessions. */
   stop(): void {
     this.running = false
-    this.claude.closeAll()
+    this.client.closeAll()
   }
 
   private async processMessage(inbound: InboundMessage): Promise<void> {
@@ -87,6 +87,14 @@ export class AgentLoop {
     )
 
     const publishProgress = async (update: AgentTurnUpdate): Promise<void> => {
+      if (
+        update.kind !== 'tool_call_started' &&
+        update.kind !== 'tool_call_finished' &&
+        update.kind !== 'tool_call_failed'
+      ) {
+        return
+      }
+
       const key = `${update.kind}:${update.toolName ?? ''}:${update.toolUseId ?? ''}`
 
       const now = Date.now()
@@ -118,18 +126,11 @@ export class AgentLoop {
       await this.bus.publishOutbound({
         channel: inbound.channel,
         chatId: inbound.chatId,
-        content: '',
-        metadata: {
-          kind: 'progress',
-          progressKind: update.kind,
-          message: update.message,
-          ...(update.toolName ? { toolName: update.toolName } : {}),
-          ...(update.toolUseId ? { toolUseId: update.toolUseId } : {})
-        }
+        content: update.message
       })
     }
 
-    const content = await this.claude.runTurn(conversationKey, modelInput, {
+    const content = await this.client.runTurn(conversationKey, modelInput, {
       workspace: this.config.workspace,
       channel: inbound.channel,
       chatId: inbound.chatId,

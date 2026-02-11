@@ -12,8 +12,8 @@ export interface HeartbeatConfig {
   intervalMs: number
   /** Default chat ID to send heartbeat to (optional) */
   defaultChatId?: string | undefined
-  /** Default channel to send heartbeat to ('telegram' | 'discord') */
-  defaultChannel?: 'telegram' | 'discord' | undefined
+  /** Default channel to send heartbeat to ('telegram' | 'discord' | 'cli') */
+  defaultChannel?: 'telegram' | 'discord' | 'cli' | undefined
 }
 
 /**

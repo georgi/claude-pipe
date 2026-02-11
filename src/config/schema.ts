@@ -7,6 +7,11 @@ const channelSchema = z.object({
   webhookSecret: z.string().default('')
 })
 
+const cliChannelSchema = z.object({
+  enabled: z.boolean().default(false),
+  allowFrom: z.array(z.string()).default([])
+})
+
 /**
  * Webhook server configuration for receiving updates via HTTP instead of polling/gateway.
  */
@@ -28,11 +33,13 @@ export const webhookSchema = z
  * Runtime configuration schema for Claude Pipe.
  */
 export const configSchema = z.object({
+  llmProvider: z.enum(['claude', 'codex']).default('claude'),
   model: z.string(),
   workspace: z.string(),
   channels: z.object({
     telegram: channelSchema,
-    discord: channelSchema
+    discord: channelSchema,
+    cli: cliChannelSchema.optional()
   }),
   webhook: webhookSchema,
   summaryPrompt: z
@@ -73,7 +80,7 @@ export const configSchema = z.object({
       enabled: z.boolean().default(true),
       intervalMinutes: z.number().int().positive().default(30),
       defaultChatId: z.string().optional(),
-      defaultChannel: z.enum(['telegram', 'discord']).optional()
+      defaultChannel: z.enum(['telegram', 'discord', 'cli']).optional()
     })
     .default({
       enabled: true,

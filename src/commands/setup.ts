@@ -1,5 +1,5 @@
 import type { ClaudePipeConfig } from '../config/schema.js'
-import type { ClaudeClient } from '../core/claude-client.js'
+import type { ModelClient } from '../core/model-client.js'
 import type { SessionStore } from '../core/session-store.js'
 import {
   sessionNewCommand,
@@ -19,7 +19,7 @@ import type { CommandDefinition } from './types.js'
  */
 export interface CommandDependencies {
   config: ClaudePipeConfig
-  claude: ClaudeClient
+  claude: ModelClient
   sessionStore: SessionStore
 }
 
@@ -98,7 +98,8 @@ export function setupCommands(
       workspace: config.workspace,
       channels: [
         ...(config.channels.telegram.enabled ? ['telegram'] : []),
-        ...(config.channels.discord.enabled ? ['discord'] : [])
+        ...(config.channels.discord.enabled ? ['discord'] : []),
+        ...(config.channels.cli?.enabled ? ['cli'] : [])
       ]
     }))
   )

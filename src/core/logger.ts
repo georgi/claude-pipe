@@ -1,6 +1,13 @@
 import type { Logger } from './types.js'
 
+let muted = false
+
+export function setLoggerMuted(value: boolean): void {
+  muted = value
+}
+
 function emit(level: 'INFO' | 'WARN' | 'ERROR', event: string, data?: Record<string, unknown>): void {
+  if (muted) return
   const payload = {
     ts: new Date().toISOString(),
     level,
