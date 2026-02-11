@@ -7,6 +7,11 @@ const channelSchema = z.object({
   webhookSecret: z.string().default('')
 })
 
+const discordChannelSchema = channelSchema.extend({
+  // Optional allowlist of Discord channel IDs. Empty/omitted means allow all channels.
+  allowChannels: z.array(z.string()).optional()
+})
+
 const cliChannelSchema = z.object({
   enabled: z.boolean().default(false),
   allowFrom: z.array(z.string()).default([])
@@ -44,7 +49,7 @@ export const configSchema = z.object({
   workspace: z.string(),
   channels: z.object({
     telegram: channelSchema,
-    discord: channelSchema,
+    discord: discordChannelSchema,
     cli: cliChannelSchema.optional()
   }),
   webhook: webhookSchema,

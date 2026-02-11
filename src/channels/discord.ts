@@ -187,6 +187,14 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    if (!this.isChannelAllowed(message.channelId)) {
+      this.logger.warn('channel.discord.denied_channel', {
+        senderId,
+        chatId: message.channelId
+      })
+      return
+    }
+
     if (
       message.channel.type !== ChannelType.GuildText &&
       message.channel.type !== ChannelType.PublicThread &&
@@ -223,6 +231,15 @@ export class DiscordChannel implements Channel {
     if (!isSenderAllowed(senderId, this.config.channels.discord.allowFrom)) {
       this.logger.warn('channel.discord.denied', { senderId })
       await interaction.reply({ content: 'You are not authorised.', ephemeral: true })
+      return
+    }
+
+    if (!this.isChannelAllowed(interaction.channelId)) {
+      this.logger.warn('channel.discord.denied_channel', {
+        senderId,
+        chatId: interaction.channelId
+      })
+      await interaction.reply({ content: 'This channel is not authorised.', ephemeral: true })
       return
     }
 
@@ -306,6 +323,17 @@ export class DiscordChannel implements Channel {
         }
       }
 
+      if (!this.isChannelAllowed(channelId)) {
+        this.logger.warn('channel.discord.denied_channel', { senderId, chatId: channelId })
+        return {
+          status: 200,
+          body: JSON.stringify({
+            type: 4,
+            data: { content: 'This channel is not authorised.', flags: 64 }
+          })
+        }
+      }
+
       // Build command string from interaction data
       const subcommand = data.options?.find((o) => o.type === 1)
       const commandName = subcommand
@@ -338,6 +366,11 @@ export class DiscordChannel implements Channel {
     }
 
     return { status: 200, body: JSON.stringify({ type: 1 }) }
+  }
+
+  private isChannelAllowed(chatId: string): boolean {
+    const allowChannels = this.config.channels.discord.allowChannels ?? []
+    return allowChannels.length === 0 || allowChannels.includes(chatId)
   }
 
   /**

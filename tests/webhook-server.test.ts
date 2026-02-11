@@ -19,6 +19,7 @@ function makeWebhookConfig(
   channel: 'telegram' | 'discord',
   overrides?: Partial<{
     webhookSecret: string
+    allowChannels: string[]
     port: number
     url: string
   }>
@@ -37,6 +38,7 @@ function makeWebhookConfig(
         enabled: channel === 'discord',
         token: channel === 'discord' ? 'DISCORD_TOKEN' : '',
         allowFrom: channel === 'discord' ? ['u1'] : [],
+        allowChannels: channel === 'discord' ? overrides?.allowChannels : undefined,
         webhookSecret: channel === 'discord' ? (overrides?.webhookSecret ?? '') : ''
       }
     },
@@ -406,6 +408,50 @@ describe('DiscordChannel webhook mode', () => {
     expect(inbound.content).toBe('/help')
     expect(inbound.chatId).toBe('ch1')
     expect(inbound.senderId).toBe('u1')
+  })
+
+  it('rejects APPLICATION_COMMAND interactions from non-dedicated channels', async () => {
+    const config = makeWebhookConfig('discord', {
+      webhookSecret: publicKeyHex,
+      allowChannels: ['dedicated-1']
+    })
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(config, bus, logger)
+
+    server = new WebhookServer(0, '127.0.0.1', logger)
+    await channel.registerWebhook(server)
+    await server.start()
+    const port = getPort(server)
+
+    const payload = {
+      type: 2,
+      id: 'interaction-2',
+      data: { name: 'help' },
+      member: { user: { id: 'u1' } },
+      channel_id: 'other-channel',
+      guild_id: 'g1'
+    }
+
+    const body = JSON.stringify(payload)
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const signature = signPayload(body, timestamp)
+
+    const { status, body: resBody } = await postWebhook(port, '/webhook/discord', body, {
+      'x-signature-ed25519': signature,
+      'x-signature-timestamp': timestamp
+    })
+
+    expect(status).toBe(200)
+    expect(JSON.parse(resBody)).toEqual({
+      type: 4,
+      data: { content: 'This channel is not authorised.', flags: 64 }
+    })
+
+    const outcome = await Promise.race([
+      bus.consumeInbound().then(() => 'published'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 20))
+    ])
+    expect(outcome).toBe('timeout')
   })
 
   it('skips registration when webhookSecret is missing', async () => {

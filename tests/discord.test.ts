@@ -4,13 +4,18 @@ import { DiscordChannel } from '../src/channels/discord.js'
 import { MessageBus } from '../src/core/bus.js'
 import type { ClaudePipeConfig } from '../src/config/schema.js'
 
-function makeConfig(): ClaudePipeConfig {
+function makeConfig(overrides?: { allowChannels?: string[] }): ClaudePipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
     channels: {
       telegram: { enabled: false, token: '', allowFrom: [] },
-      discord: { enabled: true, token: 'discord-token', allowFrom: ['u1'] }
+      discord: {
+        enabled: true,
+        token: 'discord-token',
+        allowFrom: ['u1'],
+        allowChannels: overrides?.allowChannels
+      }
     },
     tools: { execTimeoutSec: 60 },
     summaryPrompt: { enabled: true, template: 'Workspace: {{workspace}} Request: {{request}}' },
@@ -51,6 +56,27 @@ describe('DiscordChannel', () => {
       author: { bot: false, id: 'other' },
       channel: { type: 0 },
       channelId: 'c1',
+      content: 'blocked',
+      id: 'm1',
+      guildId: 'g1'
+    })
+
+    const outcome = await Promise.race([
+      bus.consumeInbound().then(() => 'published'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 20))
+    ])
+
+    expect(outcome).toBe('timeout')
+  })
+
+  it('drops inbound when channel is not allowed', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig({ allowChannels: ['c-dedicated'] }), bus, logger)
+
+    await (channel as any).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: { type: 0 },
+      channelId: 'c-other',
       content: 'blocked',
       id: 'm1',
       guildId: 'g1'

@@ -80,6 +80,7 @@ export function loadConfig(): ClaudePipeConfig {
           enabled: discordEnabled,
           token: discordEnabled ? s.token : '',
           allowFrom: discordEnabled ? s.allowFrom : [],
+          allowChannels: discordEnabled ? s.allowChannels : undefined,
           webhookSecret: discordEnabled ? (s.webhook?.secret ?? '') : ''
         },
         cli: {
@@ -122,6 +123,7 @@ export function loadConfig(): ClaudePipeConfig {
           enabled: process.env.CLAUDEPIPE_DISCORD_ENABLED === 'true',
           token: process.env.CLAUDEPIPE_DISCORD_TOKEN ?? '',
           allowFrom: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_FROM),
+          allowChannels: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS),
           webhookSecret: process.env.CLAUDEPIPE_DISCORD_WEBHOOK_SECRET ?? ''
         },
         cli: {
