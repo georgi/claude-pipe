@@ -95,7 +95,7 @@ describe('AgentLoop', () => {
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
   })
 
-  it('emits tool-call updates as plain outbound messages', async () => {
+  it('logs tool-call events but does not send them to the channel', async () => {
     const bus = new MessageBus()
     const claude = {
       runTurn: vi.fn(async (_conversationKey: string, _input: string, context: any) => {
@@ -131,17 +131,23 @@ describe('AgentLoop', () => {
       timestamp: new Date().toISOString()
     })
 
-    const progress1 = await bus.consumeOutbound()
-    const progress2 = await bus.consumeOutbound()
+    // Only the final assistant reply should be sent to the channel
     const final = await bus.consumeOutbound()
-
-    expect(progress1.content).toBe('Using tool: WebSearch')
-    expect(progress2.content).toBe('Tool completed: WebSearch')
     expect(final.content).toBe('assistant reply')
+
+    // Tool call events should still be logged for debugging
     expect(logger.info).toHaveBeenCalledWith(
       'ui.channel.update',
       expect.objectContaining({
         kind: 'tool_call_started',
+        toolName: 'WebSearch',
+        toolUseId: 'tool-1'
+      })
+    )
+    expect(logger.info).toHaveBeenCalledWith(
+      'ui.channel.update',
+      expect.objectContaining({
+        kind: 'tool_call_finished',
         toolName: 'WebSearch',
         toolUseId: 'tool-1'
       })

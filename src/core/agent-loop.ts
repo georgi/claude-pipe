@@ -107,6 +107,8 @@ export class AgentLoop {
       if (throttled) return
       this.lastProgressByConversation.set(conversationKey, { key, at: now })
 
+      // Log tool call events for debugging, but do not send them to the channel.
+      // The agent will naturally explain its actions in text responses before tool calls.
       if (
         update.kind === 'tool_call_started' ||
         update.kind === 'tool_call_finished' ||
@@ -122,12 +124,6 @@ export class AgentLoop {
           message: update.message
         })
       }
-
-      await this.bus.publishOutbound({
-        channel: inbound.channel,
-        chatId: inbound.chatId,
-        content: update.message
-      })
     }
 
     const content = await this.client.runTurn(conversationKey, modelInput, {
