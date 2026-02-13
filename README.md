@@ -1,22 +1,22 @@
 # claude-pipe
 
-Talk to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) through Telegram, Discord, or a local CLI channel. Send a message, and Claude responds — with full access to read files, run commands, and work with your codebase.
+Talk to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or Codex through Telegram, Discord, or a local CLI channel. Send a message, and Claude (Codex) responds.
 
-Built with TypeScript. Runs locally on your machine. Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
+Runs locally on your machine or on your server. Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
 ## What it does
 
-Claude Pipe connects your chat apps (or terminal) to the Claude Code CLI. When you send a message, it:
+Claude Pipe connects your chat apps (or terminal) to your Agent CLI. When you send a message, it:
 
 1. Picks up your message
-2. Passes it to Claude (with access to your workspace)
-3. Sends Claude's response back to the chat
+2. Passes it to the agent (with access to your workspace)
+3. Sends the agent's response back to the chat
 
-Claude remembers previous messages in the conversation, so you can have ongoing back-and-forth sessions. It can read and edit files, run shell commands, and search the web — all the things Claude Code normally does, but triggered from your chat app.
+The agent remembers previous messages in the conversation, so you can have ongoing back-and-forth sessions. It can read and edit files, run shell commands, and search the web — all the things Claude Code normally does, but triggered from your chat app.
 
 ## Getting started
 
-You'll need [Node.js](https://nodejs.org/) 20+ and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed.
+You'll need [Node.js](https://nodejs.org/) 20+ and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) or Codex CLI installed.
 
 **1. Clone and install**
 
@@ -80,7 +80,7 @@ Settings are saved to `~/.claude-pipe/settings.json`.
 
 **3. Start chatting**
 
-Send a message to your bot (or type in terminal if using CLI mode) and Claude will reply.
+Send a message to your bot (or type in terminal if using CLI mode) and the agent will reply.
 
 ## How it works
 
@@ -89,7 +89,7 @@ Telegram / Discord / CLI
        ↓
   Your message comes in
        ↓
-  Claude Code CLI processes it
+  Agent CLI processes it
   (reads files, runs commands, thinks)
        ↓
   Response sent back to chat
@@ -97,7 +97,7 @@ Telegram / Discord / CLI
 
 Sessions are saved to a local JSON file, so conversations survive restarts. Each chat gets its own session.
 
-Claude operates within the workspace directory you configure. File access and shell commands are restricted to that directory for safety.
+The agent operates within the workspace directory you configure. File access and shell commands are restricted to that directory for safety.
 
 ## Configuration reference
 
