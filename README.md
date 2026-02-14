@@ -58,27 +58,12 @@ To change your configuration later:
 
 ```bash
 npm run dev -- --reconfigure    # or -r
+npm run dev -- --help           # or -h (show all options)
 ```
 
 This runs the wizard again with your current values shown as defaults — press Enter to keep each setting, or type a new value.
 
-**Command-line options**
-
-```bash
-npm run dev -- --help    # or -h
-npm run dev -- --reconfigure   # or -r
-```
-
-1. **Choose LLM runtime** — Claude or Codex
-2. **Verify runtime CLI** — checks selected CLI binary
-3. **Choose platform** — Telegram, Discord, or CLI
-4. **Enter bot token** — required for Telegram/Discord, skipped for CLI
-5. **Select model** — provider-specific presets or custom model
-6. **Set workspace** — specify accessible workspace path
-
-Settings are saved to `~/.claude-pipe/settings.json`.
-
-**3. Start chatting**
+**Start chatting**
 
 Send a message to your bot (or type in terminal if using CLI mode) and the agent will reply.
 
@@ -168,13 +153,9 @@ If you want safer behavior, explicitly override these:
 ## Development
 
 ```bash
-npm run build       # compile TypeScript to dist/
-npm run dev         # run in development mode (uses tsx)
-npm start           # run in production mode (uses compiled dist/)
-npm run test        # run tests in watch mode
-npm run test:run    # run tests once
-npm run dev -- --reconfigure   # reconfigure settings
-npm run dev -- --help          # show command-line options
+npm run build    # compile TypeScript to dist/
+npm run test     # run tests in watch mode
+npm run test:run # run tests once
 ```
 
 ## Current limitations
