@@ -5,7 +5,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { Attachment, InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 import {
   transcribeAudio,
@@ -31,13 +31,43 @@ type TelegramAudio = {
   performer?: string
 }
 
+type TelegramPhotoSize = {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  file_size?: number
+}
+
+type TelegramDocument = {
+  file_id: string
+  file_unique_id: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
+type TelegramVideo = {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  duration: number
+  mime_type?: string
+  file_size?: number
+}
+
 type TelegramUpdate = {
   update_id: number
   message?: {
     message_id: number
     text?: string
+    caption?: string
     voice?: TelegramVoice
     audio?: TelegramAudio
+    photo?: TelegramPhotoSize[]
+    document?: TelegramDocument
+    video?: TelegramVideo
     chat: { id: number }
     from?: { id: number }
   }
@@ -87,7 +117,7 @@ export class TelegramChannel implements Channel {
     this.logger.info('channel.telegram.stop')
   }
 
-  /** Sends a text response to Telegram chat. */
+  /** Sends a text response (and optional attachments) to Telegram chat. */
   async send(message: OutboundMessage): Promise<void> {
     if (!this.config.channels.telegram.enabled) return
     if (message.metadata?.kind === 'progress') {
@@ -96,39 +126,50 @@ export class TelegramChannel implements Channel {
     }
 
     const token = this.config.channels.telegram.token
-    const url = `https://api.telegram.org/bot${token}/sendMessage`
-    const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
 
-    for (const part of chunks) {
-      try {
-        await retry(
-          async () => {
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: Number(message.chatId),
-                text: part,
-                parse_mode: 'Markdown'
+    // Send attachments first if present
+    if (message.attachments && message.attachments.length > 0) {
+      for (const attachment of message.attachments) {
+        await this.sendAttachment(message.chatId, attachment, token)
+      }
+    }
+
+    // Send text content if present
+    if (message.content && message.content.trim()) {
+      const url = `https://api.telegram.org/bot${token}/sendMessage`
+      const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
+
+      for (const part of chunks) {
+        try {
+          await retry(
+            async () => {
+              const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: Number(message.chatId),
+                  text: part,
+                  parse_mode: 'Markdown'
+                })
               })
-            })
 
-            if (!response.ok) {
-              const body = await response.text()
-              throw new Error(`telegram send failed (${response.status}): ${body}`)
+              if (!response.ok) {
+                const body = await response.text()
+                throw new Error(`telegram send failed (${response.status}): ${body}`)
+              }
+            },
+            {
+              attempts: SEND_RETRY_ATTEMPTS,
+              backoffMs: SEND_RETRY_BACKOFF_MS
             }
-          },
-          {
-            attempts: SEND_RETRY_ATTEMPTS,
-            backoffMs: SEND_RETRY_BACKOFF_MS
-          }
-        )
-      } catch (error) {
-        this.logger.error('channel.telegram.send_failed', {
-          chatId: message.chatId,
-          error: error instanceof Error ? error.message : String(error)
-        })
-        break
+          )
+        } catch (error) {
+          this.logger.error('channel.telegram.send_failed', {
+            chatId: message.chatId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          break
+        }
       }
     }
 
@@ -165,6 +206,98 @@ export class TelegramChannel implements Channel {
       )
     } catch {
       // Silently fail - typing indicator is non-critical
+    }
+  }
+
+  /**
+   * Sends an attachment to a Telegram chat.
+   * Supports sending images, videos, documents, and audio files via URL or file path.
+   */
+  private async sendAttachment(chatId: string, attachment: Attachment, token: string): Promise<void> {
+    let endpoint: string
+    let fileFieldName: string
+
+    // Determine the appropriate Telegram API endpoint based on attachment type
+    switch (attachment.type) {
+      case 'image':
+        endpoint = 'sendPhoto'
+        fileFieldName = 'photo'
+        break
+      case 'video':
+        endpoint = 'sendVideo'
+        fileFieldName = 'video'
+        break
+      case 'audio':
+        endpoint = 'sendAudio'
+        fileFieldName = 'audio'
+        break
+      case 'document':
+      case 'file':
+      default:
+        endpoint = 'sendDocument'
+        fileFieldName = 'document'
+        break
+    }
+
+    const url = `https://api.telegram.org/bot${token}/${endpoint}`
+
+    try {
+      await retry(
+        async () => {
+          const payload: Record<string, unknown> = {
+            chat_id: Number(chatId)
+          }
+
+          // Use URL if available, otherwise skip local paths
+          if (attachment.url) {
+            payload[fileFieldName] = attachment.url
+          } else if (attachment.path) {
+            // Local file paths require multipart/form-data upload
+            // Telegram doesn't accept file paths in JSON payloads
+            // For now, skip local files - only URLs are supported
+            this.logger.warn('channel.telegram.attachment_local_path_unsupported', {
+              chatId,
+              path: attachment.path,
+              filename: attachment.filename
+            })
+            return
+          } else {
+            throw new Error('Attachment must have either url or path')
+          }
+
+          // Add caption if there's a filename
+          if (attachment.filename) {
+            payload.caption = attachment.filename
+          }
+
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+
+          if (!response.ok) {
+            const body = await response.text()
+            throw new Error(`telegram ${endpoint} failed (${response.status}): ${body}`)
+          }
+        },
+        {
+          attempts: SEND_RETRY_ATTEMPTS,
+          backoffMs: SEND_RETRY_BACKOFF_MS
+        }
+      )
+
+      this.logger.info('channel.telegram.attachment_sent', {
+        chatId,
+        type: attachment.type,
+        filename: attachment.filename
+      })
+    } catch (error) {
+      this.logger.error('channel.telegram.attachment_send_failed', {
+        chatId,
+        type: attachment.type,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 
@@ -218,11 +351,77 @@ export class TelegramChannel implements Channel {
     await this.sendChatAction(chatId, 'typing')
 
     let content: string
+    const attachments: InboundMessage['attachments'] = []
 
+    // Process voice or audio messages
     if (message.voice || message.audio) {
       content = await this.processAudioMessage(message)
     } else {
-      content = message.text?.trim() || '[empty message]'
+      content = message.text?.trim() || message.caption?.trim() || '[empty message]'
+    }
+
+    // Process photo attachments
+    if (message.photo && message.photo.length > 0) {
+      // Telegram sends multiple sizes; use the largest one
+      const largestPhoto = message.photo.reduce((prev, current) =>
+        (current.file_size ?? 0) > (prev.file_size ?? 0) ? current : prev
+      )
+      const filePath = await this.getFilePath(largestPhoto.file_id)
+      if (filePath) {
+        const token = this.config.channels.telegram.token
+        const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
+        attachments.push({
+          type: 'image',
+          url: fileUrl,
+          filename: filePath.split('/').pop() || 'photo.jpg',
+          ...(largestPhoto.file_size !== undefined ? { size: largestPhoto.file_size } : {})
+        })
+        this.logger.info('channel.telegram.photo_attached', {
+          fileId: largestPhoto.file_id,
+          size: largestPhoto.file_size
+        })
+      }
+    }
+
+    // Process document attachments
+    if (message.document) {
+      const filePath = await this.getFilePath(message.document.file_id)
+      if (filePath) {
+        const token = this.config.channels.telegram.token
+        const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
+        attachments.push({
+          type: 'document',
+          url: fileUrl,
+          filename: message.document.file_name || filePath.split('/').pop() || 'document',
+          ...(message.document.mime_type !== undefined ? { mimeType: message.document.mime_type } : {}),
+          ...(message.document.file_size !== undefined ? { size: message.document.file_size } : {})
+        })
+        this.logger.info('channel.telegram.document_attached', {
+          fileId: message.document.file_id,
+          filename: message.document.file_name,
+          size: message.document.file_size
+        })
+      }
+    }
+
+    // Process video attachments
+    if (message.video) {
+      const filePath = await this.getFilePath(message.video.file_id)
+      if (filePath) {
+        const token = this.config.channels.telegram.token
+        const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
+        attachments.push({
+          type: 'video',
+          url: fileUrl,
+          filename: filePath.split('/').pop() || 'video.mp4',
+          ...(message.video.mime_type !== undefined ? { mimeType: message.video.mime_type } : {}),
+          ...(message.video.file_size !== undefined ? { size: message.video.file_size } : {})
+        })
+        this.logger.info('channel.telegram.video_attached', {
+          fileId: message.video.file_id,
+          size: message.video.file_size
+        })
+      }
     }
 
     const inbound: InboundMessage = {
@@ -231,6 +430,7 @@ export class TelegramChannel implements Channel {
       chatId,
       content,
       timestamp: new Date().toISOString(),
+      ...(attachments.length > 0 ? { attachments } : {}),
       metadata: {
         messageId: message.message_id
       }

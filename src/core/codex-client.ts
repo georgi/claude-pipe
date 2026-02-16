@@ -4,7 +4,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
-import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
+import type { Attachment, AgentTurnUpdate, Logger, ToolContext } from './types.js'
 import {
   type CodexAskForApproval,
   type CodexThreadItem,
@@ -163,7 +163,12 @@ export class CodexClient implements ModelClient {
     await context.onUpdate(event)
   }
 
-  async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
+  async runTurn(
+    conversationKey: string,
+    userText: string,
+    context: ToolContext,
+    attachments?: Attachment[]
+  ): Promise<string> {
     const savedSession = this.store.get(conversationKey)
     const env = { ...process.env }
     const configuredApiKey = env[this.runtime.apiKeyEnvVar]
@@ -176,7 +181,21 @@ export class CodexClient implements ModelClient {
       conversationKey,
       message: 'Working on it...'
     })
-    await this.transcript.log(conversationKey, { type: 'user', text: userText })
+
+    // Enhance user text with attachment descriptions when attachments are present
+    let enhancedUserText = userText
+    if (attachments && attachments.length > 0) {
+      const attachmentDescriptions = attachments
+        .map((att) => {
+          const filename = att.filename || att.path?.split('/').pop() || 'file'
+          const location = att.path ? ` at ${att.path}` : att.url ? ` (URL: ${att.url})` : ''
+          return `[User sent ${att.type}: ${filename}${location}]`
+        })
+        .join('\n')
+      enhancedUserText = `${attachmentDescriptions}\n\n${userText}`
+    }
+
+    await this.transcript.log(conversationKey, { type: 'user', text: enhancedUserText })
 
     const child = spawn(this.runtime.command, this.runtime.args, {
       cwd: this.config.workspace,
@@ -521,7 +540,7 @@ export class CodexClient implements ModelClient {
         input: [
           {
             type: 'text',
-            text: `Workspace: ${context.workspace}\n\n${userText}`,
+            text: `Workspace: ${context.workspace}\n\n${enhancedUserText}`,
             text_elements: []
           }
         ],

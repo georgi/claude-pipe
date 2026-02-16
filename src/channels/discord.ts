@@ -14,7 +14,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { Attachment, InboundMessage, Logger, OutboundMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
@@ -83,7 +83,7 @@ export class DiscordChannel implements Channel {
     this.logger.info('channel.discord.stop')
   }
 
-  /** Sends a text message to a Discord channel by ID. */
+  /** Sends a text message (and optional attachments) to a Discord channel by ID. */
   async send(message: OutboundMessage): Promise<void> {
     if (!this.client || !this.config.channels.discord.enabled) return
 
@@ -126,11 +126,24 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
+    // Prepare attachments if present
+    const files = this.prepareAttachments(message.attachments)
+
+    // Send message with attachments
+    const chunks = chunkText(message.content, DISCORD_MESSAGE_MAX)
+    for (let i = 0; i < chunks.length; i++) {
+      const part = chunks[i]
       try {
         await retry(
           async () => {
-            await channel.send({ content: part })
+            // Only send attachments with the first chunk
+            const payload: { content: string; files?: Array<{ attachment: string; name?: string }> } = {
+              content: part
+            }
+            if (i === 0 && files.length > 0) {
+              payload.files = files
+            }
+            await channel.send(payload)
           },
           {
             attempts: SEND_RETRY_ATTEMPTS,
@@ -145,6 +158,29 @@ export class DiscordChannel implements Channel {
         break
       }
     }
+
+    if (files.length > 0) {
+      this.logger.info('channel.discord.attachments_sent', {
+        chatId: message.chatId,
+        count: files.length
+      })
+    }
+  }
+
+  /**
+   * Prepares attachments for Discord by converting them to the format Discord expects.
+   * Discord accepts URLs or file paths as attachment sources.
+   * Filters out any attachments without a valid source.
+   */
+  private prepareAttachments(attachments?: Attachment[]): Array<{ attachment: string; name?: string }> {
+    if (!attachments || attachments.length === 0) return []
+
+    return attachments
+      .filter((att) => att.url || att.path)
+      .map((att) => ({
+        attachment: att.url || att.path || '',
+        name: att.filename
+      }))
   }
 
   private async onMessage(message: Message): Promise<void> {
@@ -173,12 +209,46 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    // Process attachments from Discord message
+    const attachments: InboundMessage['attachments'] = []
+    if (message.attachments && message.attachments.size > 0) {
+      for (const [, attachment] of message.attachments) {
+        let attachmentType: 'image' | 'video' | 'audio' | 'document' | 'file' = 'file'
+        if (attachment.contentType) {
+          if (attachment.contentType.startsWith('image/')) {
+            attachmentType = 'image'
+          } else if (attachment.contentType.startsWith('video/')) {
+            attachmentType = 'video'
+          } else if (attachment.contentType.startsWith('audio/')) {
+            attachmentType = 'audio'
+          } else {
+            attachmentType = 'document'
+          }
+        }
+
+        attachments.push({
+          type: attachmentType,
+          url: attachment.url,
+          filename: attachment.name ?? 'attachment',
+          ...(attachment.contentType !== null ? { mimeType: attachment.contentType } : {}),
+          size: attachment.size
+        })
+
+        this.logger.info('channel.discord.attachment', {
+          type: attachmentType,
+          filename: attachment.name,
+          size: attachment.size
+        })
+      }
+    }
+
     const inbound: InboundMessage = {
       channel: 'discord',
       senderId,
       chatId: message.channelId,
       content: message.content?.trim() || '[empty message]',
       timestamp: new Date().toISOString(),
+      ...(attachments.length > 0 ? { attachments } : {}),
       metadata: {
         messageId: message.id,
         guildId: message.guildId ?? undefined

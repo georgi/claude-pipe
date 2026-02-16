@@ -58,7 +58,8 @@ describe('acceptance: telegram summary flow', () => {
     expect(claude.runTurn).toHaveBeenCalledWith(
       'telegram:200',
       expect.stringContaining('Request: summarize files in workspace'),
-      expect.objectContaining({ channel: 'telegram', chatId: '200' })
+      expect.objectContaining({ channel: 'telegram', chatId: '200' }),
+      undefined
     )
     expect(fetchMock).toHaveBeenCalledTimes(2)
     // First call: typing indicator

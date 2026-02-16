@@ -126,12 +126,17 @@ export class AgentLoop {
       }
     }
 
-    const content = await this.client.runTurn(conversationKey, modelInput, {
-      workspace: this.config.workspace,
-      channel: inbound.channel,
-      chatId: inbound.chatId,
-      onUpdate: publishProgress
-    })
+    const content = await this.client.runTurn(
+      conversationKey,
+      modelInput,
+      {
+        workspace: this.config.workspace,
+        channel: inbound.channel,
+        chatId: inbound.chatId,
+        onUpdate: publishProgress
+      },
+      inbound.attachments
+    )
 
     await this.bus.publishOutbound({
       channel: inbound.channel,

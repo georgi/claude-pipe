@@ -7,7 +7,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
-import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
+import type { Attachment, AgentTurnUpdate, Logger, ToolContext } from './types.js'
 
 type JsonRecord = Record<string, unknown>
 type AssistantTextBlock = { type: 'text'; text: string }
@@ -103,11 +103,17 @@ export class ClaudeClient implements ModelClient {
 
   /**
    * Executes one turn by spawning the Claude CLI and parsing `stream-json` frames.
+   * 
+   * When attachments are provided:
+   * - Images and media are described in the user text as "[User sent an image: filename.jpg]"
+   * - File paths are included if available for the agent to access
+   * - This allows the agent to reference and work with attached files in the workspace
    */
   async runTurn(
     conversationKey: string,
     userText: string,
-    context: ToolContext
+    context: ToolContext,
+    attachments?: Attachment[]
   ): Promise<string> {
     const savedSession = this.store.get(conversationKey)
     const executable = this.config.claudeCli?.command?.trim() || getClaudeCodeExecutablePath()
@@ -116,14 +122,28 @@ export class ClaudeClient implements ModelClient {
     if (savedSession?.sessionId) {
       args.push('--resume', savedSession.sessionId)
     }
-    args.push(userText)
+
+    // Enhance user text with attachment descriptions when attachments are present
+    let enhancedUserText = userText
+    if (attachments && attachments.length > 0) {
+      const attachmentDescriptions = attachments
+        .map((att) => {
+          const filename = att.filename || att.path?.split('/').pop() || 'file'
+          const location = att.path ? ` at ${att.path}` : att.url ? ` (URL: ${att.url})` : ''
+          return `[User sent ${att.type}: ${filename}${location}]`
+        })
+        .join('\n')
+      enhancedUserText = `${attachmentDescriptions}\n\n${userText}`
+    }
+
+    args.push(enhancedUserText)
 
     await this.publishUpdate(context, {
       kind: 'turn_started',
       conversationKey,
       message: 'Working on it...'
     })
-    await this.transcript.log(conversationKey, { type: 'user', text: userText })
+    await this.transcript.log(conversationKey, { type: 'user', text: enhancedUserText })
 
     const child = spawn(executable, args, {
       cwd: this.config.workspace,

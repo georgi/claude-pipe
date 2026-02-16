@@ -54,7 +54,8 @@ describe('AgentLoop', () => {
         workspace: '/tmp/workspace',
         channel: 'telegram',
         chatId: '42'
-      })
+      }),
+      undefined
     )
 
     loop.stop()
