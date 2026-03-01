@@ -1,6 +1,6 @@
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
-import type { Logger } from '../core/types.js'
+import type { Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import type { Channel } from './base.js'
 import { CliChannel } from './cli.js'
 import { DiscordChannel } from './discord.js'
@@ -44,6 +44,26 @@ export class ChannelManager {
     for (const channel of this.channels) {
       await channel.stop()
     }
+  }
+
+  /** Sends a message directly through the appropriate channel adapter. */
+  async sendDirect(message: OutboundMessage): Promise<SentMessage | void> {
+    const channel = this.channels.find((ch) => ch.name === message.channel)
+    if (!channel) {
+      this.logger.warn('channel.unknown', { channel: message.channel })
+      return
+    }
+    return channel.send(message)
+  }
+
+  /** Edits a previously sent message through the appropriate channel adapter. */
+  async editMessage(sent: SentMessage, newContent: string): Promise<void> {
+    const channel = this.channels.find((ch) => ch.name === sent.channel)
+    if (!channel) {
+      this.logger.warn('channel.unknown', { channel: sent.channel })
+      return
+    }
+    await channel.editMessage(sent, newContent)
   }
 
   private async dispatchOutbound(): Promise<void> {

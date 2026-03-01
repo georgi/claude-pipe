@@ -95,4 +95,48 @@ describe('TelegramChannel', () => {
     expect(String(init.body)).toContain('"chat_id":200')
     expect(String(init.body)).toContain('"text":"hello"')
   })
+
+  it('returns SentMessage with message_id from send', async () => {
+    const bus = new MessageBus()
+    const channel = new TelegramChannel(makeConfig(), bus, logger)
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({ ok: true, result: { message_id: 555 } })
+    })) as unknown as typeof fetch
+
+    global.fetch = fetchMock
+
+    const sent = await channel.send({ channel: 'telegram', chatId: '200', content: 'hello' })
+
+    expect(sent).toEqual({ channel: 'telegram', chatId: '200', messageId: '555' })
+  })
+
+  it('edits a previously sent message via editMessageText', async () => {
+    const bus = new MessageBus()
+    const channel = new TelegramChannel(makeConfig(), bus, logger)
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => ''
+    })) as unknown as typeof fetch
+
+    global.fetch = fetchMock
+
+    await channel.editMessage(
+      { channel: 'telegram', chatId: '200', messageId: '555' },
+      'updated text'
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('https://api.telegram.org/botTEST_TOKEN/editMessageText')
+    expect(init.method).toBe('POST')
+    expect(String(init.body)).toContain('"chat_id":200')
+    expect(String(init.body)).toContain('"message_id":555')
+    expect(String(init.body)).toContain('"text":"updated text"')
+  })
 })

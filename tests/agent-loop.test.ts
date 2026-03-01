@@ -156,4 +156,117 @@ describe('AgentLoop', () => {
     loop.stop()
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
   })
+
+  it('sends tool-call progress via channel manager and edits with final reply', async () => {
+    const bus = new MessageBus()
+    const claude = {
+      runTurn: vi.fn(async (_conversationKey: string, _input: string, context: any) => {
+        await context.onUpdate({
+          kind: 'tool_call_started',
+          conversationKey: 'telegram:42',
+          message: 'Using tool: WebSearch',
+          toolName: 'WebSearch',
+          toolUseId: 'tool-1'
+        })
+        await context.onUpdate({
+          kind: 'tool_call_finished',
+          conversationKey: 'telegram:42',
+          message: 'Tool completed: WebSearch',
+          toolName: 'WebSearch',
+          toolUseId: 'tool-1'
+        })
+        return 'final answer'
+      }),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const sentMessage = { channel: 'telegram' as const, chatId: '42', messageId: '99' }
+    const channelManager = {
+      sendDirect: vi.fn(async () => sentMessage),
+      editMessage: vi.fn(async () => undefined)
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), claude as never, logger)
+    loop.setChannelManager(channelManager as any)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'hello',
+      timestamp: new Date().toISOString()
+    })
+
+    // Wait for processing to complete
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    // Should have sent the initial tool status message
+    expect(channelManager.sendDirect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: 'telegram',
+        chatId: '42',
+        content: '🔧 WebSearch'
+      })
+    )
+
+    // Should have edited the status message with tool completion, then final reply
+    expect(channelManager.editMessage).toHaveBeenCalledWith(sentMessage, '✅ WebSearch')
+    expect(channelManager.editMessage).toHaveBeenCalledWith(sentMessage, 'final answer')
+
+    // No outbound via bus when channel manager handles the edit
+    const outcome = await Promise.race([
+      bus.consumeOutbound().then(() => 'published'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 50))
+    ])
+    expect(outcome).toBe('timeout')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('falls back to bus when channel manager is attached but sendDirect returns void', async () => {
+    const bus = new MessageBus()
+    const claude = {
+      runTurn: vi.fn(async (_conversationKey: string, _input: string, context: any) => {
+        await context.onUpdate({
+          kind: 'tool_call_started',
+          conversationKey: 'telegram:42',
+          message: 'Using tool: Read',
+          toolName: 'Read',
+          toolUseId: 'tool-2'
+        })
+        return 'result'
+      }),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const channelManager = {
+      sendDirect: vi.fn(async () => undefined),
+      editMessage: vi.fn(async () => undefined)
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), claude as never, logger)
+    loop.setChannelManager(channelManager as any)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'hello',
+      timestamp: new Date().toISOString()
+    })
+
+    // Final reply should go through bus since sendDirect returned void (no message to edit)
+    const final = await bus.consumeOutbound()
+    expect(final.content).toBe('result')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
 })

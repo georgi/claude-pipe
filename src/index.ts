@@ -82,6 +82,7 @@ async function main(): Promise<void> {
 
   const { handler } = setupCommands({ config, claude: modelClient, sessionStore })
   agent.setCommandHandler(handler)
+  agent.setChannelManager(channels)
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info('shutdown.signal', { signal })

@@ -14,7 +14,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
@@ -83,8 +83,8 @@ export class DiscordChannel implements Channel {
     this.logger.info('channel.discord.stop')
   }
 
-  /** Sends a text message to a Discord channel by ID. */
-  async send(message: OutboundMessage): Promise<void> {
+  /** Sends a text message to a Discord channel by ID. Returns a SentMessage for the last chunk. */
+  async send(message: OutboundMessage): Promise<SentMessage | void> {
     if (!this.client || !this.config.channels.discord.enabled) return
 
     const channel = await this.client.channels.fetch(message.chatId)
@@ -126,11 +126,15 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    let lastMessageId: string | undefined
     for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
       try {
         await retry(
           async () => {
-            await channel.send({ content: part })
+            const sent = await channel.send({ content: part })
+            if (sent && typeof sent === 'object' && 'id' in sent) {
+              lastMessageId = String(sent.id)
+            }
           },
           {
             attempts: SEND_RETRY_ATTEMPTS,
@@ -144,6 +148,31 @@ export class DiscordChannel implements Channel {
         })
         break
       }
+    }
+
+    if (lastMessageId) {
+      return { channel: 'discord', chatId: message.chatId, messageId: lastMessageId }
+    }
+  }
+
+  /** Edits a previously sent Discord message. */
+  async editMessage(sent: SentMessage, newContent: string): Promise<void> {
+    if (!this.client || !this.config.channels.discord.enabled) return
+
+    const channel = await this.client.channels.fetch(sent.chatId)
+    if (!channel || !channel.isTextBased()) return
+
+    try {
+      if ('messages' in channel && channel.messages) {
+        const msg = await channel.messages.fetch(sent.messageId)
+        await msg.edit({ content: newContent })
+      }
+    } catch (error) {
+      this.logger.error('channel.discord.edit_failed', {
+        chatId: sent.chatId,
+        messageId: sent.messageId,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

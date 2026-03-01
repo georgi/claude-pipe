@@ -5,7 +5,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 import {
   transcribeAudio,
@@ -87,8 +87,8 @@ export class TelegramChannel implements Channel {
     this.logger.info('channel.telegram.stop')
   }
 
-  /** Sends a text response to Telegram chat. */
-  async send(message: OutboundMessage): Promise<void> {
+  /** Sends a text response to Telegram chat. Returns a SentMessage for the last chunk. */
+  async send(message: OutboundMessage): Promise<SentMessage | void> {
     if (!this.config.channels.telegram.enabled) return
     if (message.metadata?.kind === 'progress') {
       await this.sendChatAction(message.chatId, 'typing')
@@ -99,6 +99,7 @@ export class TelegramChannel implements Channel {
     const url = `https://api.telegram.org/bot${token}/sendMessage`
     const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
 
+    let lastMessageId: string | undefined
     for (const part of chunks) {
       try {
         await retry(
@@ -117,6 +118,18 @@ export class TelegramChannel implements Channel {
               const body = await response.text()
               throw new Error(`telegram send failed (${response.status}): ${body}`)
             }
+
+            try {
+              const json = (await response.json()) as {
+                ok: boolean
+                result?: { message_id?: number }
+              }
+              if (json.ok && json.result?.message_id != null) {
+                lastMessageId = String(json.result.message_id)
+              }
+            } catch {
+              // Message sent successfully but couldn't parse response for message ID
+            }
           },
           {
             attempts: SEND_RETRY_ATTEMPTS,
@@ -134,6 +147,50 @@ export class TelegramChannel implements Channel {
 
     // Clear typing indicator after response is sent
     this.pendingTyping.delete(message.chatId)
+
+    if (lastMessageId) {
+      return { channel: 'telegram', chatId: message.chatId, messageId: lastMessageId }
+    }
+  }
+
+  /** Edits a previously sent Telegram message. */
+  async editMessage(sent: SentMessage, newContent: string): Promise<void> {
+    if (!this.config.channels.telegram.enabled) return
+
+    const token = this.config.channels.telegram.token
+    const url = `https://api.telegram.org/bot${token}/editMessageText`
+
+    try {
+      await retry(
+        async () => {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: Number(sent.chatId),
+              message_id: Number(sent.messageId),
+              text: newContent,
+              parse_mode: 'Markdown'
+            })
+          })
+
+          if (!response.ok) {
+            const body = await response.text()
+            throw new Error(`telegram editMessageText failed (${response.status}): ${body}`)
+          }
+        },
+        {
+          attempts: SEND_RETRY_ATTEMPTS,
+          backoffMs: SEND_RETRY_BACKOFF_MS
+        }
+      )
+    } catch (error) {
+      this.logger.error('channel.telegram.edit_failed', {
+        chatId: sent.chatId,
+        messageId: sent.messageId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   /** Sends a chat action (typing, uploading, etc.) to Telegram. */

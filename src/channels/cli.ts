@@ -3,7 +3,7 @@ import type { Readable, Writable } from 'node:stream'
 
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
-import type { InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 interface CliChannelIo {
@@ -63,7 +63,9 @@ export class CliChannel implements Channel {
     this.logger.info('channel.cli.stop')
   }
 
-  async send(message: OutboundMessage): Promise<void> {
+  private nextMessageId = 1
+
+  async send(message: OutboundMessage): Promise<SentMessage | void> {
     if (!this.config.channels.cli?.enabled) return
     if (message.channel !== 'cli') return
 
@@ -74,8 +76,15 @@ export class CliChannel implements Channel {
     }
 
     if (!message.content.trim()) return
+    const messageId = String(this.nextMessageId++)
     this.io.output.write(`bot> ${message.content}\n`)
     this.rl?.prompt()
+    return { channel: 'cli', chatId: message.chatId, messageId }
+  }
+
+  async editMessage(sent: SentMessage, newContent: string): Promise<void> {
+    if (!this.config.channels.cli?.enabled) return
+    this.io.output.write(`bot (edit)> ${newContent}\n`)
   }
 
   private async handleLine(raw: string): Promise<void> {

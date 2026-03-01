@@ -24,6 +24,15 @@ export interface OutboundMessage {
 }
 
 /**
+ * Opaque reference to a sent message, used for subsequent edits.
+ */
+export interface SentMessage {
+  channel: ChannelName
+  chatId: string
+  messageId: string
+}
+
+/**
  * Persistent mapping record from conversation key to Claude session ID.
  */
 export interface SessionRecord {

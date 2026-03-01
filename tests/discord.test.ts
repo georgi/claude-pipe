@@ -94,7 +94,7 @@ describe('DiscordChannel', () => {
     const bus = new MessageBus()
     const channel = new DiscordChannel(makeConfig(), bus, logger)
 
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => ({ id: 'msg-42' }))
     const fetch = vi.fn(async () => ({
       isTextBased: () => true,
       send
@@ -104,9 +104,35 @@ describe('DiscordChannel', () => {
       channels: { fetch }
     }
 
-    await channel.send({ channel: 'discord', chatId: 'c1', content: 'reply' })
+    const sent = await channel.send({ channel: 'discord', chatId: 'c1', content: 'reply' })
 
     expect(fetch).toHaveBeenCalledWith('c1')
     expect(send).toHaveBeenCalledWith({ content: 'reply' })
+    expect(sent).toEqual({ channel: 'discord', chatId: 'c1', messageId: 'msg-42' })
+  })
+
+  it('edits a previously sent Discord message', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+
+    const edit = vi.fn(async () => undefined)
+    const msgFetch = vi.fn(async () => ({ edit }))
+    const chFetch = vi.fn(async () => ({
+      isTextBased: () => true,
+      messages: { fetch: msgFetch }
+    }))
+
+    ;(channel as any).client = {
+      channels: { fetch: chFetch }
+    }
+
+    await channel.editMessage(
+      { channel: 'discord', chatId: 'c1', messageId: 'msg-42' },
+      'edited content'
+    )
+
+    expect(chFetch).toHaveBeenCalledWith('c1')
+    expect(msgFetch).toHaveBeenCalledWith('msg-42')
+    expect(edit).toHaveBeenCalledWith({ content: 'edited content' })
   })
 })
