@@ -140,15 +140,14 @@ describe('TelegramChannel', () => {
     expect(String(init.body)).toContain('"text":"updated text"')
   })
 
-  it('sends a streaming draft via sendMessageDraft API', async () => {
+  it('sends a streaming draft via sendMessageDraft API with draft_id', async () => {
     const bus = new MessageBus()
     const channel = new TelegramChannel(makeConfig(), bus, logger)
 
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
-      text: async () => '',
-      json: async () => ({ ok: true, result: { message_id: 777 } })
+      text: async () => ''
     })) as unknown as typeof fetch
 
     global.fetch = fetchMock
@@ -159,20 +158,22 @@ describe('TelegramChannel', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toContain('https://api.telegram.org/botTEST_TOKEN/sendMessageDraft')
     expect(init.method).toBe('POST')
-    expect(String(init.body)).toContain('"chat_id":200')
-    expect(String(init.body)).toContain('"text":"partial response..."')
-    expect(sent).toEqual({ channel: 'telegram', chatId: '200', messageId: '777' })
+    const body = String(init.body)
+    expect(body).toContain('"chat_id":200')
+    expect(body).toContain('"draft_id":1')
+    expect(body).toContain('"text":"partial response..."')
+    // sendMessageDraft returns True, not a message — so no SentMessage
+    expect(sent).toBeUndefined()
   })
 
-  it('returns void from sendMessageDraft when API response has no message_id', async () => {
+  it('logs error when sendMessageDraft fails', async () => {
     const bus = new MessageBus()
     const channel = new TelegramChannel(makeConfig(), bus, logger)
 
     const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({ ok: false })
+      ok: false,
+      status: 400,
+      text: async () => 'Bad Request'
     })) as unknown as typeof fetch
 
     global.fetch = fetchMock

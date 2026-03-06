@@ -166,25 +166,15 @@ export class TelegramChannel implements Channel {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           chat_id: Number(chatId),
-          text
+          draft_id: 1,
+          text,
+          parse_mode: 'Markdown'
         })
       })
 
       if (!response.ok) {
         const body = await response.text()
         throw new Error(`telegram sendMessageDraft failed (${response.status}): ${body}`)
-      }
-
-      try {
-        const json = (await response.json()) as {
-          ok: boolean
-          result?: { message_id?: number }
-        }
-        if (json.ok && json.result?.message_id != null) {
-          return { channel: 'telegram', chatId, messageId: String(json.result.message_id) }
-        }
-      } catch {
-        // Draft sent but couldn't parse response for message ID
       }
     } catch (error) {
       this.logger.error('channel.telegram.draft_failed', {
