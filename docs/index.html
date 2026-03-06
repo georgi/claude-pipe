@@ -140,65 +140,220 @@
       transform: translateY(-1px);
     }
 
-    /* --- Terminal --- */
-    .terminal-section {
-      max-width: 720px;
+    /* --- Telegram mockup --- */
+    .tg-section {
+      max-width: 420px;
       margin: 0 auto;
       padding: 0 24px 80px;
     }
 
-    .terminal {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+    .tg-phone {
+      background: #0e1621;
+      border-radius: 20px;
       overflow: hidden;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
     }
 
-    .terminal-bar {
-      background: var(--surface-2);
-      padding: 12px 16px;
+    /* Telegram header */
+    .tg-header {
+      background: #17212b;
+      padding: 14px 16px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
     }
 
-    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .terminal-dot.r { background: #ef4444; }
-    .terminal-dot.y { background: #eab308; }
-    .terminal-dot.g { background: #22c55e; }
+    .tg-back {
+      color: #6ab2f2;
+      font-size: 1.1rem;
+    }
 
-    .terminal-title {
+    .tg-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    .tg-header-info {
       flex: 1;
-      text-align: center;
+    }
+
+    .tg-header-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .tg-header-status {
       font-size: 0.75rem;
-      color: var(--text-dim);
+      color: #6ab2f2;
+      margin-top: 1px;
+    }
+
+    .tg-header-icons {
+      display: flex;
+      gap: 16px;
+      color: #6ab2f2;
+      font-size: 1rem;
+    }
+
+    /* Chat area */
+    .tg-chat {
+      padding: 12px 8px;
+      min-height: 380px;
+      background: #0e1621;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+    }
+
+    /* Message bubbles */
+    .tg-msg {
+      max-width: 85%;
+      padding: 7px 11px 4px;
+      border-radius: 12px;
+      font-size: 0.87rem;
+      line-height: 1.45;
+      position: relative;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s, transform 0.25s;
+      word-wrap: break-word;
+    }
+
+    .tg-msg.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tg-msg-out {
+      background: #2b5278;
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .tg-msg-in {
+      background: #182533;
+      color: #fff;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .tg-msg-name {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #6ab2f2;
+      margin-bottom: 2px;
+    }
+
+    .tg-msg-text {
+      white-space: pre-wrap;
+    }
+
+    .tg-msg-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .tg-msg-time {
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .tg-msg-out .tg-msg-time {
+      color: rgba(255,255,255,0.45);
+    }
+
+    .tg-msg-check {
+      font-size: 0.7rem;
+      color: #4fae4e;
+    }
+
+    /* Typing indicator */
+    .tg-typing {
+      display: flex;
+      gap: 3px;
+      padding: 4px 0 2px;
+      align-items: center;
+      height: 18px;
+    }
+
+    .tg-typing-dot {
+      width: 5px; height: 5px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 50%;
+      animation: typing-bounce 1.4s ease-in-out infinite;
+    }
+
+    .tg-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .tg-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes typing-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    /* Progress text style */
+    .tg-progress-text {
+      color: rgba(255,255,255,0.5);
+      font-style: italic;
+    }
+
+    /* Code block inside message */
+    .tg-code {
+      background: rgba(0,0,0,0.25);
+      border-radius: 6px;
+      padding: 8px 10px;
       font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      margin: 6px 0 2px;
+      overflow-x: auto;
+      color: #e2e8f0;
     }
 
-    .terminal-body {
-      padding: 20px 24px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.82rem;
-      line-height: 1.9;
-      min-height: 220px;
+    /* Input bar */
+    .tg-input {
+      background: #17212b;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid rgba(255,255,255,0.04);
     }
 
-    .terminal-body .prompt { color: var(--green); }
-    .terminal-body .cmd { color: var(--text); }
-    .terminal-body .comment { color: var(--text-dim); }
-    .terminal-body .output { color: var(--accent); }
-    .terminal-body .bot { color: var(--blue); }
-    .terminal-body .cursor {
-      display: inline-block;
-      width: 8px; height: 15px;
-      background: var(--green);
-      animation: blink 1s step-end infinite;
-      vertical-align: text-bottom;
+    .tg-input-clip {
+      color: #6ab2f2;
+      font-size: 1.2rem;
+      flex-shrink: 0;
     }
 
-    @keyframes blink { 50% { opacity: 0; } }
+    .tg-input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.4);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+    }
+
+    .tg-input-mic {
+      color: #6ab2f2;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
 
     /* --- Flow diagram --- */
     .flow-section {
@@ -419,7 +574,6 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 40px 32px;
-      position: relative;
     }
 
     .comparison-box h3 {
@@ -486,7 +640,6 @@
     }
 
     .cta-section h2 { margin-bottom: 16px; }
-
     .cta-section .section-desc { margin-bottom: 32px; }
 
     .install-block {
@@ -505,7 +658,6 @@
     }
 
     .install-block:hover { border-color: var(--border-hover); }
-
     .install-block .dollar { color: var(--text-dim); }
 
     .install-block .copy-hint {
@@ -540,6 +692,7 @@
       .flow-node .name { font-size: 0.8rem; }
       .flow-arrow { padding: 0 4px; font-size: 1rem; }
       .versus-eq { font-size: 1.2rem; }
+      .tg-section { padding: 0 12px 80px; }
     }
   </style>
 </head>
@@ -558,17 +711,27 @@
   </div>
 </section>
 
-<!-- Terminal -->
-<section class="terminal-section">
-  <div class="terminal">
-    <div class="terminal-bar">
-      <div class="terminal-dot r"></div>
-      <div class="terminal-dot y"></div>
-      <div class="terminal-dot g"></div>
-      <span class="terminal-title">claude-pipe</span>
-      <div style="width:36px"></div>
+<!-- Telegram mockup -->
+<section class="tg-section">
+  <div class="tg-phone">
+    <div class="tg-header">
+      <div class="tg-back">&#x2190;</div>
+      <div class="tg-avatar">CP</div>
+      <div class="tg-header-info">
+        <div class="tg-header-name">claude-pipe</div>
+        <div class="tg-header-status" id="tgStatus">online</div>
+      </div>
+      <div class="tg-header-icons">
+        <span>&#x1F50D;</span>
+        <span>&#x22EE;</span>
+      </div>
     </div>
-    <div class="terminal-body" id="terminal"></div>
+    <div class="tg-chat" id="tgChat"></div>
+    <div class="tg-input">
+      <div class="tg-input-clip">&#x1F4CE;</div>
+      <div class="tg-input-field">Message</div>
+      <div class="tg-input-mic">&#x1F3A4;</div>
+    </div>
   </div>
 </section>
 
@@ -741,47 +904,135 @@
 </footer>
 
 <script>
-  const lines = [
-    { type: 'prompt', text: '$ ' },
-    { type: 'cmd', text: 'npm run dev', delay: 50 },
-    { type: 'br' },
-    { type: 'output', text: '  claude-pipe running on Telegram', delay: 25 },
-    { type: 'br' },
-    { type: 'br' },
-    { type: 'bot', text: '  you: "what meetings do I have tomorrow?"', delay: 35 },
-    { type: 'br' },
-    { type: 'output', text: '  [claude] checking Google Calendar...', delay: 40 },
-    { type: 'br' },
-    { type: 'bot', text: '  claude: "You have 2 meetings tomorrow:', delay: 30 },
-    { type: 'br' },
-    { type: 'bot', text: '    10am - Standup (30min)', delay: 30 },
-    { type: 'br' },
-    { type: 'bot', text: '    2pm  - Design review (1hr)"', delay: 30 },
-    { type: 'br' },
-    { type: 'br' },
-    { type: 'bot', text: '  you: "draft a reply to the latest email from Sarah"', delay: 35 },
-    { type: 'br' },
-    { type: 'output', text: '  [claude] searching Gmail... drafting reply...', delay: 40 },
-    { type: 'br' },
-    { type: 'bot', text: '  claude: "Draft ready. Want me to send it?"', delay: 30 },
-    { type: 'br' },
-    { type: 'cursor' },
-  ];
+  const chat = document.getElementById('tgChat');
+  const statusEl = document.getElementById('tgStatus');
+  const now = new Date();
+  const timeStr = h => h + ':' + String(now.getMinutes()).padStart(2, '0');
+  const t = timeStr(String(now.getHours()).padStart(2, '0'));
 
-  const terminal = document.getElementById('terminal');
-  let li = 0, ci = 0, span = null;
-
-  function type() {
-    if (li >= lines.length) return;
-    const l = lines[li];
-    if (l.type === 'br') { terminal.appendChild(document.createElement('br')); li++; setTimeout(type, 200); return; }
-    if (l.type === 'cursor') { const c = document.createElement('span'); c.className = 'cursor'; terminal.appendChild(c); return; }
-    if (!span) { span = document.createElement('span'); span.className = l.type; terminal.appendChild(span); }
-    if (ci < l.text.length) { span.textContent += l.text[ci]; ci++; setTimeout(type, l.delay || 40); }
-    else { span = null; ci = 0; li++; setTimeout(type, 150); }
+  function createMsg(type, text, time) {
+    const el = document.createElement('div');
+    el.className = 'tg-msg ' + (type === 'out' ? 'tg-msg-out' : 'tg-msg-in');
+    const nameHtml = type === 'in' ? '<div class="tg-msg-name">claude-pipe</div>' : '';
+    const checkHtml = type === 'out' ? '<span class="tg-msg-check">&#x2713;&#x2713;</span>' : '';
+    el.innerHTML = nameHtml +
+      '<div class="tg-msg-text"></div>' +
+      '<div class="tg-msg-meta"><span class="tg-msg-time">' + (time || t) + '</span>' + checkHtml + '</div>';
+    return el;
   }
 
-  setTimeout(type, 600);
+  // The full demo script
+  const script = [
+    // User sends first message
+    { action: 'send', type: 'out', text: 'what meetings do I have tomorrow?' },
+    { action: 'wait', ms: 400 },
+    { action: 'status', text: 'typing...' },
+    { action: 'wait', ms: 600 },
+
+    // Claude responds - streaming updates in same bubble
+    { action: 'send', type: 'in', text: 'Checking Google Calendar...', id: 'r1', progress: true },
+    { action: 'wait', ms: 1200 },
+    { action: 'update', id: 'r1', text: 'You have 2 meetings tomorrow:\n\n10:00 \u2013 Standup (30min)\n14:00 \u2013 Design review with Sarah (1hr)\n\nWant me to add anything to your calendar?', progress: false },
+    { action: 'status', text: 'online' },
+    { action: 'wait', ms: 2000 },
+
+    // User sends second message
+    { action: 'send', type: 'out', text: 'draft a reply to the latest email from Sarah' },
+    { action: 'wait', ms: 400 },
+    { action: 'status', text: 'typing...' },
+    { action: 'wait', ms: 500 },
+
+    // Claude streams progress updates
+    { action: 'send', type: 'in', text: 'Searching Gmail...', id: 'r2', progress: true },
+    { action: 'wait', ms: 1000 },
+    { action: 'update', id: 'r2', text: 'Found email: "Q2 design specs"\nDrafting reply...', progress: true },
+    { action: 'wait', ms: 1400 },
+    { action: 'update', id: 'r2', text: 'Draft ready:\n\n"Hi Sarah,\n\nThanks for sending the Q2 specs. The new component library looks great \u2013 I\'ll review the Figma links before our design review tomorrow.\n\nOne question: should we include the dark mode variants in the first pass?\n\nBest,\nMatthias"\n\nSend it or want changes?', progress: false },
+    { action: 'status', text: 'online' },
+    { action: 'wait', ms: 2500 },
+
+    // User sends third message
+    { action: 'send', type: 'out', text: 'send it, then fix the bug in auth.ts line 42' },
+    { action: 'wait', ms: 400 },
+    { action: 'status', text: 'typing...' },
+    { action: 'wait', ms: 500 },
+
+    { action: 'send', type: 'in', text: 'Sending email...', id: 'r3', progress: true },
+    { action: 'wait', ms: 900 },
+    { action: 'update', id: 'r3', text: 'Email sent \u2713\nReading src/auth.ts...', progress: true },
+    { action: 'wait', ms: 1200 },
+    { action: 'update', id: 'r3', text: 'Email sent \u2713\n\nFixed the null check on line 42. The token validation was missing an expiry guard:\n\nif (!token || token.exp < Date.now())\n\nCommitted to main and pushed.', progress: false },
+    { action: 'status', text: 'online' },
+  ];
+
+  const msgById = {};
+  let step = 0;
+
+  function runNext() {
+    if (step >= script.length) {
+      // Loop after a pause
+      setTimeout(() => {
+        chat.innerHTML = '';
+        Object.keys(msgById).forEach(k => delete msgById[k]);
+        step = 0;
+        runNext();
+      }, 4000);
+      return;
+    }
+
+    const s = script[step++];
+
+    switch (s.action) {
+      case 'send': {
+        const msg = createMsg(s.type, '', t);
+        const textEl = msg.querySelector('.tg-msg-text');
+        if (s.progress) {
+          textEl.innerHTML = '<span class="tg-progress-text">' + escHtml(s.text) + '</span>';
+        } else {
+          textEl.textContent = s.text;
+        }
+        chat.appendChild(msg);
+        // Trigger animation
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => msg.classList.add('visible'));
+        });
+        if (s.id) msgById[s.id] = msg;
+        chat.scrollTop = chat.scrollHeight;
+        runNext();
+        break;
+      }
+
+      case 'update': {
+        const msg = msgById[s.id];
+        if (msg) {
+          const textEl = msg.querySelector('.tg-msg-text');
+          if (s.progress) {
+            textEl.innerHTML = '<span class="tg-progress-text">' + escHtml(s.text) + '</span>';
+          } else {
+            textEl.textContent = s.text;
+          }
+          chat.scrollTop = chat.scrollHeight;
+        }
+        runNext();
+        break;
+      }
+
+      case 'status':
+        statusEl.textContent = s.text;
+        runNext();
+        break;
+
+      case 'wait':
+        setTimeout(runNext, s.ms);
+        break;
+    }
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  }
+
+  setTimeout(runNext, 800);
 </script>
 
 </body>
