@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>claude-pipe</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    .pipe-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .pipe-segment {
+      position: absolute;
+      background: linear-gradient(90deg, #1a1a2e, #16213e);
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      opacity: 0.15;
+    }
+
+    .data-particle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #e94560;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #e94560, 0 0 20px #e94560;
+      animation: flow linear infinite;
+    }
+
+    @keyframes flow {
+      0% { transform: translateX(-20px); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateX(calc(100vw + 20px)); opacity: 0; }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 60px 20px;
+      text-align: center;
+    }
+
+    .logo {
+      font-size: 4rem;
+      margin-bottom: 8px;
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    h1 {
+      font-size: 3rem;
+      background: linear-gradient(135deg, #e94560, #0f3460, #e94560);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradient 4s ease infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .tagline {
+      font-size: 1.1rem;
+      color: #888;
+      margin-bottom: 50px;
+    }
+
+    .terminal {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 10px;
+      overflow: hidden;
+      text-align: left;
+      margin: 40px 0;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .terminal-bar {
+      background: #222;
+      padding: 10px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #ff5f57; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #28c840; }
+
+    .terminal-body {
+      padding: 20px;
+      font-size: 0.95rem;
+      line-height: 1.8;
+      min-height: 200px;
+    }
+
+    .terminal-body .prompt { color: #28c840; }
+    .terminal-body .cmd { color: #e0e0e0; }
+    .terminal-body .comment { color: #666; }
+    .terminal-body .output { color: #e94560; }
+    .terminal-body .bot { color: #0f9df0; }
+    .terminal-body .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: #28c840;
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .how-it-works {
+      margin: 60px 0;
+    }
+
+    .how-it-works h2 {
+      font-size: 1.5rem;
+      color: #e94560;
+      margin-bottom: 30px;
+    }
+
+    .pipe-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+
+    .pipe-node {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-size: 1rem;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .pipe-node:hover {
+      border-color: #e94560;
+      box-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .pipe-node .node-icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+    .pipe-node .node-label { color: #aaa; font-size: 0.8rem; }
+
+    .pipe-connector {
+      font-size: 1.8rem;
+      color: #0f3460;
+      padding: 0 6px;
+      animation: flowRight 2s ease-in-out infinite;
+    }
+
+    @keyframes flowRight {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; color: #e94560; }
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin: 40px 0;
+      text-align: left;
+    }
+
+    .feature {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 24px;
+      transition: all 0.3s;
+    }
+
+    .feature:hover {
+      border-color: #0f3460;
+      transform: translateY(-2px);
+    }
+
+    .feature h3 { color: #e94560; margin-bottom: 8px; font-size: 0.95rem; }
+    .feature p { color: #888; font-size: 0.85rem; line-height: 1.5; }
+
+    .cta {
+      margin-top: 50px;
+    }
+
+    .cta a {
+      display: inline-block;
+      background: linear-gradient(135deg, #e94560, #c81d4e);
+      color: white;
+      text-decoration: none;
+      padding: 14px 36px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+
+    .cta a:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(233, 69, 96, 0.4);
+    }
+
+    .footer {
+      margin-top: 80px;
+      color: #444;
+      font-size: 0.8rem;
+    }
+
+    .footer a { color: #666; }
+
+    .plumber {
+      font-size: 1.5rem;
+      display: inline-block;
+      animation: wrench 2s ease-in-out infinite;
+    }
+
+    @keyframes wrench {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(20deg); }
+      75% { transform: rotate(-20deg); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="pipe-bg" id="pipeBg"></div>
+
+<div class="container">
+  <div class="logo">🔧</div>
+  <h1>claude-pipe</h1>
+  <p class="tagline">Your personal AI plumber. Connects Claude to your chat apps.</p>
+
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+    </div>
+    <div class="terminal-body" id="terminal"></div>
+  </div>
+
+  <div class="how-it-works">
+    <h2>How the pipes connect <span class="plumber">🔧</span></h2>
+    <div class="pipe-diagram">
+      <div class="pipe-node">
+        <span class="node-icon">💬</span>
+        You
+        <div class="node-label">Telegram / Discord</div>
+      </div>
+      <div class="pipe-connector">━━▸</div>
+      <div class="pipe-node">
+        <span class="node-icon">🔧</span>
+        claude-pipe
+        <div class="node-label">The plumbing</div>
+      </div>
+      <div class="pipe-connector">━━▸</div>
+      <div class="pipe-node">
+        <span class="node-icon">🧠</span>
+        Claude
+        <div class="node-label">The brain</div>
+      </div>
+      <div class="pipe-connector">━━▸</div>
+      <div class="pipe-node">
+        <span class="node-icon">💻</span>
+        Your machine
+        <div class="node-label">Files, shell, web</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <h3>$ runs locally</h3>
+      <p>No cloud middleman. Your data stays on your machine. The AI agent runs right where your code lives.</p>
+    </div>
+    <div class="feature">
+      <h3>$ multi-channel</h3>
+      <p>Telegram, Discord, or plain CLI. Message your AI assistant from wherever you already hang out.</p>
+    </div>
+    <div class="feature">
+      <h3>$ full access</h3>
+      <p>The agent can read files, edit code, run commands, and search the web. It's Claude Code, but from your phone.</p>
+    </div>
+    <div class="feature">
+      <h3>$ easy setup</h3>
+      <p>Interactive wizard gets you running in 2 minutes. Just <code style="color:#e94560">npm run dev</code> and follow the prompts.</p>
+    </div>
+  </div>
+
+  <div class="cta">
+    <a href="https://github.com/georgi/claude-pipe">git clone &amp;&amp; npm start</a>
+  </div>
+
+  <div class="footer">
+    <p>Built by <a href="https://github.com/georgi">Matthias Georgi</a> with help from Claude</p>
+    <p style="margin-top:8px">No pipes were harmed in the making of this project <span class="plumber">🔧</span></p>
+  </div>
+</div>
+
+<script>
+  // Background pipes
+  const bg = document.getElementById('pipeBg');
+  for (let i = 0; i < 12; i++) {
+    const pipe = document.createElement('div');
+    pipe.className = 'pipe-segment';
+    const top = Math.random() * 100;
+    const width = 100 + Math.random() * 400;
+    const height = 4 + Math.random() * 8;
+    pipe.style.cssText = `top:${top}%;left:${Math.random()*80}%;width:${width}px;height:${height}px;transform:rotate(${Math.random()*4-2}deg)`;
+    bg.appendChild(pipe);
+  }
+
+  // Flowing data particles
+  function spawnParticle() {
+    const p = document.createElement('div');
+    p.className = 'data-particle';
+    p.style.top = (Math.random() * 100) + '%';
+    p.style.animationDuration = (3 + Math.random() * 5) + 's';
+    bg.appendChild(p);
+    setTimeout(() => p.remove(), 8000);
+  }
+  setInterval(spawnParticle, 600);
+
+  // Terminal typing animation
+  const lines = [
+    { type: 'prompt', text: '$ ' },
+    { type: 'cmd', text: 'npm run dev', delay: 60 },
+    { type: 'br' },
+    { type: 'comment', text: '# wizard: choosing Telegram...', delay: 30 },
+    { type: 'br' },
+    { type: 'output', text: '> claude-pipe running on Telegram', delay: 30 },
+    { type: 'br' },
+    { type: 'br' },
+    { type: 'comment', text: '# you send a message from your phone:', delay: 30 },
+    { type: 'br' },
+    { type: 'bot', text: '[telegram] you: "refactor the auth module"', delay: 40 },
+    { type: 'br' },
+    { type: 'output', text: '[claude] reading src/auth/...', delay: 50 },
+    { type: 'br' },
+    { type: 'output', text: '[claude] editing 3 files...', delay: 50 },
+    { type: 'br' },
+    { type: 'bot', text: '[telegram] claude: "Done! Refactored auth into 3 modules. Want me to commit?"', delay: 35 },
+    { type: 'br' },
+    { type: 'cursor' },
+  ];
+
+  const terminal = document.getElementById('terminal');
+  let lineIdx = 0;
+  let charIdx = 0;
+  let currentSpan = null;
+
+  function typeNext() {
+    if (lineIdx >= lines.length) return;
+    const line = lines[lineIdx];
+
+    if (line.type === 'br') {
+      terminal.appendChild(document.createElement('br'));
+      lineIdx++;
+      setTimeout(typeNext, 300);
+      return;
+    }
+
+    if (line.type === 'cursor') {
+      const c = document.createElement('span');
+      c.className = 'cursor';
+      terminal.appendChild(c);
+      return;
+    }
+
+    if (!currentSpan) {
+      currentSpan = document.createElement('span');
+      currentSpan.className = line.type;
+      terminal.appendChild(currentSpan);
+    }
+
+    if (charIdx < line.text.length) {
+      currentSpan.textContent += line.text[charIdx];
+      charIdx++;
+      setTimeout(typeNext, line.delay || 40);
+    } else {
+      currentSpan = null;
+      charIdx = 0;
+      lineIdx++;
+      setTimeout(typeNext, 200);
+    }
+  }
+
+  setTimeout(typeNext, 800);
+</script>
+
+</body>
+</html>
