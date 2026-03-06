@@ -67,22 +67,70 @@ This runs the wizard again with your current values shown as defaults — press 
 
 Send a message to your bot (or type in terminal if using CLI mode) and the agent will reply.
 
-## How it works
+## Architecture
+
+Claude Pipe is a single Node.js process. One event bus, pluggable channels, one agent loop.
 
 ```
-Telegram / Discord / CLI
-       ↓
-  Your message comes in
-       ↓
-  Agent CLI processes it
-  (reads files, runs commands, thinks)
-       ↓
-  Response sent back to chat
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│Telegram │  │ Discord │  │   CLI   │
+└────┬────┘  └────┬────┘  └────┬────┘
+     │            │            │
+     ▼            ▼            ▼
+┌──────────────────────────────────────┐
+│            Message Bus               │
+│       (inbound / outbound queues)    │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│            Agent Loop                │
+│  ┌─────────────┐  ┌──────────────┐  │
+│  │  Command     │  │ Model Client │  │
+│  │  Handler     │  │ (Claude/     │  │
+│  │  (/session,  │  │  Codex CLI)  │  │
+│  │   /model..)  │  └──────┬───────┘  │
+│  └─────────────┘          │          │
+└───────────────────────────┼──────────┘
+                            │
+                   ┌────────▼────────┐
+                   │  Session Store  │
+                   │  (JSON file)    │
+                   └─────────────────┘
 ```
 
-Sessions are saved to a local JSON file, so conversations survive restarts. Each chat gets its own session.
+### Single Process
 
-The agent operates within the workspace directory you configure. File access and shell commands are restricted to that directory for safety.
+One Node.js process runs the event bus, agent loop, and all channel adapters. No microservices, no message brokers.
+
+### Message Bus
+
+Channels and the agent loop are fully decoupled through async inbound/outbound queues. Channels publish inbound messages; the agent loop consumes them, runs a turn, and publishes outbound replies that the channel manager dispatches back.
+
+### Pluggable Channels
+
+Each channel (Telegram, Discord, CLI) implements the same adapter interface: `start`, `stop`, `send`, `editMessage`. The channel manager owns their lifecycle and routes outbound messages to the right adapter.
+
+### Command Interception
+
+Slash commands (`/session`, `/model`, `/config`, etc.) are intercepted by the command handler before reaching the LLM, so they execute instantly without spending tokens.
+
+### Streaming Updates
+
+During a turn, tool call progress and streaming text are pushed back to the chat as editable messages that get replaced with the final response.
+
+### Key Files
+
+| File | Role |
+|---|---|
+| `src/index.ts` | Boots the runtime — config, bus, agent, channels, heartbeat |
+| `src/core/agent-loop.ts` | Consumes inbound messages, runs LLM turns, publishes replies |
+| `src/core/bus.ts` | Async message bus with inbound/outbound queues |
+| `src/channels/manager.ts` | Owns channel lifecycle and outbound dispatch |
+| `src/core/client-factory.ts` | Creates Claude or Codex model client based on config |
+| `src/core/session-store.ts` | Persists conversation sessions to a JSON file |
+| `src/commands/handler.ts` | Slash command interception and execution |
+| `src/config/load.ts` | Loads and validates settings from `~/.claude-pipe/settings.json` |
 
 ## Configuration reference
 

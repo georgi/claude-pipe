@@ -34,10 +34,81 @@
       overflow-x: hidden;
     }
 
+    /* --- Nav --- */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-brand span { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .nav-links a {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--accent); }
+
+    .nav-links .nav-gh {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color 0.2s;
+    }
+
+    .nav-links .nav-gh:hover { border-color: var(--border-hover); }
+
+    .nav-links .nav-gh svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
     /* --- Hero --- */
     .hero {
       position: relative;
-      padding: 100px 24px 80px;
+      padding: 120px 24px 80px;
       text-align: center;
       overflow: hidden;
     }
@@ -421,6 +492,131 @@
       opacity: 0.4;
     }
 
+    /* --- Architecture --- */
+    .arch-section {
+      padding: 80px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .arch-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      max-width: 900px;
+      margin: 0 auto 64px;
+      flex-wrap: wrap;
+    }
+
+    .arch-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      text-align: center;
+      min-width: 120px;
+      transition: all 0.25s;
+    }
+
+    .arch-node:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .arch-node .a-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .arch-node .a-desc {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .arch-node .a-name.c-green { color: var(--green); }
+    .arch-node .a-name.c-blue { color: var(--blue); }
+    .arch-node .a-name.c-accent { color: var(--accent); }
+    .arch-node .a-name.c-pink { color: var(--pink); }
+    .arch-node .a-name.c-purple { color: #a78bfa; }
+
+    .arch-arrow {
+      flex-shrink: 0;
+      color: var(--text-dim);
+      opacity: 0.4;
+      padding: 0 6px;
+    }
+
+    .arch-arrow svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .arch-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto 64px;
+    }
+
+    .arch-detail {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: left;
+    }
+
+    .arch-detail h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .arch-detail p {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.55;
+    }
+
+    .key-files {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .key-files h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .key-file {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+    }
+
+    .key-file code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .key-file span {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
     /* --- Integrations --- */
     .integrations-section {
       padding: 80px 24px;
@@ -632,7 +828,66 @@
       font-weight: 700;
     }
 
-    /* --- CTA --- */
+    /* --- FAQ --- */
+    .faq-section {
+      padding: 80px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .faq-section .section-label,
+    .faq-section h2,
+    .faq-section .section-desc {
+      text-align: center;
+    }
+
+    .faq-list {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .faq-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      background: var(--surface);
+      transition: border-color 0.2s;
+    }
+
+    .faq-item:hover { border-color: var(--border-hover); }
+
+    .faq-item summary {
+      padding: 20px 24px;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+
+    .faq-item summary::-webkit-details-marker { display: none; }
+
+    .faq-item summary .faq-chevron {
+      width: 20px;
+      height: 20px;
+      color: var(--text-dim);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .faq-item[open] summary .faq-chevron {
+      transform: rotate(180deg);
+    }
+
+    .faq-answer {
+      padding: 0 24px 20px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      line-height: 1.65;
+    }
+
+    /* --- CTA / Quick Start --- */
     .cta-section {
       padding: 80px 24px;
       text-align: center;
@@ -642,29 +897,74 @@
     .cta-section h2 { margin-bottom: 16px; }
     .cta-section .section-desc { margin-bottom: 32px; }
 
-    .install-block {
+    .terminal {
+      max-width: 560px;
+      margin: 0 auto 32px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      display: inline-flex;
-      align-items: center;
-      padding: 12px 20px;
-      gap: 12px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
-      margin-bottom: 24px;
-      cursor: pointer;
-      transition: border-color 0.2s;
+      border-radius: var(--radius);
+      overflow: hidden;
+      text-align: left;
     }
 
-    .install-block:hover { border-color: var(--border-hover); }
-    .install-block .dollar { color: var(--text-dim); }
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
 
-    .install-block .copy-hint {
-      color: var(--text-dim);
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: rgba(239, 68, 68, 0.7); }
+    .terminal-dot.yellow { background: rgba(234, 179, 8, 0.7); }
+    .terminal-dot.green { background: rgba(34, 197, 94, 0.7); }
+
+    .terminal-title {
+      margin-left: 8px;
       font-size: 0.7rem;
-      border-left: 1px solid var(--border);
-      padding-left: 12px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .terminal-body {
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+    }
+
+    .terminal-body .dollar { color: var(--text-dim); }
+    .terminal-body .cmd { color: var(--accent); }
+    .terminal-body .arg { color: var(--text-muted); }
+
+    .terminal-hint {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(217, 119, 6, 0.2);
+      border-radius: 8px;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .terminal-hint p {
+      font-size: 0.82rem;
+      color: var(--accent);
+    }
+
+    .terminal-hint code {
+      background: rgba(217, 119, 6, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
     }
 
     /* --- Footer --- */
@@ -685,7 +985,8 @@
 
     /* --- Responsive --- */
     @media (max-width: 640px) {
-      .hero { padding: 60px 20px 60px; }
+      .nav-links a:not(.nav-gh) { display: none; }
+      .hero { padding: 80px 20px 60px; }
       .flow { gap: 8px; }
       .flow-node { padding: 16px; min-width: 90px; }
       .flow-node .icon { font-size: 1.4rem; }
@@ -693,10 +994,33 @@
       .flow-arrow { padding: 0 4px; font-size: 1rem; }
       .versus-eq { font-size: 1.2rem; }
       .tg-section { padding: 0 12px 80px; }
+      .arch-flow { gap: 4px; }
+      .arch-node { padding: 10px 12px; min-width: 80px; }
+      .arch-node .a-name { font-size: 0.75rem; }
+      .arch-node .a-desc { font-size: 0.65rem; }
+      .arch-arrow { padding: 0 2px; }
+      .arch-arrow svg { width: 12px; height: 12px; }
     }
   </style>
 </head>
 <body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">claude<span>-pipe</span></a>
+    <div class="nav-links">
+      <a href="#architecture">Architecture</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="#get-started">Get Started</a>
+      <a href="https://github.com/georgi/claude-pipe" target="_blank" rel="noopener" class="nav-gh">
+        <svg viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <span data-stars>GitHub</span>
+      </a>
+    </div>
+  </div>
+</nav>
 
 <!-- Hero -->
 <section class="hero">
@@ -765,6 +1089,102 @@
       <div class="icon">&#x1F30D;</div>
       <div class="name">Everything</div>
       <div class="desc">Files, APIs, web</div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section class="arch-section" id="architecture">
+  <div class="section-label">Architecture</div>
+  <h2>Single process. Event bus. Pluggable channels.</h2>
+  <p class="section-desc">
+    One Node.js process runs everything. Channels and the agent loop are decoupled through an async message bus.
+  </p>
+
+  <!-- Flow diagram -->
+  <div class="arch-flow">
+    <div class="arch-node">
+      <div class="a-name c-green">Telegram</div>
+      <div class="a-desc">channel adapter</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-green">Discord</div>
+      <div class="a-desc">channel adapter</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-green">CLI</div>
+      <div class="a-desc">channel adapter</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-blue">Message Bus</div>
+      <div class="a-desc">inbound / outbound</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-accent">Agent Loop</div>
+      <div class="a-desc">commands &amp; LLM turns</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-pink">Claude / Codex</div>
+      <div class="a-desc">model client</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-purple">Session Store</div>
+      <div class="a-desc">JSON persistence</div>
+    </div>
+  </div>
+
+  <!-- Architecture details -->
+  <div class="arch-details">
+    <div class="arch-detail">
+      <h3>Message Bus</h3>
+      <p>Channels and the agent loop are fully decoupled through async inbound/outbound queues. Channels publish; the agent consumes, runs a turn, and publishes replies back.</p>
+    </div>
+    <div class="arch-detail">
+      <h3>Pluggable Channels</h3>
+      <p>Each channel implements the same adapter interface: start, stop, send, editMessage. The channel manager owns lifecycle and routes outbound messages to the right adapter.</p>
+    </div>
+    <div class="arch-detail">
+      <h3>Command Interception</h3>
+      <p>Slash commands (/session, /model, /config) are intercepted before reaching the LLM and execute instantly without spending tokens.</p>
+    </div>
+    <div class="arch-detail">
+      <h3>Streaming Updates</h3>
+      <p>During a turn, tool call progress and streaming text are pushed back as editable messages that get replaced with the final response.</p>
+    </div>
+  </div>
+
+  <!-- Key files -->
+  <div class="key-files">
+    <h3>Key Files</h3>
+    <div class="key-file">
+      <code>index.ts</code>
+      <span>&mdash; Boots the runtime: config, bus, agent, channels, heartbeat</span>
+    </div>
+    <div class="key-file">
+      <code>core/agent-loop.ts</code>
+      <span>&mdash; Consumes inbound messages, runs LLM turns, publishes replies</span>
+    </div>
+    <div class="key-file">
+      <code>core/bus.ts</code>
+      <span>&mdash; Async message bus with inbound/outbound queues</span>
+    </div>
+    <div class="key-file">
+      <code>channels/manager.ts</code>
+      <span>&mdash; Owns channel lifecycle and outbound dispatch</span>
+    </div>
+    <div class="key-file">
+      <code>core/client-factory.ts</code>
+      <span>&mdash; Creates Claude or Codex model client based on config</span>
+    </div>
+    <div class="key-file">
+      <code>core/session-store.ts</code>
+      <span>&mdash; Persists conversation sessions to a JSON file</span>
     </div>
   </div>
 </section>
@@ -852,7 +1272,7 @@
 </section>
 
 <!-- Features -->
-<section class="features-section">
+<section class="features-section" id="features">
   <div class="section-label">Why claude-pipe</div>
   <h2>Built for how you actually work</h2>
   <p class="section-desc">
@@ -882,19 +1302,93 @@
   </div>
 </section>
 
-<!-- CTA -->
+<!-- FAQ -->
+<section class="faq-section" id="faq">
+  <div class="section-label">FAQ</div>
+  <h2>Common questions</h2>
+  <p class="section-desc">Everything you need to know before getting started.</p>
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary>
+        What is claude-pipe?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        claude-pipe is a lightweight bridge that connects your chat apps (Telegram, Discord) to a real Claude Code session running on your machine. You send a message from your phone and get the full Claude Code experience &mdash; file editing, shell commands, web search, Google integrations &mdash; without opening a terminal.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Is it the same as Claude Code?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Yes. claude-pipe doesn't limit or wrap Claude &mdash; it runs the actual Claude Code CLI (or Codex CLI) under the hood with the same tools, skills, and context. It's just a different front door: your phone instead of a terminal.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        What do I need to run it?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Node.js 20+, a Claude Code subscription (or Codex CLI), and a bot token for your channel (Telegram bot token or Discord bot token). The interactive setup wizard handles configuration. Your machine needs to stay running since the agent runs locally.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Does my data leave my machine?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Messages flow through the Telegram/Discord API (as with any bot), but the agent itself runs entirely on your machine. Files, code, and credentials never leave your server. Sessions are stored in a local JSON file.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Can I restrict who can use the bot?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Yes. Each channel has an allow-list setting. Only user IDs in the list can interact with the bot. If the list is empty, everyone is allowed. The setup wizard helps you configure this.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Which LLM providers are supported?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        claude-pipe supports Claude Code (via the Claude CLI) and OpenAI's Codex CLI. You can switch between them using the /model slash command or by changing the provider in settings. The model client is pluggable, so adding new providers is straightforward.
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- CTA / Quick Start -->
 <section class="cta-section" id="get-started">
   <div class="section-label">Get started</div>
   <h2>Three commands, one assistant</h2>
   <p class="section-desc">
-    Clone, install, run. The wizard handles the rest.
+    Clone, install, run. The interactive wizard handles the rest.
   </p>
-  <div class="install-block" onclick="navigator.clipboard.writeText('git clone https://github.com/georgi/claude-pipe && cd claude-pipe && npm run dev')">
-    <span class="dollar">$</span>
-    <span>git clone &amp;&amp; cd claude-pipe &amp;&amp; npm run dev</span>
-    <span class="copy-hint">click to copy</span>
+  <div class="terminal">
+    <div class="terminal-header">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+      <span class="terminal-title">Terminal</span>
+    </div>
+    <div class="terminal-body">
+      <div><span class="dollar">$</span> <span class="cmd">git clone</span> <span class="arg">https://github.com/georgi/claude-pipe.git</span></div>
+      <div><span class="dollar">$</span> <span class="cmd">cd</span> <span class="arg">claude-pipe</span></div>
+      <div><span class="dollar">$</span> <span class="cmd">npm run dev</span></div>
+    </div>
   </div>
-  <br>
+  <div class="terminal-hint">
+    <p>The setup wizard walks you through everything: channel selection, bot token, model choice, workspace directory.</p>
+  </div>
+  <br><br>
   <a href="https://github.com/georgi/claude-pipe" class="btn btn-primary">View on GitHub</a>
 </section>
 
@@ -1033,6 +1527,18 @@
   }
 
   setTimeout(runNext, 800);
+
+  // GitHub stars
+  fetch('https://api.github.com/repos/georgi/claude-pipe')
+    .then(r => r.json())
+    .then(data => {
+      if (data.stargazers_count) {
+        document.querySelectorAll('[data-stars]').forEach(el => {
+          el.textContent = data.stargazers_count + '+ Stars';
+        });
+      }
+    })
+    .catch(() => {});
 </script>
 
 </body>
