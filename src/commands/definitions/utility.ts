@@ -1,3 +1,4 @@
+import type { ClaudePipeConfig } from '../../config/schema.js'
 import type { CommandDefinition, CommandResult } from '../types.js'
 import type { CommandRegistry } from '../registry.js'
 
@@ -70,6 +71,44 @@ export function statusCommand(
           `• Model: ${status.model}\n` +
           `• Workspace: ${status.workspace}\n` +
           `• Channels: ${status.channels.join(', ')}`
+      }
+    }
+  }
+}
+
+/**
+ * /reload
+ * Reloads configuration from disk without restarting.
+ */
+export function reloadCommand(
+  config: ClaudePipeConfig,
+  reloadConfig: () => ClaudePipeConfig
+): CommandDefinition {
+  return {
+    name: 'reload',
+    category: 'utility',
+    description: 'Reload configuration from disk',
+    aliases: [],
+    permission: 'admin',
+    async execute(): Promise<CommandResult> {
+      try {
+        const fresh = reloadConfig()
+        // Mutate the live config object in-place
+        Object.assign(config, fresh)
+        const parts = [
+          'Configuration reloaded.',
+          `- Model: ${config.model}`,
+          `- Workspace: ${config.workspace}`
+        ]
+        if (config.personality?.name) {
+          parts.push(`- Personality: ${config.personality.name} — ${config.personality.traits}`)
+        }
+        return { content: parts.join('\n') }
+      } catch (error) {
+        return {
+          content: `Reload failed: ${error instanceof Error ? error.message : String(error)}`,
+          error: true
+        }
       }
     }
   }

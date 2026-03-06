@@ -1,4 +1,5 @@
 import type { ClaudePipeConfig } from '../config/schema.js'
+import { loadConfig } from '../config/load.js'
 import type { ModelClient } from '../core/model-client.js'
 import type { SessionStore } from '../core/session-store.js'
 import {
@@ -7,7 +8,7 @@ import {
   sessionInfoCommand,
   sessionDeleteCommand
 } from './definitions/session.js'
-import { helpCommand, statusCommand, pingCommand } from './definitions/utility.js'
+import { helpCommand, statusCommand, pingCommand, reloadCommand } from './definitions/utility.js'
 import { claudeAskCommand, claudeModelCommand } from './definitions/claude.js'
 import { configSetCommand, configGetCommand } from './definitions/config.js'
 import { CommandHandler } from './handler.js'
@@ -104,6 +105,7 @@ export function setupCommands(
     }))
   )
   registry.register(pingCommand())
+  registry.register(reloadCommand(config, loadConfig))
 
   // --- Custom commands ---
   for (const cmd of options.customCommands ?? []) {

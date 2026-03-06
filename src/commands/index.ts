@@ -18,6 +18,7 @@ export {
   helpCommand,
   statusCommand,
   pingCommand,
+  reloadCommand,
   claudeAskCommand,
   claudeModelCommand,
   configSetCommand,
