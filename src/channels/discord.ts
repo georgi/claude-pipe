@@ -14,7 +14,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
@@ -179,6 +179,30 @@ export class DiscordChannel implements Channel {
   /** Discord does not support message drafts; this is a no-op. */
   async sendMessageDraft(_chatId: string, _text: string): Promise<SentMessage | void> {
     // Discord has no equivalent streaming draft API
+  }
+
+  /** Sends a file as a Discord attachment. */
+  async sendFile(chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+    if (!this.client || !this.config.channels.discord.enabled) return
+
+    const channel = await this.client.channels.fetch(chatId)
+    if (!channel || !channel.isTextBased() || !('send' in channel) || typeof channel.send !== 'function') return
+
+    try {
+      const sent = await channel.send({
+        content: attachment.caption ?? '',
+        files: [attachment.filePath]
+      })
+      if (sent && typeof sent === 'object' && 'id' in sent) {
+        return { channel: 'discord', chatId, messageId: String(sent.id) }
+      }
+    } catch (error) {
+      this.logger.error('channel.discord.send_file_failed', {
+        chatId,
+        filePath: attachment.filePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   private async onMessage(message: Message): Promise<void> {

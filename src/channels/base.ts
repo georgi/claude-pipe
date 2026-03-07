@@ -1,4 +1,4 @@
-import type { InboundMessage, OutboundMessage, SentMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, OutboundMessage, SentMessage } from '../core/types.js'
 
 /**
  * Common channel adapter contract.
@@ -11,6 +11,8 @@ export interface Channel {
   editMessage(sent: SentMessage, newContent: string): Promise<void>
   /** Sends or updates a streaming draft message, visible to users as the response is being composed. */
   sendMessageDraft(chatId: string, text: string): Promise<SentMessage | void>
+  /** Sends a file (document, audio, etc.) to a chat. */
+  sendFile(chatId: string, attachment: FileAttachment): Promise<SentMessage | void>
 }
 
 /**

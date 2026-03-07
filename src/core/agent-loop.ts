@@ -4,7 +4,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import type { ModelClient } from './model-client.js'
-import type { AgentTurnUpdate, InboundMessage, Logger, SentMessage } from './types.js'
+import type { AgentTurnUpdate, FileAttachment, InboundMessage, Logger, SentMessage } from './types.js'
 
 /**
  * Central message-processing loop.
@@ -190,32 +190,56 @@ export class AgentLoop {
       }
     }
 
-    const content = await this.client.runTurn(conversationKey, modelInput, {
+    const rawContent = await this.client.runTurn(conversationKey, modelInput, {
       workspace: this.config.workspace,
       channel: inbound.channel,
       chatId: inbound.chatId,
       onUpdate: publishProgress
     })
 
+    // Extract file attachment markers from the response: [[file:/path/to/file.ext]] or [[file:/path|caption]]
+    const attachments: FileAttachment[] = []
+    const content = rawContent.replace(
+      /\[\[file:(.*?)(?:\|(.*?))?\]\]/g,
+      (_match, filePath: string, caption?: string) => {
+        const trimmedCaption = caption?.trim()
+        attachments.push({ filePath: filePath.trim(), ...(trimmedCaption ? { caption: trimmedCaption } : {}) })
+        return ''
+      }
+    ).trim()
+
+    if (attachments.length > 0) {
+      this.logger.info('agent.attachments', {
+        conversationKey,
+        count: attachments.length,
+        files: attachments.map((a) => a.filePath)
+      })
+    }
+
+    const outbound = {
+      channel: inbound.channel,
+      chatId: inbound.chatId,
+      content,
+      ...(attachments.length > 0 ? { attachments } : {})
+    }
+
     // Replace the streaming draft or status message with the final response when possible
     const trackedMessage = streamMessage ?? statusMessage
     if (trackedMessage && this.channelManager) {
       try {
         await this.channelManager.editMessage(trackedMessage, content)
+        // Send attachments separately after editing the text
+        if (attachments.length > 0) {
+          for (const attachment of attachments) {
+            await this.channelManager.sendFile(inbound.channel, inbound.chatId, attachment)
+          }
+        }
       } catch {
         // Fall through to normal outbound publish
-        await this.bus.publishOutbound({
-          channel: inbound.channel,
-          chatId: inbound.chatId,
-          content
-        })
+        await this.bus.publishOutbound(outbound)
       }
     } else {
-      await this.bus.publishOutbound({
-        channel: inbound.channel,
-        chatId: inbound.chatId,
-        content
-      })
+      await this.bus.publishOutbound(outbound)
     }
 
     this.logger.info('agent.outbound', { conversationKey })

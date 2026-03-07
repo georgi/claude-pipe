@@ -13,6 +13,16 @@ export interface InboundMessage {
 }
 
 /**
+ * A file to be sent alongside or instead of a text message.
+ */
+export interface FileAttachment {
+  /** Absolute path to the file on disk. */
+  filePath: string
+  /** Optional caption shown with the file. */
+  caption?: string
+}
+
+/**
  * Normalized outbound message consumed by a channel adapter.
  */
 export interface OutboundMessage {
@@ -21,6 +31,7 @@ export interface OutboundMessage {
   content: string
   replyTo?: string
   metadata?: Record<string, unknown>
+  attachments?: FileAttachment[]
 }
 
 /**

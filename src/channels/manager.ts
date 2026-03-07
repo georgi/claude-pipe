@@ -1,6 +1,6 @@
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
-import type { Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type { FileAttachment, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import type { Channel } from './base.js'
 import { CliChannel } from './cli.js'
 import { DiscordChannel } from './discord.js'
@@ -74,6 +74,16 @@ export class ChannelManager {
       return
     }
     return channel.sendMessageDraft(message.chatId, message.content)
+  }
+
+  /** Sends a file through the appropriate channel adapter. */
+  async sendFile(channelName: string, chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+    const channel = this.channels.find((ch) => ch.name === channelName)
+    if (!channel) {
+      this.logger.warn('channel.unknown', { channel: channelName })
+      return
+    }
+    return channel.sendFile(chatId, attachment)
   }
 
   private async dispatchOutbound(): Promise<void> {

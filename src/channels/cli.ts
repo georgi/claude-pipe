@@ -3,7 +3,7 @@ import type { Readable, Writable } from 'node:stream'
 
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
-import type { InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 interface CliChannelIo {
@@ -90,6 +90,14 @@ export class CliChannel implements Channel {
   async sendMessageDraft(_chatId: string, text: string): Promise<SentMessage | void> {
     if (!this.config.channels.cli?.enabled) return
     this.io.output.write(`bot (draft)> ${text}\n`)
+  }
+
+  async sendFile(_chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+    if (!this.config.channels.cli?.enabled) return
+    const messageId = String(this.nextMessageId++)
+    this.io.output.write(`bot (file)> ${attachment.filePath}${attachment.caption ? ` — ${attachment.caption}` : ''}\n`)
+    this.rl?.prompt()
+    return { channel: 'cli', chatId: _chatId, messageId }
   }
 
   private async handleLine(raw: string): Promise<void> {

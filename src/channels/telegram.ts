@@ -1,11 +1,13 @@
+import { createReadStream } from 'node:fs'
 import { unlink } from 'node:fs/promises'
+import { basename, extname } from 'node:path'
 
 import type { CommandMeta } from '../commands/types.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 import {
   transcribeAudio,
@@ -145,11 +147,94 @@ export class TelegramChannel implements Channel {
       }
     }
 
+    // Send any file attachments
+    if (message.attachments?.length) {
+      for (const attachment of message.attachments) {
+        const sent = await this.sendFile(message.chatId, attachment)
+        if (sent) lastMessageId = sent.messageId
+      }
+    }
+
     // Clear typing indicator after response is sent
     this.pendingTyping.delete(message.chatId)
 
     if (lastMessageId) {
       return { channel: 'telegram', chatId: message.chatId, messageId: lastMessageId }
+    }
+  }
+
+  /** Sends a file to a Telegram chat using the appropriate API method based on file type. */
+  async sendFile(chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+    if (!this.config.channels.telegram.enabled) return
+
+    const token = this.config.channels.telegram.token
+    const ext = extname(attachment.filePath).toLowerCase()
+    const isAudio = ['.mp3', '.m4a', '.ogg', '.wav', '.flac', '.aac'].includes(ext)
+    const isVoice = ext === '.ogg'
+    const isPhoto = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)
+    const isVideo = ['.mp4', '.avi', '.mkv', '.mov', '.webm'].includes(ext)
+
+    let method: string
+    let fileField: string
+    if (isVoice) {
+      method = 'sendVoice'
+      fileField = 'voice'
+    } else if (isAudio) {
+      method = 'sendAudio'
+      fileField = 'audio'
+    } else if (isPhoto) {
+      method = 'sendPhoto'
+      fileField = 'photo'
+    } else if (isVideo) {
+      method = 'sendVideo'
+      fileField = 'video'
+    } else {
+      method = 'sendDocument'
+      fileField = 'document'
+    }
+
+    const url = `https://api.telegram.org/bot${token}/${method}`
+
+    try {
+      const { FormData, File } = await import('node:buffer')
+        .then(() => globalThis)
+        .catch(() => globalThis)
+
+      const fileStream = createReadStream(attachment.filePath)
+      const chunks: Buffer[] = []
+      for await (const chunk of fileStream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+      }
+      const fileBuffer = Buffer.concat(chunks)
+      const fileName = basename(attachment.filePath)
+
+      const form = new FormData()
+      form.append('chat_id', String(Number(chatId)))
+      form.append(fileField, new File([fileBuffer], fileName))
+      if (attachment.caption) {
+        form.append('caption', attachment.caption)
+      }
+
+      const response = await fetch(url, { method: 'POST', body: form })
+
+      if (!response.ok) {
+        const body = await response.text()
+        throw new Error(`telegram ${method} failed (${response.status}): ${body}`)
+      }
+
+      const json = (await response.json()) as {
+        ok: boolean
+        result?: { message_id?: number }
+      }
+      if (json.ok && json.result?.message_id != null) {
+        return { channel: 'telegram', chatId, messageId: String(json.result.message_id) }
+      }
+    } catch (error) {
+      this.logger.error('channel.telegram.send_file_failed', {
+        chatId,
+        filePath: attachment.filePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 
