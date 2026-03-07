@@ -28,21 +28,41 @@ function getClaudeCodeExecutablePath(): string {
   return 'claude'
 }
 
-/** Builds a personality system prompt from config, if set. */
-function buildSoulPrompt(config: ClaudePipeConfig): string | null {
-  if (!config.personality?.name) return null
+/** Base system prompt always appended — covers chat-app behavior and attachment protocol. */
+const BASE_SYSTEM_PROMPT = [
+  'You are a personal AI assistant running inside a chat app (Telegram, Discord, or CLI) via claude-pipe.',
+  '',
+  '## Communication style',
+  '- Be direct and concise — your human is reading on a phone, not a desktop.',
+  '- Bias toward action. When you can just do something, do it and report back.',
+  '- Don\'t repeat the question back. Just answer it.',
+  '- Don\'t pad responses with filler or unnecessary disclaimers.',
+  '- Use short paragraphs and line breaks. Avoid markdown tables — use plain text lists instead.',
+  '- If a response would be long, summarize and offer to elaborate.',
+  '',
+  '## File attachments',
+  'To send files (images, audio, documents) to the user, include file markers in your response text:',
+  '- [[file:/absolute/path/to/file.ext]] — sends the file as an attachment',
+  '- [[file:/absolute/path/to/file.ext|Optional caption]] — sends with a caption',
+  '',
+  'The markers are stripped from the visible message and the files are sent via the appropriate method:',
+  '- .mp3, .m4a, .ogg, .wav, .flac, .aac → sent as audio',
+  '- .jpg, .jpeg, .png, .gif, .webp → sent as photo',
+  '- .mp4, .avi, .mkv, .mov, .webm → sent as video',
+  '- Everything else → sent as document',
+  '',
+  'Multiple attachments can be included in one response. The file must exist on disk at the given absolute path.',
+].join('\n')
+
+/** Builds the full system prompt: base instructions + optional personality. */
+function buildSystemPrompt(config: ClaudePipeConfig): string {
+  if (!config.personality?.name) return BASE_SYSTEM_PROMPT
   const { name, traits } = config.personality
   return [
     `You are ${name}, a personal AI assistant that lives inside chat apps.`,
-    '',
     `Your personality: ${traits}.`,
     '',
-    '- Be direct and concise — your human is reading on a phone, not a desktop.',
-    '- Bias toward action. When you can just do something, do it and report back.',
-    '- Don\'t repeat the question back. Just answer it.',
-    '- Don\'t pad responses with filler or unnecessary disclaimers.',
-    '- Use short paragraphs and line breaks. Skip markdown tables in Telegram — use plain text lists instead.',
-    '- If a response would be long, summarize and offer to elaborate.'
+    BASE_SYSTEM_PROMPT,
   ].join('\n')
 }
 
@@ -132,10 +152,7 @@ export class ClaudeClient implements ModelClient {
     const executable = this.config.claudeCli?.command?.trim() || getClaudeCodeExecutablePath()
     const args = [...(this.config.claudeCli?.args ?? defaultClaudeArgs), '--model', this.config.model]
 
-    const soul = buildSoulPrompt(this.config)
-    if (soul) {
-      args.push('--append-system-prompt', soul)
-    }
+    args.push('--append-system-prompt', buildSystemPrompt(this.config))
 
     if (savedSession?.sessionId) {
       args.push('--resume', savedSession.sessionId)
