@@ -1,6 +1,7 @@
-import { createReadStream } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { unlink } from 'node:fs/promises'
-import { basename, extname } from 'node:path'
+import { tmpdir } from 'node:os'
+import { basename, extname, join } from 'node:path'
 
 import type { CommandMeta } from '../commands/types.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
@@ -48,6 +49,7 @@ type TelegramUpdate = {
 const TELEGRAM_MESSAGE_MAX = 3800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
+const PID_FILE = join(tmpdir(), 'claude-pipe-telegram.pid')
 
 /** Telegram Bot API chat actions for typing indicators. */
 type ChatAction = 'typing' | 'upload_photo' | 'upload_video' | 'upload_audio' | 'upload_document' | 'find_location' | 'record_video' | 'record_voice'
@@ -69,6 +71,23 @@ export class TelegramChannel implements Channel {
     private readonly logger: Logger
   ) {}
 
+  /** Kills any previously running instance using the PID file. */
+  private killExistingInstance(): void {
+    if (!existsSync(PID_FILE)) return
+    try {
+      const pid = Number(readFileSync(PID_FILE, 'utf8').trim())
+      if (!pid || pid === process.pid) return
+      process.kill(pid, 'SIGTERM')
+      this.logger.info('channel.telegram.killed_existing', { pid })
+      // Give the old process a moment to release its poll connection
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500)
+    } catch {
+      // Process already dead or no permission — ignore
+    } finally {
+      try { unlinkSync(PID_FILE) } catch { /* ignore */ }
+    }
+  }
+
   /** Starts background polling when Telegram is enabled. */
   async start(): Promise<void> {
     if (!this.config.channels.telegram.enabled) return
@@ -76,6 +95,9 @@ export class TelegramChannel implements Channel {
       this.logger.warn('channel.telegram.misconfigured', { reason: 'missing token' })
       return
     }
+
+    this.killExistingInstance()
+    writeFileSync(PID_FILE, String(process.pid), 'utf8')
 
     this.running = true
     this.pollTask = this.pollLoop()
@@ -86,6 +108,7 @@ export class TelegramChannel implements Channel {
   async stop(): Promise<void> {
     this.running = false
     await this.pollTask
+    try { unlinkSync(PID_FILE) } catch { /* ignore */ }
     this.logger.info('channel.telegram.stop')
   }
 
@@ -351,10 +374,19 @@ export class TelegramChannel implements Channel {
           await this.handleMessage(update)
         }
       } catch (error) {
-        this.logger.error('channel.telegram.poll_error', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const is409 = error instanceof Error && (error as NodeJS.ErrnoException).code === '409'
+        if (is409) {
+          this.logger.warn('channel.telegram.conflict', {
+            error: 'Another instance is polling — killing it and retrying'
+          })
+          this.killExistingInstance()
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        } else {
+          this.logger.error('channel.telegram.poll_error', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
       }
     }
   }
@@ -367,7 +399,9 @@ export class TelegramChannel implements Channel {
 
     const response = await fetch(url)
     if (!response.ok) {
-      throw new Error(`Telegram getUpdates failed: ${response.status}`)
+      const err = new Error(`Telegram getUpdates failed: ${response.status}`)
+      ;(err as NodeJS.ErrnoException).code = String(response.status)
+      throw err
     }
 
     const json = (await response.json()) as { ok: boolean; result: TelegramUpdate[] }
