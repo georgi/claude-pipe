@@ -27,6 +27,8 @@ const SEND_RETRY_BACKOFF_MS = 50
 export class DiscordChannel implements Channel {
   readonly name = 'discord' as const
   private client: Client | null = null
+  /** Pending deferred interactions keyed by chatId, so send() can resolve them. */
+  private pendingInteractions = new Map<string, ChatInputCommandInteraction>()
 
   constructor(
     private readonly config: ClaudePipeConfig,
@@ -126,15 +128,31 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    const pendingInteraction = this.pendingInteractions.get(message.chatId)
+    if (pendingInteraction) {
+      this.pendingInteractions.delete(message.chatId)
+    }
+
     let lastMessageId: string | undefined
+    let isFirstChunk = true
     for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
       try {
         await retry(
           async () => {
-            const sent = await channel.send({ content: part })
-            if (sent && typeof sent === 'object' && 'id' in sent) {
-              lastMessageId = String(sent.id)
+            // Resolve the deferred interaction for the first chunk,
+            // then fall back to channel.send() for subsequent chunks.
+            if (isFirstChunk && pendingInteraction) {
+              const sent = await pendingInteraction.editReply({ content: part })
+              if (sent && typeof sent === 'object' && 'id' in sent) {
+                lastMessageId = String(sent.id)
+              }
+            } else {
+              const sent = await channel.send({ content: part })
+              if (sent && typeof sent === 'object' && 'id' in sent) {
+                lastMessageId = String(sent.id)
+              }
             }
+            isFirstChunk = false
           },
           {
             attempts: SEND_RETRY_ATTEMPTS,
@@ -279,6 +297,7 @@ export class DiscordChannel implements Channel {
     const content = promptOption ? `${commandName} ${promptOption}` : commandName
 
     await interaction.deferReply()
+    this.pendingInteractions.set(interaction.channelId, interaction)
 
     const inbound: InboundMessage = {
       channel: 'discord',
