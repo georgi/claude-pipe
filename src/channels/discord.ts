@@ -18,8 +18,8 @@ import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessa
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
-const SEND_RETRY_ATTEMPTS = 2
-const SEND_RETRY_BACKOFF_MS = 50
+const SEND_RETRY_ATTEMPTS = 3
+const SEND_RETRY_BACKOFF_MS = 200
 
 /**
  * Discord adapter using discord.js gateway client + channel send API.
