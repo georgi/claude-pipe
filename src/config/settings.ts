@@ -32,6 +32,7 @@ export interface Settings {
     maxBytes?: number
     maxFiles?: number
   }
+  logLevel?: 'verbose' | 'status' | 'off'
   env?: Record<string, string>
 }
 

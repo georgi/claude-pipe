@@ -72,6 +72,7 @@ export const configSchema = z.object({
       traits: z.string()
     })
     .optional(),
+  logLevel: z.enum(['verbose', 'status', 'off']).default('verbose'),
   env: z.record(z.string(), z.string()).optional(),
   sessionStorePath: z.string(),
   maxToolIterations: z.number().int().positive().default(20),

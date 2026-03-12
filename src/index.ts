@@ -9,7 +9,7 @@ import { AgentLoop } from './core/agent-loop.js'
 import { MessageBus } from './core/bus.js'
 import { createModelClient, resolveProviderFromConfig } from './core/client-factory.js'
 import { createHeartbeat } from './core/heartbeat.js'
-import { logger, setLoggerMuted } from './core/logger.js'
+import { logger, setLoggerMuted, setLogLevel } from './core/logger.js'
 import { SessionStore } from './core/session-store.js'
 import { runOnboarding } from './onboarding/wizard.js'
 
@@ -66,6 +66,8 @@ async function main(): Promise<void> {
   const config = loadConfig()
   if (config.channels.cli?.enabled) {
     setLoggerMuted(true)
+  } else {
+    setLogLevel(config.logLevel)
   }
   const bus = new MessageBus()
 
@@ -79,7 +81,7 @@ async function main(): Promise<void> {
   const sessionStore = new SessionStore(config.sessionStorePath)
   await sessionStore.init()
 
-  logger.info('startup.config', {
+  logger.warn('startup.config', {
     workspace: config.workspace,
     model: config.model,
     provider: resolveProviderFromConfig(config)
@@ -98,7 +100,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string): void => {
     if (shuttingDown) return
     shuttingDown = true
-    logger.info('shutdown.signal', { signal })
+    logger.warn('shutdown.signal', { signal })
     heartbeat.stop()
     agent.stop()
     // Force exit after 2 s in case channel pollers are slow to stop

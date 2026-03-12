@@ -175,6 +175,8 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 | `model` | Claude model to use (e.g., `claude-haiku-4`, `claude-sonnet-4-5`, `claude-opus-4-5`) |
 | `workspace` | Root directory Claude can access (default fallback) |
 | `channelWorkspaces` | Maps conversation keys to workspace paths (see below) |
+| `transcriptLog` | Conversation logging: `{ "enabled": true, "path": "...", "maxBytes": 1000000, "maxFiles": 3 }` |
+| `logLevel` | Stdout log verbosity: `verbose` (default), `status` (startup/shutdown/errors only), `off` |
 
 #### Per-channel workspaces
 
@@ -212,6 +214,7 @@ For advanced options like transcript logging or custom summary prompts, you can 
 | `CLAUDEPIPE_MAX_TOOL_ITERATIONS` | Max tool calls per turn (default: 20) |
 | `CLAUDEPIPE_SUMMARY_PROMPT_ENABLED` | Enable summary prompt templates |
 | `CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE` | Template for summary requests (supports `{{workspace}}` and `{{request}}`) |
+| `CLAUDEPIPE_LOG_LEVEL` | Stdout log verbosity: `verbose`, `status`, or `off` |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED` | Log conversations to a file |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_PATH` | Path for transcript log file |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation |
@@ -251,5 +254,5 @@ npm run test:run # run tests once
 ## Current limitations
 
 - Text and voice (via whisper transcription) — no images yet
-- Runs locally, not designed for server deployment
+- Runs as a single local process (deployable with systemd)
 - No scheduled or background tasks

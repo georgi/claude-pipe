@@ -111,6 +111,7 @@ export function loadConfig(): ClaudePipeConfig {
         maxBytes: s.transcriptLog?.maxBytes ?? 1_000_000,
         maxFiles: s.transcriptLog?.maxFiles ?? 3
       },
+      logLevel: s.logLevel ?? 'verbose',
       maxToolIterations: 20
     })
   }
@@ -160,6 +161,7 @@ export function loadConfig(): ClaudePipeConfig {
     },
     sessionStorePath:
       process.env.CLAUDEPIPE_SESSION_STORE_PATH ?? path.join(configDir, 'sessions.json'),
+    logLevel: (process.env.CLAUDEPIPE_LOG_LEVEL as 'verbose' | 'status' | 'off') ?? 'verbose',
     maxToolIterations: Number(process.env.CLAUDEPIPE_MAX_TOOL_ITERATIONS ?? 20)
   })
 }
