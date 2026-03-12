@@ -122,14 +122,16 @@ export class AgentLoop {
     let streamMessage: SentMessage | null = null
     const toolUpdates: Array<{ id: string; label: string }> = []
     let heartbeatTimer: NodeJS.Timeout | null = null
+    let lastBaseContent = ''
 
-    /** Refreshes the status message footer timestamp so the user knows the bot is alive. */
+    /** Refreshes the active message footer timestamp so the user knows the bot is alive. */
     const startHeartbeat = (): void => {
       stopHeartbeat()
       heartbeatTimer = setInterval(() => {
-        if (!statusMessage || streamMessage || !this.channelManager) return
-        const statusText = toolUpdates.map((t) => t.label).join('\n') + statusFooter(inbound.channel, false)
-        this.channelManager.editMessage(statusMessage, statusText).catch(() => {})
+        const tracked = streamMessage ?? statusMessage
+        if (!tracked || !this.channelManager) return
+        const content = lastBaseContent + statusFooter(inbound.channel, false)
+        this.channelManager.editMessage(tracked, content).catch(() => {})
       }, 20_000)
     }
 
@@ -142,9 +144,9 @@ export class AgentLoop {
 
     const publishProgress = async (update: AgentTurnUpdate): Promise<void> => {
       if (update.kind === 'text_streaming') {
-        stopHeartbeat()
         if (!this.channelManager || !update.text) return
 
+        lastBaseContent = update.text
         const textWithFooter = update.text + statusFooter(inbound.channel, false)
         try {
           if (streamMessage) {
@@ -153,13 +155,17 @@ export class AgentLoop {
             // Replace tool status with streaming text
             await this.channelManager.editMessage(statusMessage, textWithFooter)
             streamMessage = statusMessage
+            startHeartbeat()
           } else {
             const sent = await this.channelManager.sendDraftMessage({
               channel: inbound.channel,
               chatId: inbound.chatId,
               content: textWithFooter
             })
-            if (sent) streamMessage = sent
+            if (sent) {
+              streamMessage = sent
+              startHeartbeat()
+            }
           }
         } catch {
           // Non-critical — streaming draft update failed
@@ -225,7 +231,8 @@ export class AgentLoop {
       // Don't overwrite a streaming text draft with tool status
       if (streamMessage) return
 
-      const statusText = toolUpdates.map((t) => t.label).join('\n') + statusFooter(inbound.channel, false)
+      lastBaseContent = toolUpdates.map((t) => t.label).join('\n')
+      const statusText = lastBaseContent + statusFooter(inbound.channel, false)
       try {
         if (statusMessage) {
           await this.channelManager.editMessage(statusMessage, statusText)
