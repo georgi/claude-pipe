@@ -71,7 +71,8 @@ export class AgentLoop {
     this.running = true
     this.logger.info('agent.start', { model: this.config.model })
 
-    let activeTurn: Promise<void> | null = null
+    // Per-conversation turn tracking: same conversation is serial, different conversations are concurrent
+    const activeTurns = new Map<string, Promise<void>>()
 
     while (this.running) {
       const inbound = await this.bus.consumeInbound()
@@ -81,21 +82,26 @@ export class AgentLoop {
       const cmdResult = await this.tryCommand(inbound)
       if (cmdResult) continue
 
-      // Wait for any active turn to finish before starting a new one
-      if (activeTurn) {
-        await activeTurn
-      }
+      const key = `${inbound.channel}:${inbound.chatId}`
 
-      // Start the turn without blocking — allows commands to be consumed during the turn
-      activeTurn = this.processMessage(inbound).catch((error: unknown) => {
+      // Chain after any active turn in the SAME conversation; don't block the main loop
+      const pending = activeTurns.get(key) ?? Promise.resolve()
+      const turn = pending.then(() => this.processMessage(inbound)).catch((error: unknown) => {
         this.logger.error('agent.turn_error', {
           error: error instanceof Error ? error.message : String(error)
         })
+      }).finally(() => {
+        // Clean up only if this is still the tracked turn (not replaced by a newer one)
+        if (activeTurns.get(key) === turn) {
+          activeTurns.delete(key)
+        }
       })
+      activeTurns.set(key, turn)
     }
 
-    if (activeTurn) {
-      await activeTurn
+    // Wait for all active turns to finish on shutdown
+    if (activeTurns.size > 0) {
+      await Promise.all(activeTurns.values())
     }
   }
 
