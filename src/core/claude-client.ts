@@ -15,6 +15,7 @@ type AssistantToolUseBlock = {
   type: 'tool_use'
   name: string
   id?: string
+  input?: Record<string, unknown>
 }
 type ToolResultBlock = {
   type: 'tool_result'
@@ -93,6 +94,42 @@ function isToolUseBlock(block: unknown): block is AssistantToolUseBlock {
 function isToolResultBlock(block: unknown): block is ToolResultBlock {
   if (!isRecord(block)) return false
   return block.type === 'tool_result'
+}
+
+/** Extracts a short detail string from tool input for display in status messages. */
+function toolDetail(name: string, input?: Record<string, unknown>): string | undefined {
+  if (!input) return undefined
+  const first = (key: string): string | undefined => {
+    const v = input[key]
+    return typeof v === 'string' ? v : undefined
+  }
+  switch (name) {
+    case 'Bash':
+    case 'bash':
+      return first('command')
+    case 'Read':
+    case 'read':
+      return first('file_path')
+    case 'Write':
+    case 'write':
+    case 'Edit':
+    case 'edit':
+      return first('file_path')
+    case 'Glob':
+    case 'glob':
+      return first('pattern')
+    case 'Grep':
+    case 'grep':
+      return first('pattern')
+    case 'WebSearch':
+    case 'web_search':
+      return first('query')
+    case 'WebFetch':
+    case 'web_fetch':
+      return first('url')
+    default:
+      return undefined
+  }
 }
 
 function truncate(value: string, max = 2000): string {
@@ -221,16 +258,19 @@ export class ClaudeClient implements ModelClient {
 
         for (const block of content.filter((entry: unknown) => isToolUseBlock(entry))) {
           if (block.id) toolNamesByCallId.set(block.id, block.name)
+          const detail = toolDetail(block.name, block.input)
           this.logger.info('claude.tool_call_started', {
             conversationKey,
             toolName: block.name,
-            toolUseId: block.id
+            toolUseId: block.id,
+            toolDetail: detail
           })
           await this.publishUpdate(context, {
             kind: 'tool_call_started',
             conversationKey,
             message: `Using tool: ${block.name}`,
             toolName: block.name,
+            ...(detail ? { toolDetail: detail } : {}),
             ...(block.id ? { toolUseId: block.id } : {})
           })
         }

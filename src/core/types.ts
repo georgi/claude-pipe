@@ -77,6 +77,8 @@ export interface AgentTurnUpdate {
   message: string
   toolName?: string
   toolUseId?: string
+  /** Brief description of what the tool call is doing (e.g. command, file path). */
+  toolDetail?: string
   /** Partial accumulated response text, present when kind is 'text_streaming'. */
   text?: string
 }

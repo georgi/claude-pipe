@@ -4,8 +4,27 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import type { ModelClient } from './model-client.js'
-import type { AgentTurnUpdate, FileAttachment, InboundMessage, Logger, SentMessage } from './types.js'
+import type { AgentTurnUpdate, ChannelName, FileAttachment, InboundMessage, Logger, SentMessage } from './types.js'
 import { resolveWorkspace } from './workspace.js'
+
+/** Truncates a tool detail string to fit in a chat status line. */
+function truncateDetail(value: string, max: number): string {
+  const oneLine = value.split('\n')[0]!.trim()
+  if (oneLine.length <= max) return oneLine
+  return `${oneLine.slice(0, max)}…`
+}
+
+/**
+ * Appends a small footer line showing the current time and completion status.
+ * Uses Discord subtext (-#) or Telegram italic as appropriate.
+ */
+function statusFooter(channel: ChannelName, finished: boolean): string {
+  const time = new Date().toLocaleTimeString('en-GB', { hour12: false })
+  const label = finished ? 'Done' : '⏳ Working...'
+  if (channel === 'telegram') return `\n\n_${time} · ${label}_`
+  if (channel === 'discord') return `\n\n-# ${time} · ${label}`
+  return `\n\n${time} · ${label}`
+}
 
 /**
  * Central message-processing loop.
@@ -102,23 +121,43 @@ export class AgentLoop {
     let statusMessage: SentMessage | null = null
     let streamMessage: SentMessage | null = null
     const toolUpdates: Array<{ id: string; label: string }> = []
+    let heartbeatTimer: NodeJS.Timeout | null = null
+
+    /** Refreshes the status message footer timestamp so the user knows the bot is alive. */
+    const startHeartbeat = (): void => {
+      stopHeartbeat()
+      heartbeatTimer = setInterval(() => {
+        if (!statusMessage || streamMessage || !this.channelManager) return
+        const statusText = toolUpdates.map((t) => t.label).join('\n') + statusFooter(inbound.channel, false)
+        this.channelManager.editMessage(statusMessage, statusText).catch(() => {})
+      }, 20_000)
+    }
+
+    const stopHeartbeat = (): void => {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer)
+        heartbeatTimer = null
+      }
+    }
 
     const publishProgress = async (update: AgentTurnUpdate): Promise<void> => {
       if (update.kind === 'text_streaming') {
+        stopHeartbeat()
         if (!this.channelManager || !update.text) return
 
+        const textWithFooter = update.text + statusFooter(inbound.channel, false)
         try {
           if (streamMessage) {
-            await this.channelManager.editMessage(streamMessage, update.text)
+            await this.channelManager.editMessage(streamMessage, textWithFooter)
           } else if (statusMessage) {
             // Replace tool status with streaming text
-            await this.channelManager.editMessage(statusMessage, update.text)
+            await this.channelManager.editMessage(statusMessage, textWithFooter)
             streamMessage = statusMessage
           } else {
             const sent = await this.channelManager.sendDraftMessage({
               channel: inbound.channel,
               chatId: inbound.chatId,
-              content: update.text
+              content: textWithFooter
             })
             if (sent) streamMessage = sent
           }
@@ -161,10 +200,13 @@ export class AgentLoop {
       if (!this.channelManager) return
 
       const toolId = update.toolUseId ?? update.toolName ?? 'tool'
-      const toolLabel = update.toolName ?? 'tool'
+      const toolName = update.toolName ?? 'tool'
+      const detail = update.toolDetail ? truncateDetail(update.toolDetail, 60) : ''
+      const toolLabel = detail ? `${toolName}: ${detail}` : toolName
 
       if (update.kind === 'tool_call_started') {
         toolUpdates.push({ id: toolId, label: `🔧 ${toolLabel}` })
+        startHeartbeat()
       } else if (update.kind === 'tool_call_finished') {
         const entry = toolUpdates.find((t) => t.id === toolId)
         if (entry) entry.label = `✅ ${toolLabel}`
@@ -176,7 +218,7 @@ export class AgentLoop {
       // Don't overwrite a streaming text draft with tool status
       if (streamMessage) return
 
-      const statusText = toolUpdates.map((t) => t.label).join('\n')
+      const statusText = toolUpdates.map((t) => t.label).join('\n') + statusFooter(inbound.channel, false)
       try {
         if (statusMessage) {
           await this.channelManager.editMessage(statusMessage, statusText)
@@ -193,12 +235,17 @@ export class AgentLoop {
       }
     }
 
-    const rawContent = await this.client.runTurn(conversationKey, modelInput, {
-      workspace,
-      channel: inbound.channel,
-      chatId: inbound.chatId,
-      onUpdate: publishProgress
-    })
+    let rawContent: string
+    try {
+      rawContent = await this.client.runTurn(conversationKey, modelInput, {
+        workspace,
+        channel: inbound.channel,
+        chatId: inbound.chatId,
+        onUpdate: publishProgress
+      })
+    } finally {
+      stopHeartbeat()
+    }
 
     // Extract file attachment markers from the response: [[file:/path/to/file.ext]] or [[file:/path|caption]]
     const attachments: FileAttachment[] = []
@@ -219,10 +266,11 @@ export class AgentLoop {
       })
     }
 
+    const contentWithFooter = content + statusFooter(inbound.channel, true)
     const outbound = {
       channel: inbound.channel,
       chatId: inbound.chatId,
-      content,
+      content: contentWithFooter,
       ...(attachments.length > 0 ? { attachments } : {})
     }
 
@@ -230,7 +278,7 @@ export class AgentLoop {
     const trackedMessage = streamMessage ?? statusMessage
     if (trackedMessage && this.channelManager) {
       try {
-        await this.channelManager.editMessage(trackedMessage, content)
+        await this.channelManager.editMessage(trackedMessage, contentWithFooter)
         // Send attachments separately after editing the text
         if (attachments.length > 0) {
           for (const attachment of attachments) {

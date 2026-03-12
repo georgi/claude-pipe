@@ -47,8 +47,8 @@ type TelegramUpdate = {
 }
 
 const TELEGRAM_MESSAGE_MAX = 3800
-const SEND_RETRY_ATTEMPTS = 2
-const SEND_RETRY_BACKOFF_MS = 50
+const SEND_RETRY_ATTEMPTS = 3
+const SEND_RETRY_BACKOFF_MS = 200
 const PID_FILE = join(tmpdir(), 'claude-pipe-telegram.pid')
 
 /** Telegram Bot API chat actions for typing indicators. */
