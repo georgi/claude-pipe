@@ -8,7 +8,6 @@ import {
   sessionNewCommand,
   sessionListCommand,
   sessionSelectCommand,
-  sessionInfoCommand,
   sessionDeleteCommand
 } from './definitions/session.js'
 import { helpCommand, statusCommand, pingCommand, reloadCommand, stopCommand, restartCommand } from './definitions/utility.js'
@@ -61,9 +60,10 @@ export function setupCommands(
     )
   )
   registry.register(
-    sessionInfoCommand(getWorkspace, claudeSessionService, (key) => sessionStore.get(key)?.sessionId)
+    sessionDeleteCommand(getWorkspace, claudeSessionService, (key) => sessionStore.get(key)?.sessionId, (key) =>
+      sessionStore.clear(key)
+    )
   )
-  registry.register(sessionDeleteCommand((key) => claude.startNewSession(key)))
 
   // --- Claude commands ---
   registry.register(
@@ -96,27 +96,24 @@ export function setupCommands(
 
   // --- Utility commands ---
   registry.register(
-    statusCommand((conversationKey) => {
-      const sessions: Array<{ key: string; workspace: string; updatedAt: string }> = []
-      for (const [key, record] of Object.entries(sessionStore.entries())) {
-        if (record) {
-          sessions.push({
-            key,
-            workspace: resolveWorkspace(config, key),
-            updatedAt: record.updatedAt
-          })
-        }
+    statusCommand(async (conversationKey) => {
+      const currentWorkspace = resolveWorkspace(config, conversationKey)
+      const currentSessionId = sessionStore.get(conversationKey)?.sessionId
+      let sessionInfo = undefined
+      if (currentSessionId) {
+        sessionInfo = await claudeSessionService.get(currentWorkspace, currentSessionId) ?? undefined
       }
       return {
         model: config.model,
         workspace: config.workspace,
-        currentWorkspace: resolveWorkspace(config, conversationKey),
+        currentWorkspace,
         channels: [
           ...(config.channels.telegram.enabled ? ['telegram'] : []),
           ...(config.channels.discord.enabled ? ['discord'] : []),
           ...(config.channels.cli?.enabled ? ['cli'] : [])
         ],
-        sessions
+        sessionInfo,
+        activeTurns: claude.getActiveTurns()
       }
     })
   )

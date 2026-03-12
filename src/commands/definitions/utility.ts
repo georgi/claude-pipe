@@ -1,4 +1,6 @@
 import type { ClaudePipeConfig } from '../../config/schema.js'
+import type { ActiveTurnInfo } from '../../core/model-client.js'
+import type { ClaudeSessionSummary } from '../../core/claude-sessions.js'
 import type { CommandDefinition, CommandResult } from '../types.js'
 import type { CommandRegistry } from '../registry.js'
 
@@ -53,16 +55,17 @@ export function helpCommand(registry: CommandRegistry): CommandDefinition {
 
 /**
  * /status
- * Reports basic runtime status.
+ * Reports basic runtime status, current session info, and active turns.
  */
 export function statusCommand(
-  getStatus: (conversationKey: string) => {
+  getStatus: (conversationKey: string) => Promise<{
     model: string
     workspace: string
     currentWorkspace: string
     channels: string[]
-    sessions: Array<{ key: string; workspace: string; updatedAt: string }>
-  }
+    sessionInfo: ClaudeSessionSummary | undefined
+    activeTurns: ActiveTurnInfo[]
+  }>
 ): CommandDefinition {
   return {
     name: 'status',
@@ -71,7 +74,7 @@ export function statusCommand(
     aliases: [],
     permission: 'user',
     async execute(ctx): Promise<CommandResult> {
-      const status = getStatus(ctx.conversationKey)
+      const status = await getStatus(ctx.conversationKey)
       const lines = [
         '**Status:**',
         `• Model: ${status.model}`,
@@ -79,14 +82,35 @@ export function statusCommand(
         `• Default workspace: ${status.workspace}`,
         `• Channels: ${status.channels.join(', ')}`
       ]
-      if (status.sessions.length > 0) {
-        lines.push('', '**Active sessions:**')
-        for (const s of status.sessions) {
-          lines.push(`• ${s.key} → ${s.workspace} (${s.updatedAt})`)
+
+      // Current session info
+      if (status.sessionInfo) {
+        const s = status.sessionInfo
+        const shortId = s.sessionId.slice(0, 8)
+        lines.push('', '**Session:**')
+        lines.push(`• ID: ${shortId}`)
+        lines.push(`• Topic: "${s.firstMessage}"`)
+        lines.push(`• Model: ${s.model || 'unknown'}`)
+        lines.push(`• Messages: ${s.userMessageCount} user / ${s.assistantMessageCount} assistant`)
+        lines.push(`• Last active: ${s.lastActive || 'unknown'}`)
+        if (s.gitBranch) {
+          lines.push(`• Branch: ${s.gitBranch}`)
         }
       } else {
-        lines.push('', 'No active sessions.')
+        lines.push('', 'No active session.')
       }
+
+      // Active turns (running claude/codex processes)
+      if (status.activeTurns.length > 0) {
+        lines.push('', `**Running: ${status.activeTurns.length}**`)
+        for (const turn of status.activeTurns) {
+          const prompt = turn.prompt.length > 60 ? turn.prompt.slice(0, 60) + '…' : turn.prompt
+          lines.push(`• ${turn.conversationKey} — "${prompt}"`)
+        }
+      } else {
+        lines.push('', 'No active turns.')
+      }
+
       return { content: lines.join('\n') }
     }
   }

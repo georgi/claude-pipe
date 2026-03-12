@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import type { ClaudePipeConfig } from '../config/schema.js'
-import type { ModelClient } from './model-client.js'
+import type { ActiveTurnInfo, ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
@@ -150,7 +150,7 @@ function summarizeToolResult(content: unknown): string {
  */
 export class ClaudeClient implements ModelClient {
   private readonly transcript: TranscriptLogger
-  private readonly activeChildren = new Map<string, ReturnType<typeof spawn>>()
+  private readonly activeChildren = new Map<string, { child: ReturnType<typeof spawn>; prompt: string }>()
 
   constructor(
     private readonly config: ClaudePipeConfig,
@@ -207,7 +207,7 @@ export class ClaudeClient implements ModelClient {
       cwd: context.workspace,
       env: process.env
     })
-    this.activeChildren.set(conversationKey, child)
+    this.activeChildren.set(conversationKey, { child, prompt: userText })
     this.logger.info('claude.spawn_start', {
       conversationKey,
       executable,
@@ -482,11 +482,20 @@ export class ClaudeClient implements ModelClient {
 
   /** Kills the active Claude subprocess for the given conversation, if any. */
   cancelTurn(conversationKey: string): void {
-    const child = this.activeChildren.get(conversationKey)
-    if (child) {
-      child.kill('SIGTERM')
+    const entry = this.activeChildren.get(conversationKey)
+    if (entry) {
+      entry.child.kill('SIGTERM')
       this.activeChildren.delete(conversationKey)
     }
+  }
+
+  /** Returns info about all currently running turns. */
+  getActiveTurns(): ActiveTurnInfo[] {
+    const turns: ActiveTurnInfo[] = []
+    for (const [conversationKey, entry] of this.activeChildren) {
+      turns.push({ conversationKey, prompt: entry.prompt })
+    }
+    return turns
   }
 
   /** No-op in subprocess-per-turn mode. */

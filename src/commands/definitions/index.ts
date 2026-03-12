@@ -1,4 +1,4 @@
-export { sessionNewCommand, sessionListCommand, sessionSelectCommand, sessionInfoCommand, sessionDeleteCommand } from './session.js'
+export { sessionNewCommand, sessionListCommand, sessionSelectCommand, sessionDeleteCommand } from './session.js'
 export { helpCommand, statusCommand, pingCommand, reloadCommand, stopCommand, restartCommand } from './utility.js'
 export { claudeAskCommand, claudeModelCommand } from './claude.js'
 export { configSetCommand, configGetCommand } from './config.js'

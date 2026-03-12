@@ -152,16 +152,25 @@ export class AgentLoop {
     const toolUpdates: Array<{ id: string; label: string }> = []
     let heartbeatTimer: NodeJS.Timeout | null = null
     let lastBaseContent = ''
+    let lastStreamedText = ''
 
-    /** Refreshes the active message footer timestamp so the user knows the bot is alive. */
+    const heartbeatCallback = (): void => {
+      const tracked = streamMessage ?? statusMessage
+      if (!tracked || !this.channelManager) return
+      const content = lastBaseContent + statusFooter(inbound.channel, false)
+      this.channelManager.editMessage(tracked, content).catch(() => {})
+    }
+
+    /** Restarts the heartbeat timer (clears + creates). Use when the tracked message changes. */
     const startHeartbeat = (): void => {
       stopHeartbeat()
-      heartbeatTimer = setInterval(() => {
-        const tracked = streamMessage ?? statusMessage
-        if (!tracked || !this.channelManager) return
-        const content = lastBaseContent + statusFooter(inbound.channel, false)
-        this.channelManager.editMessage(tracked, content).catch(() => {})
-      }, 20_000)
+      heartbeatTimer = setInterval(heartbeatCallback, 20_000)
+    }
+
+    /** Ensures the heartbeat is running without resetting the countdown. */
+    const ensureHeartbeat = (): void => {
+      if (heartbeatTimer) return
+      heartbeatTimer = setInterval(heartbeatCallback, 20_000)
     }
 
     const stopHeartbeat = (): void => {
@@ -195,6 +204,7 @@ export class AgentLoop {
       if (update.kind === 'text_streaming') {
         if (!this.channelManager || !update.text) return
 
+        lastStreamedText = update.text
         lastBaseContent = update.text
         const textWithFooter = update.text + statusFooter(inbound.channel, false)
         try {
@@ -261,7 +271,7 @@ export class AgentLoop {
 
       if (update.kind === 'tool_call_started') {
         toolUpdates.push({ id: toolId, label: `🔧 ${toolLabel}` })
-        startHeartbeat()
+        ensureHeartbeat()
       } else if (update.kind === 'tool_call_finished') {
         const entry = toolUpdates.find((t) => t.id === toolId)
         if (entry) {
@@ -277,8 +287,18 @@ export class AgentLoop {
         }
       }
 
-      // Don't overwrite a streaming text draft with tool status
-      if (streamMessage) return
+      if (streamMessage) {
+        // Append tool progress below the streamed text instead of overwriting
+        const toolSuffix = toolUpdates.map((t) => t.label).join('\n')
+        lastBaseContent = lastStreamedText + '\n\n' + toolSuffix
+        const content = lastBaseContent + statusFooter(inbound.channel, false)
+        try {
+          await this.channelManager.editMessage(streamMessage, content)
+        } catch {
+          // Non-critical
+        }
+        return
+      }
 
       lastBaseContent = toolUpdates.map((t) => t.label).join('\n')
       const statusText = lastBaseContent + statusFooter(inbound.channel, false)

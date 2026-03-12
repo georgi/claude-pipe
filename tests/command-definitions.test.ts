@@ -4,7 +4,7 @@ import {
   sessionNewCommand,
   sessionListCommand,
   sessionSelectCommand,
-  sessionInfoCommand,
+
   sessionDeleteCommand,
   helpCommand,
   statusCommand,
@@ -49,7 +49,8 @@ function mockSessionService(sessions: ClaudeSessionSummary[] = [sampleSession]):
       if (matches.length === 1) return { id: matches[0]!.sessionId }
       if (matches.length === 0) return { error: `No session matching "${prefix}".` }
       return { error: `Ambiguous prefix "${prefix}".` }
-    })
+    }),
+    delete: vi.fn(async () => undefined)
   }
 }
 
@@ -111,33 +112,35 @@ describe('Session commands', () => {
     expect(result.content).toContain('Usage')
   })
 
-  it('/session_info returns detailed session info', async () => {
-    const cmd = sessionInfoCommand(
-      getWorkspace,
-      mockSessionService(),
-      () => sampleSession.sessionId
-    )
+  it('/session_delete with no args deletes current session', async () => {
+    const clearSession = vi.fn(async () => undefined)
+    const service = mockSessionService()
+    const cmd = sessionDeleteCommand(getWorkspace, service, () => sampleSession.sessionId, clearSession)
 
     const result = await cmd.execute(makeCtx())
+    expect(result.content).toContain('deleted')
+    expect(service.delete).toHaveBeenCalledWith('/tmp/workspace', sampleSession.sessionId)
+    expect(clearSession).toHaveBeenCalledWith('telegram:42')
+  })
+
+  it('/session_delete with session ID deletes that session', async () => {
+    const clearSession = vi.fn(async () => undefined)
+    const service = mockSessionService()
+    const cmd = sessionDeleteCommand(getWorkspace, service, () => 'other-session-id', clearSession)
+
+    const result = await cmd.execute(makeCtx({ args: ['abcdef12'], rawArgs: 'abcdef12' }))
     expect(result.content).toContain('abcdef12')
-    expect(result.content).toContain('fix the login bug')
-    expect(result.content).toContain('claude-opus-4-6')
-    expect(result.content).toContain('5 user / 30 assistant')
+    expect(result.content).toContain('deleted')
+    expect(service.delete).toHaveBeenCalledWith('/tmp/workspace', sampleSession.sessionId)
+    // Should NOT clear binding since deleted session != current session
+    expect(clearSession).not.toHaveBeenCalled()
   })
 
-  it('/session_info returns no-session message', async () => {
-    const cmd = sessionInfoCommand(getWorkspace, mockSessionService(), () => undefined)
+  it('/session_delete returns error when no active session', async () => {
+    const cmd = sessionDeleteCommand(getWorkspace, mockSessionService(), () => undefined, vi.fn())
     const result = await cmd.execute(makeCtx())
-    expect(result.content).toBe('No active session for this chat.')
-  })
-
-  it('/session_delete calls delete and confirms', async () => {
-    const deleteFn = vi.fn(async () => undefined)
-    const cmd = sessionDeleteCommand(deleteFn)
-
-    const result = await cmd.execute(makeCtx())
-    expect(result.content).toBe('Session deleted for this chat.')
-    expect(deleteFn).toHaveBeenCalledWith('telegram:42')
+    expect(result.error).toBe(true)
+    expect(result.content).toContain('No active session')
   })
 })
 
@@ -145,7 +148,7 @@ describe('Utility commands', () => {
   it('/help lists all registered commands', async () => {
     const registry = new CommandRegistry()
     registry.register(pingCommand())
-    registry.register(statusCommand(() => ({ model: 'm', workspace: '/w', channels: [] })))
+    registry.register(statusCommand(async () => ({ model: 'm', workspace: '/w', currentWorkspace: '/w', channels: [], sessionInfo: undefined, activeTurns: [] })))
     const cmd = helpCommand(registry)
     registry.register(cmd)
 
@@ -177,18 +180,43 @@ describe('Utility commands', () => {
     expect(result.content).toContain('Unknown command')
   })
 
-  it('/status reports runtime info', async () => {
-    const cmd = statusCommand(() => ({
+  it('/status reports runtime info with session and active turns', async () => {
+    const cmd = statusCommand(async () => ({
       model: 'claude-sonnet-4-5',
       workspace: '/tmp/test',
+      currentWorkspace: '/tmp/test',
       channels: ['telegram', 'discord'],
-      sessions: []
+      sessionInfo: sampleSession,
+      activeTurns: [{ conversationKey: 'telegram:99', prompt: 'write a test' }]
     }))
 
     const result = await cmd.execute(makeCtx())
     expect(result.content).toContain('claude-sonnet-4-5')
     expect(result.content).toContain('/tmp/test')
     expect(result.content).toContain('telegram, discord')
+    // Session info
+    expect(result.content).toContain('abcdef12')
+    expect(result.content).toContain('fix the login bug')
+    expect(result.content).toContain('5 user / 30 assistant')
+    // Active turns
+    expect(result.content).toContain('Running: 1')
+    expect(result.content).toContain('telegram:99')
+    expect(result.content).toContain('write a test')
+  })
+
+  it('/status shows no-session and no-turns when idle', async () => {
+    const cmd = statusCommand(async () => ({
+      model: 'claude-sonnet-4-5',
+      workspace: '/tmp/test',
+      currentWorkspace: '/tmp/test',
+      channels: ['telegram'],
+      sessionInfo: undefined,
+      activeTurns: []
+    }))
+
+    const result = await cmd.execute(makeCtx())
+    expect(result.content).toContain('No active session.')
+    expect(result.content).toContain('No active turns.')
   })
 
   it('/ping returns pong', async () => {

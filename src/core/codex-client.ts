@@ -598,6 +598,8 @@ export class CodexClient implements ModelClient {
 
   cancelTurn(_conversationKey: string): void {}
 
+  getActiveTurns(): import('./model-client.js').ActiveTurnInfo[] { return [] }
+
   closeAll(): void {}
 
   async startNewSession(conversationKey: string): Promise<void> {

@@ -14,7 +14,6 @@ export {
   sessionNewCommand,
   sessionListCommand,
   sessionSelectCommand,
-  sessionInfoCommand,
   sessionDeleteCommand,
   helpCommand,
   statusCommand,

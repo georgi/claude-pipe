@@ -117,51 +117,49 @@ export function sessionSelectCommand(
 }
 
 /**
- * /session_info
- * Shows detailed info about the current chat's session.
- */
-export function sessionInfoCommand(
-  getWorkspace: (conversationKey: string) => string,
-  sessionService: ClaudeSessionService,
-  getSessionId: (conversationKey: string) => string | undefined
-): CommandDefinition {
-  return {
-    name: 'session_info',
-    category: 'session',
-    description: 'Show session info for the current chat',
-    aliases: [],
-    permission: 'user',
-    async execute(ctx: CommandContext): Promise<CommandResult> {
-      const sessionId = getSessionId(ctx.conversationKey)
-      if (!sessionId) {
-        return { content: 'No active session for this chat.' }
-      }
-      const workspace = getWorkspace(ctx.conversationKey)
-      const session = await sessionService.get(workspace, sessionId)
-      if (!session) {
-        return { content: `Session \`${sessionId.slice(0, 8)}\` exists in store but no JSONL file found.` }
-      }
-      return { content: formatSessionInfo(session) }
-    }
-  }
-}
-
-/**
- * /session_delete
- * Deletes the current chat's session.
+ * /session_delete [session_id]
+ * Deletes a session by ID, or the current chat's session if no ID given.
  */
 export function sessionDeleteCommand(
-  deleteSession: (conversationKey: string) => Promise<void>
+  getWorkspace: (conversationKey: string) => string,
+  sessionService: ClaudeSessionService,
+  getSessionId: (conversationKey: string) => string | undefined,
+  clearSession: (conversationKey: string) => Promise<void>
 ): CommandDefinition {
   return {
     name: 'session_delete',
     category: 'session',
-    description: 'Delete the session for the current chat',
+    description: 'Delete a session by ID or the current session',
+    usage: '/session_delete [session_id]',
     aliases: [],
+    args: [{ name: 'session_id', description: 'Session ID or prefix (omit to delete current)', required: false }],
     permission: 'user',
     async execute(ctx: CommandContext): Promise<CommandResult> {
-      await deleteSession(ctx.conversationKey)
-      return { content: 'Session deleted for this chat.' }
+      const workspace = getWorkspace(ctx.conversationKey)
+      const currentSessionId = getSessionId(ctx.conversationKey)
+      const prefix = ctx.args[0]
+
+      if (prefix) {
+        // Delete a specific session by ID
+        const resolved = await sessionService.resolve(workspace, prefix)
+        if ('error' in resolved) {
+          return { content: resolved.error, error: true }
+        }
+        await sessionService.delete(workspace, resolved.id)
+        // If the deleted session is the current one, clear the binding
+        if (currentSessionId === resolved.id) {
+          await clearSession(ctx.conversationKey)
+        }
+        return { content: `Session \`${resolved.id.slice(0, 8)}\` deleted.` }
+      }
+
+      // No arg — delete current session
+      if (!currentSessionId) {
+        return { content: 'No active session for this chat.', error: true }
+      }
+      await sessionService.delete(workspace, currentSessionId)
+      await clearSession(ctx.conversationKey)
+      return { content: `Session \`${currentSessionId.slice(0, 8)}\` deleted.` }
     }
   }
 }

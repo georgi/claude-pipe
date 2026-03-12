@@ -51,7 +51,7 @@ describe('setupCommands', () => {
     expect(names).toContain('session_new')
     expect(names).toContain('session_list')
     expect(names).toContain('session_select')
-    expect(names).toContain('session_info')
+
     expect(names).toContain('session_delete')
     expect(names).toContain('claude_ask')
     expect(names).toContain('claude_model')

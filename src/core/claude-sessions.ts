@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir, readFile, unlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
@@ -16,6 +16,7 @@ export interface ClaudeSessionService {
   list(workspace: string): Promise<ClaudeSessionSummary[]>
   get(workspace: string, sessionIdOrPrefix: string): Promise<ClaudeSessionSummary | undefined>
   resolve(workspace: string, prefix: string): Promise<{ id: string } | { error: string }>
+  delete(workspace: string, sessionId: string): Promise<void>
 }
 
 function encodeWorkspacePath(workspace: string): string {
@@ -183,6 +184,16 @@ export function createClaudeSessionService(): ClaudeSessionService {
       }
     },
 
-    resolve: resolveSessionId
+    resolve: resolveSessionId,
+
+    async delete(workspace: string, sessionId: string): Promise<void> {
+      const dir = getClaudeProjectDir(workspace)
+      const filePath = path.join(dir, `${sessionId}.jsonl`)
+      try {
+        await unlink(filePath)
+      } catch {
+        // File may already be gone
+      }
+    }
   }
 }
