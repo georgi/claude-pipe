@@ -8,14 +8,19 @@ import type { AgentTurnUpdate, ChannelName, FileAttachment, InboundMessage, Logg
 import { resolveWorkspace } from './workspace.js'
 
 /** Truncates a tool detail string to fit in a chat status line. */
-function truncateDetail(value: string, max: number, workspace?: string): string {
-  let oneLine = value.split('\n')[0]!.trim()
-  if (workspace && oneLine.startsWith(workspace)) {
-    oneLine = oneLine.slice(workspace.length).replace(/^\//, '')
-  }
+function truncateDetail(value: string, max: number): string {
+  const oneLine = value.split('\n')[0]!.trim()
   if (oneLine.length <= max) return oneLine
   return `${oneLine.slice(0, max)}…`
 }
+
+/** Strips a workspace prefix from a path for shorter display. */
+function stripWorkspace(value: string, workspace: string): string {
+  if (!value.startsWith(workspace)) return value
+  return value.slice(workspace.length).replace(/^\//, '')
+}
+
+const MAX_TOOL_LINES = 10
 
 /**
  * Appends a small footer line showing the current time and completion status.
@@ -270,7 +275,8 @@ export class AgentLoop {
 
       const toolId = update.toolUseId ?? update.toolName ?? 'tool'
       const toolName = update.toolName ?? 'tool'
-      const detail = update.toolDetail ? truncateDetail(update.toolDetail, 60, workspace) : ''
+      const rawDetail = update.toolDetail ? stripWorkspace(update.toolDetail, workspace) : ''
+      const detail = rawDetail ? truncateDetail(rawDetail, 60) : ''
       const toolLabel = detail ? `${toolName}: ${detail}` : toolName
 
       if (update.kind === 'tool_call_started') {
@@ -291,15 +297,9 @@ export class AgentLoop {
         }
       }
 
-      const MAX_TOOL_LINES = 10
-      const visibleTools =
-        toolUpdates.length > MAX_TOOL_LINES
-          ? toolUpdates.slice(-MAX_TOOL_LINES)
-          : toolUpdates
-      const toolPrefix =
-        toolUpdates.length > MAX_TOOL_LINES
-          ? `… ${toolUpdates.length - MAX_TOOL_LINES} more\n`
-          : ''
+      const overflow = toolUpdates.length - MAX_TOOL_LINES
+      const visibleTools = overflow > 0 ? toolUpdates.slice(-MAX_TOOL_LINES) : toolUpdates
+      const toolPrefix = overflow > 0 ? `… ${overflow} more\n` : ''
       const toolStatus = toolPrefix + visibleTools.map((t) => t.label).join('\n')
 
       if (streamMessage) {
