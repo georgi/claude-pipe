@@ -34,7 +34,7 @@ describe('Session commands', () => {
     const cmd = sessionNewCommand(startNew)
 
     const result = await cmd.execute(makeCtx())
-    expect(result.content).toBe('Started a new session for this chat.')
+    expect(result.content).toContain('New session started')
     expect(startNew).toHaveBeenCalledWith('telegram:42')
   })
 

@@ -16,7 +16,7 @@ export function sessionNewCommand(
     permission: 'user',
     async execute(ctx: CommandContext): Promise<CommandResult> {
       await startNewSession(ctx.conversationKey)
-      return { content: 'Started a new session for this chat.' }
+      return { content: '═══════════════════════════════\n✦ New session started\n═══════════════════════════════' }
     }
   }
 }

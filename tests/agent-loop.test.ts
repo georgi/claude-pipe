@@ -87,7 +87,7 @@ describe('AgentLoop', () => {
     })
 
     const outbound = await bus.consumeOutbound()
-    expect(outbound.content).toBe('Started a new session for this chat.')
+    expect(outbound.content).toContain('New session started')
     expect(claude.startNewSession).toHaveBeenCalledWith('telegram:42')
     expect(claude.runTurn).not.toHaveBeenCalled()
 
