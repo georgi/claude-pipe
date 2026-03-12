@@ -63,6 +63,16 @@ npm run dev -- --help           # or -h (show all options)
 
 This runs the wizard again with your current values shown as defaults — press Enter to keep each setting, or type a new value.
 
+**Register Discord slash commands (optional)**
+
+If you use Discord, register slash commands so they appear in the Discord command picker:
+
+```bash
+npm run register <discord-application-id>
+```
+
+You can find the Application ID on your [Discord Developer Portal](https://discord.com/developers/applications). This only needs to be run once (or when commands change).
+
 **Start chatting**
 
 Send a message to your bot (or type in terminal if using CLI mode) and the agent will reply.
@@ -131,6 +141,7 @@ During a turn, tool call progress and streaming text are pushed back to the chat
 | `src/core/session-store.ts` | Persists conversation sessions to `~/.claude-pipe/sessions.json` |
 | `src/core/workspace.ts` | Resolves per-channel workspace from config |
 | `src/commands/handler.ts` | Slash command interception and execution |
+| `src/register.ts` | One-time Discord slash command registration script |
 | `src/config/load.ts` | Loads and validates settings from `~/.claude-pipe/settings.json` |
 
 ## Configuration reference
