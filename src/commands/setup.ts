@@ -1,14 +1,18 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { loadConfig } from '../config/load.js'
 import type { ModelClient } from '../core/model-client.js'
 import type { SessionStore } from '../core/session-store.js'
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 import {
   sessionNewCommand,
   sessionListCommand,
   sessionInfoCommand,
   sessionDeleteCommand
 } from './definitions/session.js'
-import { helpCommand, statusCommand, pingCommand, reloadCommand, stopCommand, restartCommand } from './definitions/utility.js'
+import { helpCommand, statusCommand, pingCommand, reloadCommand, stopCommand, restartCommand, hotReloadCommand } from './definitions/utility.js'
 import { claudeAskCommand, claudeModelCommand } from './definitions/claude.js'
 import { configSetCommand, configGetCommand } from './definitions/config.js'
 import { CommandHandler } from './handler.js'
@@ -108,6 +112,7 @@ export function setupCommands(
   registry.register(reloadCommand(config, loadConfig))
   registry.register(stopCommand((key) => claude.cancelTurn(key)))
   registry.register(restartCommand())
+  registry.register(hotReloadCommand(projectRoot))
 
   // --- Custom commands ---
   for (const cmd of options.customCommands ?? []) {

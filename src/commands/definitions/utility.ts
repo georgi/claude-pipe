@@ -1,3 +1,6 @@
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { ClaudePipeConfig } from '../../config/schema.js'
 import type { CommandDefinition, CommandResult } from '../types.js'
 import type { CommandRegistry } from '../registry.js'
@@ -165,6 +168,54 @@ export function restartCommand(): CommandDefinition {
     async execute(): Promise<CommandResult> {
       setImmediate(() => process.exit(0))
       return { content: 'Restarting...' }
+    }
+  }
+}
+
+/**
+ * /hot-reload
+ * Rebuilds TypeScript (in production mode) and self-spawns a fresh process, then exits.
+ * No external process manager required.
+ */
+export function hotReloadCommand(projectRoot: string): CommandDefinition {
+  return {
+    name: 'hot-reload',
+    category: 'utility',
+    description: 'Rebuild and restart the bot process in-place (no process manager needed)',
+    aliases: ['hr'],
+    permission: 'admin',
+    async execute(): Promise<CommandResult> {
+      const isDevMode =
+        process.argv[1]?.endsWith('.ts') || process.argv[1]?.includes('/tsx')
+
+      setImmediate(async () => {
+        // In production mode, rebuild TypeScript before spawning
+        if (!isDevMode && existsSync(join(projectRoot, 'tsconfig.json'))) {
+          await new Promise<void>((resolve) => {
+            const build = spawn('npm', ['run', 'build'], {
+              cwd: projectRoot,
+              stdio: 'inherit'
+            })
+            build.on('close', () => resolve())
+          })
+        }
+
+        // Spawn a fresh instance with the same executable and arguments
+        const child = spawn(process.execPath, process.argv.slice(1), {
+          detached: true,
+          stdio: 'inherit',
+          cwd: process.cwd(),
+          env: process.env
+        })
+        child.unref()
+        process.exit(0)
+      })
+
+      return {
+        content: isDevMode
+          ? 'Hot reloading (dev mode — skipping build)...'
+          : 'Hot reloading (building TypeScript first)...'
+      }
     }
   }
 }
