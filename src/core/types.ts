@@ -23,6 +23,21 @@ export interface FileAttachment {
 }
 
 /**
+ * A single inline keyboard button.
+ */
+export interface InlineButton {
+  /** Button label text. */
+  text: string
+  /** Callback data sent back when pressed. */
+  callbackData: string
+}
+
+/**
+ * An inline keyboard: array of rows, each row an array of buttons.
+ */
+export type InlineKeyboard = InlineButton[][]
+
+/**
  * Normalized outbound message consumed by a channel adapter.
  */
 export interface OutboundMessage {
@@ -32,6 +47,8 @@ export interface OutboundMessage {
   replyTo?: string
   metadata?: Record<string, unknown>
   attachments?: FileAttachment[]
+  /** Optional inline keyboard to display below the message. */
+  keyboard?: InlineKeyboard
 }
 
 /**

@@ -8,7 +8,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, InlineKeyboard, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 import {
   transcribeAudio,
@@ -43,6 +43,15 @@ type TelegramUpdate = {
     audio?: TelegramAudio
     chat: { id: number }
     from?: { id: number }
+  }
+  callback_query?: {
+    id: string
+    data?: string
+    from: { id: number }
+    message?: {
+      message_id: number
+      chat: { id: number }
+    }
   }
 }
 
@@ -125,18 +134,27 @@ export class TelegramChannel implements Channel {
     const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
 
     let lastMessageId: string | undefined
-    for (const part of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
+      const part = chunks[i]
+      const isLastChunk = i === chunks.length - 1
       try {
         await retry(
           async () => {
+            const payload: Record<string, unknown> = {
+              chat_id: Number(message.chatId),
+              text: part,
+              parse_mode: 'Markdown'
+            }
+
+            // Attach inline keyboard to the last chunk
+            if (isLastChunk && message.keyboard?.length) {
+              payload.reply_markup = this.buildInlineKeyboard(message.keyboard)
+            }
+
             const response = await fetch(url, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: Number(message.chatId),
-                text: part,
-                parse_mode: 'Markdown'
-              })
+              body: JSON.stringify(payload)
             })
 
             if (!response.ok) {
@@ -370,8 +388,11 @@ export class TelegramChannel implements Channel {
         const updates = await this.getUpdates()
         for (const update of updates) {
           this.nextOffset = Math.max(this.nextOffset, update.update_id + 1)
-          if (!update.message) continue
-          await this.handleMessage(update)
+          if (update.callback_query) {
+            await this.handleCallbackQuery(update.callback_query)
+          } else if (update.message) {
+            await this.handleMessage(update)
+          }
         }
       } catch (error) {
         const is409 = error instanceof Error && (error as NodeJS.ErrnoException).code === '409'
@@ -396,6 +417,7 @@ export class TelegramChannel implements Channel {
     const url = new URL(`https://api.telegram.org/bot${token}/getUpdates`)
     url.searchParams.set('timeout', '25')
     url.searchParams.set('offset', String(this.nextOffset))
+    url.searchParams.set('allowed_updates', JSON.stringify(['message', 'callback_query']))
 
     const response = await fetch(url)
     if (!response.ok) {
@@ -512,6 +534,75 @@ export class TelegramChannel implements Channel {
       if (audioPath) {
         try { await unlink(audioPath) } catch { /* ignore cleanup errors */ }
       }
+    }
+  }
+
+  /** Handles an inline keyboard button press (callback query). */
+  private async handleCallbackQuery(query: NonNullable<TelegramUpdate['callback_query']>): Promise<void> {
+    const senderId = String(query.from.id)
+    if (!isSenderAllowed(senderId, this.config.channels.telegram.allowFrom)) {
+      this.logger.warn('channel.telegram.callback_denied', { senderId })
+      return
+    }
+
+    const chatId = String(query.message?.chat.id ?? query.from.id)
+
+    // Acknowledge the button press immediately
+    await this.answerCallbackQuery(query.id)
+
+    // Show typing while processing
+    this.pendingTyping.add(chatId)
+    await this.sendChatAction(chatId, 'typing')
+
+    const content = `[Button pressed]: ${query.data ?? '[no data]'}`
+
+    const inbound: InboundMessage = {
+      channel: 'telegram',
+      senderId,
+      chatId,
+      content,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        callbackQueryId: query.id,
+        callbackData: query.data,
+        sourceMessageId: query.message?.message_id
+      }
+    }
+
+    this.logger.info('channel.telegram.callback_query', {
+      senderId,
+      chatId,
+      data: query.data
+    })
+
+    await this.bus.publishInbound(inbound)
+  }
+
+  /** Acknowledges a callback query to remove the loading indicator on the button. */
+  private async answerCallbackQuery(queryId: string): Promise<void> {
+    const token = this.config.channels.telegram.token
+    const url = `https://api.telegram.org/bot${token}/answerCallbackQuery`
+
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: queryId })
+      })
+    } catch {
+      // Non-critical — button just keeps spinning briefly
+    }
+  }
+
+  /** Converts our InlineKeyboard type to Telegram's reply_markup format. */
+  private buildInlineKeyboard(keyboard: InlineKeyboard): Record<string, unknown> {
+    return {
+      inline_keyboard: keyboard.map((row) =>
+        row.map((btn) => ({
+          text: btn.text,
+          callback_data: btn.callbackData
+        }))
+      )
     }
   }
 

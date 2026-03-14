@@ -52,6 +52,15 @@ const BASE_SYSTEM_PROMPT = [
   '- Everything else → sent as document',
   '',
   'Multiple attachments can be included in one response. The file must exist on disk at the given absolute path.',
+  '',
+  '## Inline keyboards',
+  'To show interactive buttons below a message, include a keyboard marker:',
+  '- [[keyboard:Button1=callback1,Button2=callback2]] — one row with two buttons',
+  '- [[keyboard:Button1=callback1,Button2=callback2|Button3=callback3]] — two rows (pipe separates rows)',
+  '',
+  'When a user presses a button, you receive: [Button pressed]: callback_data',
+  'Use keyboards for quick choices, confirmations, or navigation. Keep callback_data short (<64 chars).',
+  'Only one keyboard marker per response. The keyboard attaches to the last text chunk.',
 ].join('\n')
 
 /** Builds the full system prompt: base instructions + optional personality. */

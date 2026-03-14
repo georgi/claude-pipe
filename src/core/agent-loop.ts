@@ -4,7 +4,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import type { ModelClient } from './model-client.js'
-import type { AgentTurnUpdate, FileAttachment, InboundMessage, Logger, SentMessage } from './types.js'
+import type { AgentTurnUpdate, FileAttachment, InlineKeyboard, InboundMessage, Logger, SentMessage } from './types.js'
 
 /**
  * Central message-processing loop.
@@ -199,14 +199,35 @@ export class AgentLoop {
 
     // Extract file attachment markers from the response: [[file:/path/to/file.ext]] or [[file:/path|caption]]
     const attachments: FileAttachment[] = []
-    const content = rawContent.replace(
+    let processed = rawContent.replace(
       /\[\[file:([^|\]]+?)(?:\|([^\]]*))?\]\]/g,
       (_match, filePath: string, caption?: string) => {
         const trimmedCaption = caption?.trim()
         attachments.push({ filePath: filePath.trim(), ...(trimmedCaption ? { caption: trimmedCaption } : {}) })
         return ''
       }
-    ).trim()
+    )
+
+    // Extract inline keyboard markers: [[keyboard:Label1=data1,Label2=data2|Label3=data3,Label4=data4]]
+    // Pipe separates rows, comma separates buttons within a row
+    let keyboard: InlineKeyboard | undefined
+    processed = processed.replace(
+      /\[\[keyboard:([^\]]+)\]\]/g,
+      (_match, spec: string) => {
+        const rows = spec.split('|').map((row: string) =>
+          row.split(',').map((btn: string) => {
+            const parts = btn.split('=')
+            const text = parts[0] ?? ''
+            const callbackData = parts.length > 1 ? parts.slice(1).join('=') : text.trim()
+            return { text: text.trim(), callbackData: callbackData.trim() }
+          })
+        )
+        keyboard = rows
+        return ''
+      }
+    )
+
+    const content = processed.trim()
 
     if (attachments.length > 0) {
       this.logger.info('agent.attachments', {
@@ -220,7 +241,8 @@ export class AgentLoop {
       channel: inbound.channel,
       chatId: inbound.chatId,
       content,
-      ...(attachments.length > 0 ? { attachments } : {})
+      ...(attachments.length > 0 ? { attachments } : {}),
+      ...(keyboard ? { keyboard } : {})
     }
 
     // Replace the streaming draft or status message with the final response when possible
