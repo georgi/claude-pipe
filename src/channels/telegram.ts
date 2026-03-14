@@ -159,6 +159,20 @@ export class TelegramChannel implements Channel {
 
             if (!response.ok) {
               const body = await response.text()
+              // Retry without parse_mode if Markdown parsing fails
+              if (body.includes("can't parse entities")) {
+                delete payload.parse_mode
+                const fallback = await fetch(url, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify(payload)
+                })
+                if (!fallback.ok) {
+                  const fbBody = await fallback.text()
+                  throw new Error(`telegram send failed (${fallback.status}): ${fbBody}`)
+                }
+                return fallback
+              }
               throw new Error(`telegram send failed (${response.status}): ${body}`)
             }
 
@@ -287,19 +301,30 @@ export class TelegramChannel implements Channel {
     const url = `https://api.telegram.org/bot${token}/sendMessageDraft`
 
     try {
+      const payload: Record<string, unknown> = {
+        chat_id: Number(chatId),
+        draft_id: 1,
+        text,
+        parse_mode: 'Markdown'
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: Number(chatId),
-          draft_id: 1,
-          text,
-          parse_mode: 'Markdown'
-        })
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         const body = await response.text()
+        if (body.includes("can't parse entities")) {
+          delete payload.parse_mode
+          await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+          return
+        }
         throw new Error(`telegram sendMessageDraft failed (${response.status}): ${body}`)
       }
     } catch (error) {
@@ -320,19 +345,35 @@ export class TelegramChannel implements Channel {
     try {
       await retry(
         async () => {
+          const payload: Record<string, unknown> = {
+            chat_id: Number(sent.chatId),
+            message_id: Number(sent.messageId),
+            text: newContent,
+            parse_mode: 'Markdown'
+          }
+
           const response = await fetch(url, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: Number(sent.chatId),
-              message_id: Number(sent.messageId),
-              text: newContent,
-              parse_mode: 'Markdown'
-            })
+            body: JSON.stringify(payload)
           })
 
           if (!response.ok) {
             const body = await response.text()
+            // Retry without parse_mode if Markdown parsing fails
+            if (body.includes("can't parse entities")) {
+              delete payload.parse_mode
+              const fallback = await fetch(url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload)
+              })
+              if (!fallback.ok) {
+                const fbBody = await fallback.text()
+                throw new Error(`telegram editMessageText failed (${fallback.status}): ${fbBody}`)
+              }
+              return
+            }
             throw new Error(`telegram editMessageText failed (${response.status}): ${body}`)
           }
         },
