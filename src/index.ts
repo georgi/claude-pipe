@@ -6,7 +6,7 @@ import { loadConfig } from './config/load.js'
 import { readSettings, settingsExist } from './config/settings.js'
 import { AgentLoop } from './core/agent-loop.js'
 import { MessageBus } from './core/bus.js'
-import { createModelClient, resolveProviderFromConfig } from './core/client-factory.js'
+import { createModelClient } from './core/client-factory.js'
 import { createHeartbeat } from './core/heartbeat.js'
 import { logger, setLoggerMuted } from './core/logger.js'
 import { SessionStore } from './core/session-store.js'
@@ -73,8 +73,7 @@ async function main(): Promise<void> {
 
   logger.info('startup.config', {
     workspace: config.workspace,
-    model: config.model,
-    provider: resolveProviderFromConfig(config)
+    model: config.model
   })
 
   const modelClient = createModelClient(config, sessionStore, logger)

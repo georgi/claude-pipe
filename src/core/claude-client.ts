@@ -1,32 +1,11 @@
-import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { query } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 
 import type { ClaudePipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
-
-type JsonRecord = Record<string, unknown>
-type AssistantTextBlock = { type: 'text'; text: string }
-type AssistantToolUseBlock = {
-  type: 'tool_use'
-  name: string
-  id?: string
-}
-type ToolResultBlock = {
-  type: 'tool_result'
-  tool_use_id?: string
-  content?: unknown
-}
-
-function getClaudeCodeExecutablePath(): string {
-  const localPath = join(homedir(), '.claude', 'local', 'claude')
-  if (existsSync(localPath)) return localPath
-  return 'claude'
-}
 
 /** Base system prompt always appended — covers chat-app behavior and attachment protocol. */
 const BASE_SYSTEM_PROMPT = [
@@ -75,40 +54,6 @@ function buildSystemPrompt(config: ClaudePipeConfig): string {
   ].join('\n')
 }
 
-const defaultClaudeArgs = [
-  '--print',
-  '--verbose',
-  '--output-format',
-  'stream-json',
-  '--permission-mode',
-  'bypassPermissions',
-  '--dangerously-skip-permissions'
-]
-
-function isRecord(value: unknown): value is JsonRecord {
-  return Boolean(value) && typeof value === 'object'
-}
-
-function isTextBlock(block: unknown): block is AssistantTextBlock {
-  if (!isRecord(block)) return false
-  return block.type === 'text' && typeof block.text === 'string'
-}
-
-function isToolUseBlock(block: unknown): block is AssistantToolUseBlock {
-  if (!isRecord(block)) return false
-  return block.type === 'tool_use' && typeof block.name === 'string'
-}
-
-function isToolResultBlock(block: unknown): block is ToolResultBlock {
-  if (!isRecord(block)) return false
-  return block.type === 'tool_result'
-}
-
-function truncate(value: string, max = 2000): string {
-  if (value.length <= max) return value
-  return `${value.slice(0, max)}...(truncated)`
-}
-
 function summarizeToolResult(content: unknown): string {
   if (typeof content === 'string') {
     if (content.includes('API Error:')) return 'tool returned API error'
@@ -118,11 +63,14 @@ function summarizeToolResult(content: unknown): string {
 }
 
 /**
- * Runs Claude Code through subprocess `stream-json` output and persists session IDs.
+ * Runs Claude via the official Agent SDK, one query() call per turn.
+ *
+ * Sessions are persisted across turns via session_id from the result message.
+ * Cancellation is handled via AbortController passed to query().
  */
 export class ClaudeClient implements ModelClient {
   private readonly transcript: TranscriptLogger
-  private readonly activeChildren = new Map<string, ReturnType<typeof spawn>>()
+  private readonly abortControllers = new Map<string, AbortController>()
 
   constructor(
     private readonly config: ClaudePipeConfig,
@@ -141,99 +89,37 @@ export class ClaudeClient implements ModelClient {
     })
   }
 
-  private async publishUpdate(
-    context: ToolContext,
-    event: AgentTurnUpdate
-  ): Promise<void> {
+  private async publishUpdate(context: ToolContext, event: AgentTurnUpdate): Promise<void> {
     if (!context.onUpdate) return
     await context.onUpdate(event)
   }
 
-  /**
-   * Executes one turn by spawning the Claude CLI and parsing `stream-json` frames.
-   */
-  async runTurn(
+  private async handleMessage(
+    message: SDKMessage,
     conversationKey: string,
-    userText: string,
-    context: ToolContext
-  ): Promise<string> {
-    const savedSession = this.store.get(conversationKey)
-    const executable = this.config.claudeCli?.command?.trim() || getClaudeCodeExecutablePath()
-    const args = [...(this.config.claudeCli?.args ?? defaultClaudeArgs), '--model', this.config.model]
+    context: ToolContext,
+    toolNamesByCallId: Map<string, string>
+  ): Promise<{ text: string }> {
+    let text = ''
 
-    args.push('--append-system-prompt', buildSystemPrompt(this.config))
+    await this.transcript.log(conversationKey, { type: message.type })
 
-    if (savedSession?.sessionId) {
-      args.push('--resume', savedSession.sessionId)
-    }
-    args.push(userText)
+    if (message.type === 'assistant') {
+      const content = message.message.content
 
-    await this.publishUpdate(context, {
-      kind: 'turn_started',
-      conversationKey,
-      message: 'Working on it...'
-    })
-    await this.transcript.log(conversationKey, { type: 'user', text: userText })
-
-    const child = spawn(executable, args, {
-      cwd: this.config.workspace,
-      env: process.env
-    })
-    this.activeChildren.set(conversationKey, child)
-    this.logger.info('claude.spawn_start', {
-      conversationKey,
-      executable,
-      args
-    })
-    child.stdin.end()
-
-    let stdoutBuffer = ''
-    let stderrBuffer = ''
-    let stderrLineBuffer = ''
-    let responseText = ''
-    let fallbackResultText = ''
-    let observedSessionId = savedSession?.sessionId
-    let resultIsError = false
-    const toolNamesByCallId = new Map<string, string>()
-    let frameChain = Promise.resolve()
-
-    const handleFrame = async (frame: unknown): Promise<void> => {
-      if (!isRecord(frame) || typeof frame.type !== 'string') return
-
-      if (typeof frame.session_id === 'string' && frame.session_id) {
-        observedSessionId = frame.session_id
-      }
-
-      await this.transcript.log(conversationKey, { type: frame.type })
-
-      if (frame.type === 'assistant') {
-        const message = isRecord(frame.message) ? frame.message : undefined
-        const content = Array.isArray(message?.content) ? message.content : []
-        const text = content
-          .filter((block: unknown) => isTextBlock(block))
-          .map((block: AssistantTextBlock) => block.text)
-          .join('')
-        if (text) {
-          responseText = text
-          await this.transcript.log(conversationKey, {
-            type: 'assistant_text',
-            text
-          })
+      for (const block of content) {
+        if (block.type === 'text') {
+          text = block.text
+          await this.transcript.log(conversationKey, { type: 'assistant_text', text })
           await this.publishUpdate(context, {
             kind: 'text_streaming',
             conversationKey,
             message: 'Streaming response...',
-            text
+            text,
           })
-        }
-
-        for (const block of content.filter((entry: unknown) => isToolUseBlock(entry))) {
+        } else if (block.type === 'tool_use') {
           if (block.id) toolNamesByCallId.set(block.id, block.name)
-          this.logger.info('claude.tool_call_started', {
-            conversationKey,
-            toolName: block.name,
-            toolUseId: block.id
-          })
+          this.logger.info('claude.tool_call_started', { conversationKey, toolName: block.name, toolUseId: block.id })
           await this.publishUpdate(context, {
             kind: 'tool_call_started',
             conversationKey,
@@ -243,28 +129,23 @@ export class ClaudeClient implements ModelClient {
           })
         }
       }
+    }
 
-      if (frame.type === 'user') {
-        const message = isRecord(frame.message) ? frame.message : undefined
-        const content = Array.isArray(message?.content) ? message.content : []
-        for (const block of content.filter((entry: unknown) => isToolResultBlock(entry))) {
-          const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : undefined
+    if (message.type === 'user') {
+      const msgContent = message.message.content
+      const blocks = Array.isArray(msgContent) ? msgContent : []
+      for (const block of blocks) {
+        if (typeof block === 'object' && block !== null && 'type' in block && block.type === 'tool_result') {
+          const toolResult = block as { type: 'tool_result'; tool_use_id?: string; content?: unknown }
+          const toolUseId = toolResult.tool_use_id
           const toolName = toolUseId ? toolNamesByCallId.get(toolUseId) : undefined
-          const summary = summarizeToolResult(block.content)
+          const summary = summarizeToolResult(toolResult.content)
           const failed = summary.includes('error')
 
           if (failed) {
-            this.logger.warn('claude.tool_call_failed', {
-              conversationKey,
-              toolName,
-              toolUseId
-            })
+            this.logger.warn('claude.tool_call_failed', { conversationKey, toolName, toolUseId })
           } else {
-            this.logger.info('claude.tool_call_finished', {
-              conversationKey,
-              toolName,
-              toolUseId
-            })
+            this.logger.info('claude.tool_call_finished', { conversationKey, toolName, toolUseId })
           }
 
           await this.publishUpdate(context, {
@@ -278,162 +159,75 @@ export class ClaudeClient implements ModelClient {
           })
         }
       }
-
-      if (frame.type === 'result') {
-        resultIsError = frame.is_error === true
-        if (typeof frame.result === 'string' && frame.result) {
-          fallbackResultText = frame.result
-        }
-      }
     }
 
-    child.stdout.on('data', (chunk: Buffer | string) => {
-      stdoutBuffer += chunk.toString()
-      let newlineIndex = stdoutBuffer.indexOf('\n')
-      while (newlineIndex >= 0) {
-        const rawLine = stdoutBuffer.slice(0, newlineIndex)
-        const line = rawLine.trim()
-        stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1)
-        if (line) {
-          this.logger.info('claude.stdout', {
-            conversationKey,
-            line
-          })
-          frameChain = frameChain
-            .then(async () => {
-              const parsed = JSON.parse(line) as unknown
-              await handleFrame(parsed)
-            })
-            .catch((error: unknown) => {
-              this.logger.warn('claude.stream_frame_parse_failed', {
-                conversationKey,
-                error: error instanceof Error ? error.message : String(error),
-                line: truncate(line)
-              })
-            })
-        }
-        newlineIndex = stdoutBuffer.indexOf('\n')
-      }
-    })
+    return { text }
+  }
 
-    child.stderr.on('data', (chunk: Buffer | string) => {
-      const text = chunk.toString()
-      stderrBuffer += text
-      stderrLineBuffer += text
-      let newlineIndex = stderrLineBuffer.indexOf('\n')
-      while (newlineIndex >= 0) {
-        const line = stderrLineBuffer.slice(0, newlineIndex).trim()
-        stderrLineBuffer = stderrLineBuffer.slice(newlineIndex + 1)
-        if (line) {
-          this.logger.info('claude.stderr', {
-            conversationKey,
-            line
-          })
-        }
-        newlineIndex = stderrLineBuffer.indexOf('\n')
-      }
-    })
-
-    const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-      (resolve, reject) => {
-        child.on('error', reject)
-        child.on('close', (code, signal) => {
-          this.activeChildren.delete(conversationKey)
-          resolve({ code, signal })
-        })
-      }
-    ).catch((error: unknown) => {
-      this.activeChildren.delete(conversationKey)
-      throw new Error(
-        `failed to start claude cli: ${error instanceof Error ? error.message : String(error)}`
-      )
-    })
-
-    if (stdoutBuffer.trim()) {
-      this.logger.info('claude.stdout', {
-        conversationKey,
-        line: stdoutBuffer.trim()
-      })
-      frameChain = frameChain
-        .then(async () => {
-          const parsed = JSON.parse(stdoutBuffer.trim()) as unknown
-          await handleFrame(parsed)
-        })
-        .catch((error: unknown) => {
-          this.logger.warn('claude.stream_frame_parse_failed', {
-            conversationKey,
-            error: error instanceof Error ? error.message : String(error),
-            line: truncate(stdoutBuffer.trim())
-          })
-        })
-    }
-
-    await frameChain
-
-    if (stderrLineBuffer.trim()) {
-      this.logger.info('claude.stderr', {
-        conversationKey,
-        line: stderrLineBuffer.trim()
-      })
-    }
-
-    if (stderrBuffer.trim()) {
-      this.logger.info('claude.stderr_summary', {
-        conversationKey,
-        bytes: stderrBuffer.length
-      })
-    }
-
-    const failed =
-      resultIsError || (exit.code !== 0 && exit.code !== null) || exit.signal !== null
-    if (failed) {
-      this.logger.error('claude.turn_failed', {
-        conversationKey,
-        exitCode: exit.code,
-        signal: exit.signal,
-        hadResultError: resultIsError
-      })
-      await this.publishUpdate(context, {
-        kind: 'turn_finished',
-        conversationKey,
-        message: 'Turn failed'
-      })
-      return 'Sorry, I hit an error while processing that request.'
-    }
-
-    if (observedSessionId) {
-      await this.store.set(conversationKey, observedSessionId)
-    }
-
-    this.logger.info('claude.spawn_exit', {
-      conversationKey,
-      exitCode: exit.code,
-      signal: exit.signal,
-      resultIsError
-    })
+  async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
+    const savedSession = this.store.get(conversationKey)
+    const abort = new AbortController()
+    this.abortControllers.set(conversationKey, abort)
 
     await this.publishUpdate(context, {
-      kind: 'turn_finished',
+      kind: 'turn_started',
       conversationKey,
-      message: 'Turn finished'
+      message: 'Working on it...'
     })
+    await this.transcript.log(conversationKey, { type: 'user', text: userText })
 
-    return responseText || fallbackResultText || 'I completed processing but have no response to return.'
-  }
+    let responseText = ''
+    const toolNamesByCallId = new Map<string, string>()
 
-  /** Kills the active Claude subprocess for the given conversation, if any. */
-  cancelTurn(conversationKey: string): void {
-    const child = this.activeChildren.get(conversationKey)
-    if (child) {
-      child.kill('SIGTERM')
-      this.activeChildren.delete(conversationKey)
+    try {
+      for await (const message of query({
+        prompt: userText,
+        options: {
+          ...(savedSession?.sessionId ? { resume: savedSession.sessionId } : {}),
+          model: this.config.model,
+          systemPrompt: { type: 'preset', preset: 'claude_code', append: buildSystemPrompt(this.config) },
+          permissionMode: 'bypassPermissions',
+          allowDangerouslySkipPermissions: true,
+          cwd: this.config.workspace,
+          abortController: abort,
+        }
+      })) {
+        const { text } = await this.handleMessage(message, conversationKey, context, toolNamesByCallId)
+        if (text) responseText = text
+
+        if (message.type === 'result') {
+          await this.store.set(conversationKey, message.session_id)
+
+          if (message.is_error) {
+            this.logger.error('claude.turn_failed', { conversationKey, subtype: message.subtype })
+            await this.publishUpdate(context, { kind: 'turn_finished', conversationKey, message: 'Turn failed' })
+            return 'Sorry, I hit an error while processing that request.'
+          }
+
+          this.logger.info('claude.turn_finished', { conversationKey })
+          await this.publishUpdate(context, { kind: 'turn_finished', conversationKey, message: 'Turn finished' })
+
+          const finalText = 'result' in message ? message.result : ''
+          return responseText || finalText || 'I completed processing but have no response to return.'
+        }
+      }
+    } finally {
+      this.abortControllers.delete(conversationKey)
     }
+
+    return responseText || 'I completed processing but have no response to return.'
   }
 
-  /** No-op in subprocess-per-turn mode. */
-  closeAll(): void {}
+  cancelTurn(conversationKey: string): void {
+    this.abortControllers.get(conversationKey)?.abort()
+    this.abortControllers.delete(conversationKey)
+  }
 
-  /** Clears persisted session mapping so the next turn starts a fresh Claude session. */
+  closeAll(): void {
+    for (const ctrl of this.abortControllers.values()) ctrl.abort()
+    this.abortControllers.clear()
+  }
+
   async startNewSession(conversationKey: string): Promise<void> {
     await this.store.clear(conversationKey)
   }

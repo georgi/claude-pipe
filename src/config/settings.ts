@@ -11,11 +11,6 @@ export interface PersonalitySettings {
 }
 
 export interface Settings {
-  provider?: 'claude' | 'codex'
-  claudeCli?: {
-    command?: string
-    args?: string[]
-  }
   channel: 'telegram' | 'discord' | 'cli'
   token: string
   allowFrom: string[]
