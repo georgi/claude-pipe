@@ -1129,8 +1129,8 @@
     </div>
     <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
     <div class="arch-node">
-      <div class="a-name c-pink">Claude / Codex</div>
-      <div class="a-desc">model client</div>
+      <div class="a-name c-pink">Agent SDK</div>
+      <div class="a-desc">query() per turn</div>
     </div>
     <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
     <div class="arch-node">
@@ -1179,8 +1179,8 @@
       <span>&mdash; Owns channel lifecycle and outbound dispatch</span>
     </div>
     <div class="key-file">
-      <code>core/client-factory.ts</code>
-      <span>&mdash; Creates Claude or Codex model client based on config</span>
+      <code>core/claude-client.ts</code>
+      <span>&mdash; Wraps Agent SDK query(), handles streaming and session persistence</span>
     </div>
     <div class="key-file">
       <code>core/session-store.ts</code>
@@ -1323,7 +1323,7 @@
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        Yes. claude-pipe doesn't limit or wrap Claude &mdash; it runs the actual Claude Code CLI (or Codex CLI) under the hood with the same tools, skills, and context. It's just a different front door: your phone instead of a terminal.
+        Yes. claude-pipe uses the official Claude Agent SDK under the hood &mdash; the same tools, skills, MCP servers, and context as Claude Code. It's just a different front door: your phone instead of a terminal.
       </div>
     </details>
     <details class="faq-item">
@@ -1332,7 +1332,7 @@
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        Node.js 20+, a Claude Code subscription (or Codex CLI), and a bot token for your channel (Telegram bot token or Discord bot token). The interactive setup wizard handles configuration. Your machine needs to stay running since the agent runs locally.
+        Node.js 20+, Claude Code installed and logged in, and a bot token for your channel (Telegram or Discord). The interactive setup wizard handles the rest. Your machine needs to stay running since the agent runs locally.
       </div>
     </details>
     <details class="faq-item">
@@ -1355,11 +1355,11 @@
     </details>
     <details class="faq-item">
       <summary>
-        Which LLM providers are supported?
+        Which models are supported?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        claude-pipe supports Claude Code (via the Claude CLI) and OpenAI's Codex CLI. You can switch between them using the /model slash command or by changing the provider in settings. The model client is pluggable, so adding new providers is straightforward.
+        Any model available in Claude Code: Haiku, Sonnet, Opus, or a custom model string. Set it in settings or switch on the fly with the /model slash command.
       </div>
     </details>
   </div>
