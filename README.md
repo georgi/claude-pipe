@@ -1,22 +1,22 @@
 # claude-pipe
 
-Claude Pipe is a personal AI assistant you run on your own devices. It answers you on the channels you already use (Telegram, Discord). The assistant runs locally on your machine or server and connects directly to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://developers.openai.com/codex/cli/)
+Claude Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It connects directly to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) via the official [Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript).
 
 Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
 ## What it does
 
-Claude Pipe connects your chat apps (or terminal) to your Agent CLI. When you send a message, it:
+Claude Pipe connects your chat apps (or terminal) to Claude Code. When you send a message, it:
 
 1. Picks up your message
-2. Passes it to the agent (with access to your workspace)
-3. Sends the agent's response back to the chat
+2. Passes it to Claude (with access to your workspace)
+3. Sends the response back to the chat
 
-The agent remembers previous messages in the conversation, so you can have ongoing back-and-forth sessions. It can read and edit files, run shell commands, and search the web — all the things Claude Code normally does, but triggered from your chat app.
+Claude remembers previous messages in the conversation, so you can have ongoing back-and-forth sessions. It can read and edit files, run shell commands, search the web, and use any MCP tools you have configured — all the things Claude Code normally does, triggered from your chat app.
 
 ## Getting started
 
-You'll need [Node.js](https://nodejs.org/) 20+ and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) or Codex CLI installed.
+You'll need [Node.js](https://nodejs.org/) 20+ and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and logged in.
 
 **1. Clone and install**
 
@@ -34,12 +34,11 @@ npm run dev
 
 First run starts the interactive setup wizard:
 
-1. **Choose LLM runtime** — select Claude Code CLI or OpenAI Codex CLI
-2. **Verify runtime CLI** — the wizard checks `claude` or `codex`
-3. **Choose platform** — select Telegram, Discord, or CLI (local terminal)
-4. **Enter bot token** — required for Telegram/Discord, skipped in CLI mode
-5. **Select model** — provider-specific presets (Claude) or live Codex model list from your local CLI, with free-form fallback
-6. **Set workspace** — specify the directory the agent can access (defaults to current directory)
+1. **Choose platform** — select Telegram, Discord, or CLI (local terminal)
+2. **Enter bot token** — required for Telegram/Discord, skipped in CLI mode
+3. **Select model** — preset list or free-form entry
+4. **Set workspace** — directory Claude can access (defaults to current directory)
+5. **Set personality** — give your assistant a name and description
 
 Settings are saved to `~/.claude-pipe/settings.json`.
 
@@ -54,18 +53,14 @@ npm start       # production mode (runs compiled JavaScript)
 
 **Reconfigure settings**
 
-To change your configuration later:
-
 ```bash
 npm run dev -- --reconfigure    # or -r
-npm run dev -- --help           # or -h (show all options)
+npm run dev -- --help           # or -h
 ```
-
-This runs the wizard again with your current values shown as defaults — press Enter to keep each setting, or type a new value.
 
 **Start chatting**
 
-Send a message to your bot (or type in terminal if using CLI mode) and the agent will reply.
+Send a message to your bot (or type in terminal if using CLI mode) and Claude will reply.
 
 ## Architecture
 
@@ -86,9 +81,9 @@ Claude Pipe is a single Node.js process. One event bus, pluggable channels, one 
 ┌──────────────────────────────────────┐
 │            Agent Loop                │
 │  ┌─────────────┐  ┌──────────────┐  │
-│  │  Command     │  │ Model Client │  │
-│  │  Handler     │  │ (Claude/     │  │
-│  │  (/session,  │  │  Codex CLI)  │  │
+│  │  Command     │  │ ClaudeClient │  │
+│  │  Handler     │  │ (Agent SDK   │  │
+│  │  (/session,  │  │  query())    │  │
 │  │   /model..)  │  └──────┬───────┘  │
 │  └─────────────┘          │          │
 └───────────────────────────┼──────────┘
@@ -105,7 +100,11 @@ One Node.js process runs the event bus, agent loop, and all channel adapters. No
 
 ### Message Bus
 
-Channels and the agent loop are fully decoupled through async inbound/outbound queues. Channels publish inbound messages; the agent loop consumes them, runs a turn, and publishes outbound replies that the channel manager dispatches back.
+Channels and the agent loop are decoupled through async inbound/outbound queues. Channels publish inbound messages; the agent loop consumes them, runs a turn, and publishes replies that the channel manager dispatches back.
+
+### Agent SDK
+
+Each turn calls `query()` from `@anthropic-ai/claude-agent-sdk` — an async generator that yields typed message frames. Sessions are resumed across turns via `session_id`. Cancellation uses `AbortController`.
 
 ### Pluggable Channels
 
@@ -113,11 +112,11 @@ Each channel (Telegram, Discord, CLI) implements the same adapter interface: `st
 
 ### Command Interception
 
-Slash commands (`/session`, `/model`, `/config`, etc.) are intercepted by the command handler before reaching the LLM, so they execute instantly without spending tokens.
+Slash commands (`/session`, `/model`, `/config`, etc.) are intercepted before reaching the LLM, so they execute instantly without spending tokens.
 
 ### Streaming Updates
 
-During a turn, tool call progress and streaming text are pushed back to the chat as editable messages that get replaced with the final response.
+During a turn, tool call progress is shown as editable status messages (🔧 → ✅ / ❌). Streaming text replaces the status with the final response.
 
 ### Key Files
 
@@ -125,9 +124,9 @@ During a turn, tool call progress and streaming text are pushed back to the chat
 |---|---|
 | `src/index.ts` | Boots the runtime — config, bus, agent, channels, heartbeat |
 | `src/core/agent-loop.ts` | Consumes inbound messages, runs LLM turns, publishes replies |
+| `src/core/claude-client.ts` | Wraps Agent SDK `query()`, handles streaming and session persistence |
 | `src/core/bus.ts` | Async message bus with inbound/outbound queues |
 | `src/channels/manager.ts` | Owns channel lifecycle and outbound dispatch |
-| `src/core/client-factory.ts` | Creates Claude or Codex model client based on config |
 | `src/core/session-store.ts` | Persists conversation sessions to a JSON file |
 | `src/commands/handler.ts` | Slash command interception and execution |
 | `src/config/load.ts` | Loads and validates settings from `~/.claude-pipe/settings.json` |
@@ -138,34 +137,32 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 
 ```json
 {
-  "provider": "claude",
-  "claudeCli": {
-    "command": "claude",
-    "args": ["--print", "--verbose", "--output-format", "stream-json"]
-  },
   "channel": "telegram",
   "token": "your-bot-token",
   "allowFrom": ["user-id-1", "user-id-2"],
-  "allowChannels": ["discord-channel-id-1", "discord-channel-id-2"],
   "model": "claude-sonnet-4-5",
-  "workspace": "/path/to/your/workspace"
+  "workspace": "/path/to/your/workspace",
+  "personality": {
+    "name": "Piper",
+    "traits": "friendly, direct, and concise"
+  }
 }
 ```
 
 | Setting | What it does |
 |---|---|
-| `provider` | LLM runtime: `claude` or `codex` |
-| `claudeCli` | Claude CLI runtime config (`command` and startup `args`) |
 | `channel` | Platform to use: `telegram`, `discord`, or `cli` |
 | `token` | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
 | `allowFrom` | Array of allowed user IDs (empty = allow everyone) |
-| `allowChannels` | Discord-only channel ID allowlist (empty/missing = allow all channels) |
-| `model` | Claude model to use (e.g., `claude-haiku-4`, `claude-sonnet-4-5`, `claude-opus-4-5`) |
+| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels) |
+| `model` | Claude model (e.g. `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-5`) |
 | `workspace` | Root directory Claude can access |
+| `personality` | Optional: give your assistant a `name` and `traits` description |
+| `env` | Optional: environment variables to inject at startup |
 
-### Advanced configuration
+### Advanced configuration via environment variables
 
-For advanced options like transcript logging or custom summary prompts, you can still use a `.env` file alongside the settings file. The settings file takes priority for core options.
+For options not in the settings file, use a `.env` file in `~/.claude-pipe/` or the project root.
 
 | Variable | What it does |
 |---|---|
@@ -177,29 +174,13 @@ For advanced options like transcript logging or custom summary prompts, you can 
 | `CLAUDEPIPE_TRANSCRIPT_LOG_PATH` | Path for transcript log file |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation |
 | `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep |
-| `CLAUDEPIPE_LLM_PROVIDER` | Runtime provider when using env config: `claude` or `codex` |
-| `CLAUDEPIPE_CLAUDE_COMMAND` | Claude executable path/command (default: `claude`) |
-| `CLAUDEPIPE_CLAUDE_ARGS` | Claude startup args (space-separated or JSON array) |
-| `CLAUDEPIPE_CODEX_COMMAND` | Codex executable path/command (default: `codex`) |
-| `CLAUDEPIPE_CODEX_ARGS` | Codex startup args (default: `--dangerously-bypass-approvals-and-sandbox app-server`) |
 | `CLAUDEPIPE_CLI_ENABLED` | Enable CLI channel (`true`/`false`) |
 | `CLAUDEPIPE_DISCORD_ALLOW_CHANNELS` | Comma-separated allowed Discord channel IDs (empty = allow all) |
 | `CLAUDEPIPE_CLI_ALLOW_FROM` | Comma-separated allowed sender IDs for CLI mode |
-| `CLAUDEPIPE_CLI_SENDER_ID` | Sender ID used by CLI channel (default: `local-user`) |
-| `CLAUDEPIPE_CLI_CHAT_ID` | Chat ID used by CLI channel (default: `local-chat`) |
 
-### Dangerous defaults and flags
+### Permissions
 
-This project currently ships with dangerous automation defaults for both runtimes. These settings reduce prompts and restrictions, but they can allow destructive file or shell operations if a prompt goes wrong.
-
-- Claude default args include `--permission-mode bypassPermissions` and `--dangerously-skip-permissions`.
-- Codex default args include `--dangerously-bypass-approvals-and-sandbox app-server`.
-
-If you want safer behavior, explicitly override these:
-
-- In `~/.claude-pipe/settings.json`, set `claudeCli.args` to remove dangerous Claude flags.
-- In env, set `CLAUDEPIPE_CODEX_ARGS` without dangerous Codex flags.
-- In env, tighten Codex policy with `CLAUDEPIPE_CODEX_APPROVAL_POLICY` and `CLAUDEPIPE_CODEX_SANDBOX`.
+Claude runs with `bypassPermissions` — it can read/write files and run shell commands in the workspace without prompting. Make sure your workspace is a directory you're comfortable giving full access to.
 
 ## Development
 
@@ -208,9 +189,3 @@ npm run build    # compile TypeScript to dist/
 npm run test     # run tests in watch mode
 npm run test:run # run tests once
 ```
-
-## Current limitations
-
-- Text only — no images, voice messages, or file attachments yet
-- Runs locally, not designed for server deployment
-- No scheduled or background tasks
