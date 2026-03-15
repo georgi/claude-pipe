@@ -7,6 +7,17 @@ import type { ModelClient } from './model-client.js'
 import type { AgentTurnUpdate, FileAttachment, InlineKeyboard, InboundMessage, Logger, SentMessage } from './types.js'
 
 /**
+ * Converts a raw tool name into a human-readable label safe for Telegram Markdown.
+ * MCP tools arrive as mcp__ServerName__tool_name — strip the prefix and
+ * replace underscores so Telegram does not interpret __x__ as bold formatting.
+ */
+function formatToolName(name: string): string {
+  const mcpMatch = /^mcp__[^_]+(?:_[^_]+)*__(.+)$/.exec(name)
+  const bare = mcpMatch?.[1] ?? name
+  return bare.replace(/_/g, ' ')
+}
+
+/**
  * Central message-processing loop.
  *
  * Consumes inbound chat events, executes one Claude turn, and publishes outbound replies.
@@ -158,7 +169,7 @@ export class AgentLoop {
       if (!this.channelManager) return
 
       const toolId = update.toolUseId ?? update.toolName ?? 'tool'
-      const toolLabel = update.toolName ?? 'tool'
+      const toolLabel = formatToolName(update.toolName ?? 'tool')
 
       if (update.kind === 'tool_call_started') {
         toolUpdates.push({ id: toolId, label: `🔧 ${toolLabel}` })
