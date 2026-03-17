@@ -34,13 +34,32 @@ type TelegramAudio = {
   performer?: string
 }
 
+type TelegramPhoto = {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  file_size?: number
+}
+
+type TelegramDocument = {
+  file_id: string
+  file_unique_id: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
 type TelegramUpdate = {
   update_id: number
   message?: {
     message_id: number
     text?: string
+    caption?: string
     voice?: TelegramVoice
     audio?: TelegramAudio
+    photo?: TelegramPhoto[]
+    document?: TelegramDocument
     chat: { id: number }
     from?: { id: number }
   }
@@ -491,6 +510,8 @@ export class TelegramChannel implements Channel {
 
     if (message.voice || message.audio) {
       content = await this.processAudioMessage(message)
+    } else if (message.photo?.length || message.document) {
+      content = await this.processMediaMessage(message)
     } else {
       content = message.text?.trim() || '[empty message]'
     }
@@ -575,6 +596,75 @@ export class TelegramChannel implements Channel {
       if (audioPath) {
         try { await unlink(audioPath) } catch { /* ignore cleanup errors */ }
       }
+    }
+  }
+
+  /**
+   * Processes a photo or document message: downloads the file from Telegram
+   * and returns a content string with the file path so Claude can read it.
+   */
+  private async processMediaMessage(
+    message: NonNullable<TelegramUpdate['message']>
+  ): Promise<string> {
+    const caption = message.caption?.trim() || ''
+
+    // For photos, pick the largest resolution (last in array)
+    const photo = message.photo?.length
+      ? message.photo[message.photo.length - 1]
+      : null
+    const doc = message.document
+
+    const fileId = photo?.file_id ?? doc?.file_id
+    if (!fileId) return caption || '[empty media message]'
+
+    try {
+      const filePath = await this.getFilePath(fileId)
+      if (!filePath) {
+        this.logger.error('channel.telegram.media_file_not_found', { fileId })
+        return caption
+          ? `${caption}\n\n[media attachment — could not retrieve file from Telegram]`
+          : '[media attachment — could not retrieve file from Telegram]'
+      }
+
+      const token = this.config.channels.telegram.token
+      const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
+
+      // Determine extension from the file path
+      const ext = filePath.includes('.') ? `.${filePath.split('.').pop()}` : '.bin'
+      const localPath = await downloadToTemp(fileUrl, ext)
+
+      this.logger.info('channel.telegram.media_downloaded', {
+        fileId,
+        path: localPath,
+        type: photo ? 'photo' : 'document',
+        fileName: doc?.file_name
+      })
+
+      const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext.toLowerCase())
+
+      if (isImage) {
+        // Tell Claude to read the image — its Read tool handles images natively
+        const parts = [
+          `[The user sent an image. View it by reading this file: ${localPath}]`
+        ]
+        if (caption) parts.push(caption)
+        return parts.join('\n\n')
+      }
+
+      // For non-image documents
+      const fileName = doc?.file_name ?? basename(localPath)
+      const parts = [
+        `[The user sent a file: ${fileName} — saved at: ${localPath}]`
+      ]
+      if (caption) parts.push(caption)
+      return parts.join('\n\n')
+    } catch (error) {
+      this.logger.error('channel.telegram.media_error', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return caption
+        ? `${caption}\n\n[media attachment — download failed]`
+        : '[media attachment — download failed]'
     }
   }
 
