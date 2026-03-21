@@ -1,11 +1,14 @@
+import { createReadStream, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, extname, join } from 'node:path'
 
 import type { CommandMeta } from '../commands/types.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { Attachment, InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, InlineKeyboard, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 import {
   transcribeAudio,
@@ -31,7 +34,7 @@ type TelegramAudio = {
   performer?: string
 }
 
-type TelegramPhotoSize = {
+type TelegramPhoto = {
   file_id: string
   file_unique_id: string
   width: number
@@ -57,6 +60,7 @@ type TelegramVideo = {
   file_size?: number
 }
 
+
 type TelegramUpdate = {
   update_id: number
   message?: {
@@ -65,17 +69,27 @@ type TelegramUpdate = {
     caption?: string
     voice?: TelegramVoice
     audio?: TelegramAudio
-    photo?: TelegramPhotoSize[]
+    photo?: TelegramPhoto[]
     document?: TelegramDocument
     video?: TelegramVideo
     chat: { id: number }
     from?: { id: number }
+  }
+  callback_query?: {
+    id: string
+    data?: string
+    from: { id: number }
+    message?: {
+      message_id: number
+      chat: { id: number }
+    }
   }
 }
 
 const TELEGRAM_MESSAGE_MAX = 3800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
+const PID_FILE = join(tmpdir(), 'claude-pipe-telegram.pid')
 
 /** Telegram Bot API chat actions for typing indicators. */
 type ChatAction = 'typing' | 'upload_photo' | 'upload_video' | 'upload_audio' | 'upload_document' | 'find_location' | 'record_video' | 'record_voice'
@@ -97,6 +111,23 @@ export class TelegramChannel implements Channel {
     private readonly logger: Logger
   ) {}
 
+  /** Kills any previously running instance using the PID file. */
+  private killExistingInstance(): void {
+    if (!existsSync(PID_FILE)) return
+    try {
+      const pid = Number(readFileSync(PID_FILE, 'utf8').trim())
+      if (!pid || pid === process.pid) return
+      process.kill(pid, 'SIGTERM')
+      this.logger.info('channel.telegram.killed_existing', { pid })
+      // Give the old process a moment to release its poll connection
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500)
+    } catch {
+      // Process already dead or no permission — ignore
+    } finally {
+      try { unlinkSync(PID_FILE) } catch { /* ignore */ }
+    }
+  }
+
   /** Starts background polling when Telegram is enabled. */
   async start(): Promise<void> {
     if (!this.config.channels.telegram.enabled) return
@@ -104,6 +135,9 @@ export class TelegramChannel implements Channel {
       this.logger.warn('channel.telegram.misconfigured', { reason: 'missing token' })
       return
     }
+
+    this.killExistingInstance()
+    writeFileSync(PID_FILE, String(process.pid), 'utf8')
 
     this.running = true
     this.pollTask = this.pollLoop()
@@ -114,11 +148,12 @@ export class TelegramChannel implements Channel {
   async stop(): Promise<void> {
     this.running = false
     await this.pollTask
+    try { unlinkSync(PID_FILE) } catch { /* ignore */ }
     this.logger.info('channel.telegram.stop')
   }
 
-  /** Sends a text response (and optional attachments) to Telegram chat. */
-  async send(message: OutboundMessage): Promise<void> {
+  /** Sends a text response to Telegram chat. Returns a SentMessage for the last chunk. */
+  async send(message: OutboundMessage): Promise<SentMessage | void> {
     if (!this.config.channels.telegram.enabled) return
     if (message.metadata?.kind === 'progress') {
       await this.sendChatAction(message.chatId, 'typing')
@@ -127,54 +162,265 @@ export class TelegramChannel implements Channel {
 
     const token = this.config.channels.telegram.token
 
-    // Send attachments first if present
-    if (message.attachments && message.attachments.length > 0) {
-      for (const attachment of message.attachments) {
-        await this.sendAttachment(message.chatId, attachment, token)
+    const url = `https://api.telegram.org/bot${token}/sendMessage`
+    const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
+
+    let lastMessageId: string | undefined
+    for (let i = 0; i < chunks.length; i++) {
+      const part = chunks[i]
+      const isLastChunk = i === chunks.length - 1
+      try {
+        await retry(
+          async () => {
+            const payload: Record<string, unknown> = {
+              chat_id: Number(message.chatId),
+              text: part,
+              parse_mode: 'Markdown'
+            }
+
+            // Attach inline keyboard to the last chunk
+            if (isLastChunk && message.keyboard?.length) {
+              payload.reply_markup = this.buildInlineKeyboard(message.keyboard)
+            }
+
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(payload)
+            })
+
+            if (!response.ok) {
+              const body = await response.text()
+              // Retry without parse_mode if Markdown parsing fails
+              if (body.includes("can't parse entities")) {
+                delete payload.parse_mode
+                const fallback = await fetch(url, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify(payload)
+                })
+                if (!fallback.ok) {
+                  const fbBody = await fallback.text()
+                  throw new Error(`telegram send failed (${fallback.status}): ${fbBody}`)
+                }
+                return fallback
+              }
+              throw new Error(`telegram send failed (${response.status}): ${body}`)
+            }
+
+            try {
+              const json = (await response.json()) as {
+                ok: boolean
+                result?: { message_id?: number }
+              }
+              if (json.ok && json.result?.message_id != null) {
+                lastMessageId = String(json.result.message_id)
+              }
+            } catch {
+              // Message sent successfully but couldn't parse response for message ID
+            }
+          },
+          {
+            attempts: SEND_RETRY_ATTEMPTS,
+            backoffMs: SEND_RETRY_BACKOFF_MS
+          }
+        )
+      } catch (error) {
+        this.logger.error('channel.telegram.send_failed', {
+          chatId: message.chatId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        break
       }
     }
 
-    // Send text content if present
-    if (message.content && message.content.trim()) {
-      const url = `https://api.telegram.org/bot${token}/sendMessage`
-      const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
-
-      for (const part of chunks) {
-        try {
-          await retry(
-            async () => {
-              const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: Number(message.chatId),
-                  text: part,
-                  parse_mode: 'Markdown'
-                })
-              })
-
-              if (!response.ok) {
-                const body = await response.text()
-                throw new Error(`telegram send failed (${response.status}): ${body}`)
-              }
-            },
-            {
-              attempts: SEND_RETRY_ATTEMPTS,
-              backoffMs: SEND_RETRY_BACKOFF_MS
-            }
-          )
-        } catch (error) {
-          this.logger.error('channel.telegram.send_failed', {
-            chatId: message.chatId,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          break
-        }
+    // Send any file attachments
+    if (message.attachments?.length) {
+      for (const attachment of message.attachments) {
+        const sent = await this.sendFile(message.chatId, attachment)
+        if (sent) lastMessageId = sent.messageId
       }
     }
 
     // Clear typing indicator after response is sent
     this.pendingTyping.delete(message.chatId)
+
+    if (lastMessageId) {
+      return { channel: 'telegram', chatId: message.chatId, messageId: lastMessageId }
+    }
+  }
+
+  /** Sends a file to a Telegram chat using the appropriate API method based on file type. */
+  async sendFile(chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+    if (!this.config.channels.telegram.enabled) return
+
+    const token = this.config.channels.telegram.token
+    const ext = extname(attachment.filePath).toLowerCase()
+    const isAudio = ['.mp3', '.m4a', '.ogg', '.wav', '.flac', '.aac'].includes(ext)
+    const isVoice = ext === '.ogg'
+    const isPhoto = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)
+    const isVideo = ['.mp4', '.avi', '.mkv', '.mov', '.webm'].includes(ext)
+
+    let method: string
+    let fileField: string
+    if (isVoice) {
+      method = 'sendVoice'
+      fileField = 'voice'
+    } else if (isAudio) {
+      method = 'sendAudio'
+      fileField = 'audio'
+    } else if (isPhoto) {
+      method = 'sendPhoto'
+      fileField = 'photo'
+    } else if (isVideo) {
+      method = 'sendVideo'
+      fileField = 'video'
+    } else {
+      method = 'sendDocument'
+      fileField = 'document'
+    }
+
+    const url = `https://api.telegram.org/bot${token}/${method}`
+
+    try {
+      const { FormData, File } = await import('node:buffer')
+        .then(() => globalThis)
+        .catch(() => globalThis)
+
+      const fileStream = createReadStream(attachment.filePath)
+      const chunks: Buffer[] = []
+      for await (const chunk of fileStream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+      }
+      const fileBuffer = Buffer.concat(chunks)
+      const fileName = basename(attachment.filePath)
+
+      const form = new FormData()
+      form.append('chat_id', String(Number(chatId)))
+      form.append(fileField, new File([fileBuffer], fileName))
+      if (attachment.caption) {
+        form.append('caption', attachment.caption)
+      }
+
+      const response = await fetch(url, { method: 'POST', body: form })
+
+      if (!response.ok) {
+        const body = await response.text()
+        throw new Error(`telegram ${method} failed (${response.status}): ${body}`)
+      }
+
+      const json = (await response.json()) as {
+        ok: boolean
+        result?: { message_id?: number }
+      }
+      if (json.ok && json.result?.message_id != null) {
+        return { channel: 'telegram', chatId, messageId: String(json.result.message_id) }
+      }
+    } catch (error) {
+      this.logger.error('channel.telegram.send_file_failed', {
+        chatId,
+        filePath: attachment.filePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /** Sends or updates a streaming draft message using Telegram's sendMessageDraft API. */
+  async sendMessageDraft(chatId: string, text: string): Promise<SentMessage | void> {
+    if (!this.config.channels.telegram.enabled) return
+
+    const token = this.config.channels.telegram.token
+    const url = `https://api.telegram.org/bot${token}/sendMessageDraft`
+
+    try {
+      const payload: Record<string, unknown> = {
+        chat_id: Number(chatId),
+        draft_id: 1,
+        text,
+        parse_mode: 'Markdown'
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const body = await response.text()
+        if (body.includes("can't parse entities")) {
+          delete payload.parse_mode
+          await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+          return
+        }
+        throw new Error(`telegram sendMessageDraft failed (${response.status}): ${body}`)
+      }
+    } catch (error) {
+      this.logger.error('channel.telegram.draft_failed', {
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /** Edits a previously sent Telegram message. */
+  async editMessage(sent: SentMessage, newContent: string): Promise<void> {
+    if (!this.config.channels.telegram.enabled) return
+
+    const token = this.config.channels.telegram.token
+    const url = `https://api.telegram.org/bot${token}/editMessageText`
+
+    try {
+      await retry(
+        async () => {
+          const payload: Record<string, unknown> = {
+            chat_id: Number(sent.chatId),
+            message_id: Number(sent.messageId),
+            text: newContent,
+            parse_mode: 'Markdown'
+          }
+
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+
+          if (!response.ok) {
+            const body = await response.text()
+            // Retry without parse_mode if Markdown parsing fails
+            if (body.includes("can't parse entities")) {
+              delete payload.parse_mode
+              const fallback = await fetch(url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload)
+              })
+              if (!fallback.ok) {
+                const fbBody = await fallback.text()
+                throw new Error(`telegram editMessageText failed (${fallback.status}): ${fbBody}`)
+              }
+              return
+            }
+            throw new Error(`telegram editMessageText failed (${response.status}): ${body}`)
+          }
+        },
+        {
+          attempts: SEND_RETRY_ATTEMPTS,
+          backoffMs: SEND_RETRY_BACKOFF_MS
+        }
+      )
+    } catch (error) {
+      this.logger.error('channel.telegram.edit_failed', {
+        chatId: sent.chatId,
+        messageId: sent.messageId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   /** Sends a chat action (typing, uploading, etc.) to Telegram. */
@@ -209,112 +455,32 @@ export class TelegramChannel implements Channel {
     }
   }
 
-  /**
-   * Sends an attachment to a Telegram chat.
-   * Supports sending images, videos, documents, and audio files via URL or file path.
-   */
-  private async sendAttachment(chatId: string, attachment: Attachment, token: string): Promise<void> {
-    let endpoint: string
-    let fileFieldName: string
-
-    // Determine the appropriate Telegram API endpoint based on attachment type
-    switch (attachment.type) {
-      case 'image':
-        endpoint = 'sendPhoto'
-        fileFieldName = 'photo'
-        break
-      case 'video':
-        endpoint = 'sendVideo'
-        fileFieldName = 'video'
-        break
-      case 'audio':
-        endpoint = 'sendAudio'
-        fileFieldName = 'audio'
-        break
-      case 'document':
-      case 'file':
-      default:
-        endpoint = 'sendDocument'
-        fileFieldName = 'document'
-        break
-    }
-
-    const url = `https://api.telegram.org/bot${token}/${endpoint}`
-
-    try {
-      await retry(
-        async () => {
-          const payload: Record<string, unknown> = {
-            chat_id: Number(chatId)
-          }
-
-          // Use URL if available, otherwise skip local paths
-          if (attachment.url) {
-            payload[fileFieldName] = attachment.url
-          } else if (attachment.path) {
-            // Local file paths require multipart/form-data upload
-            // Telegram doesn't accept file paths in JSON payloads
-            // For now, skip local files - only URLs are supported
-            this.logger.warn('channel.telegram.attachment_local_path_unsupported', {
-              chatId,
-              path: attachment.path,
-              filename: attachment.filename
-            })
-            return
-          } else {
-            throw new Error('Attachment must have either url or path')
-          }
-
-          // Add caption if there's a filename
-          if (attachment.filename) {
-            payload.caption = attachment.filename
-          }
-
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-
-          if (!response.ok) {
-            const body = await response.text()
-            throw new Error(`telegram ${endpoint} failed (${response.status}): ${body}`)
-          }
-        },
-        {
-          attempts: SEND_RETRY_ATTEMPTS,
-          backoffMs: SEND_RETRY_BACKOFF_MS
-        }
-      )
-
-      this.logger.info('channel.telegram.attachment_sent', {
-        chatId,
-        type: attachment.type,
-        filename: attachment.filename
-      })
-    } catch (error) {
-      this.logger.error('channel.telegram.attachment_send_failed', {
-        chatId,
-        type: attachment.type,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-  }
-
   private async pollLoop(): Promise<void> {
     while (this.running) {
       try {
         const updates = await this.getUpdates()
         for (const update of updates) {
           this.nextOffset = Math.max(this.nextOffset, update.update_id + 1)
-          if (!update.message) continue
-          await this.handleMessage(update)
+          if (update.callback_query) {
+            await this.handleCallbackQuery(update.callback_query)
+          } else if (update.message) {
+            await this.handleMessage(update)
+          }
         }
       } catch (error) {
-        this.logger.error('channel.telegram.poll_error', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const is409 = error instanceof Error && (error as NodeJS.ErrnoException).code === '409'
+        if (is409) {
+          this.logger.warn('channel.telegram.conflict', {
+            error: 'Another instance is polling — killing it and retrying'
+          })
+          this.killExistingInstance()
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        } else {
+          this.logger.error('channel.telegram.poll_error', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
       }
     }
   }
@@ -324,10 +490,13 @@ export class TelegramChannel implements Channel {
     const url = new URL(`https://api.telegram.org/bot${token}/getUpdates`)
     url.searchParams.set('timeout', '25')
     url.searchParams.set('offset', String(this.nextOffset))
+    url.searchParams.set('allowed_updates', JSON.stringify(['message', 'callback_query']))
 
     const response = await fetch(url)
     if (!response.ok) {
-      throw new Error(`Telegram getUpdates failed: ${response.status}`)
+      const err = new Error(`Telegram getUpdates failed: ${response.status}`)
+      ;(err as NodeJS.ErrnoException).code = String(response.status)
+      throw err
     }
 
     const json = (await response.json()) as { ok: boolean; result: TelegramUpdate[] }
@@ -356,6 +525,8 @@ export class TelegramChannel implements Channel {
     // Process voice or audio messages
     if (message.voice || message.audio) {
       content = await this.processAudioMessage(message)
+    } else if (message.photo?.length || message.document) {
+      content = await this.processMediaMessage(message)
     } else {
       content = message.text?.trim() || message.caption?.trim() || '[empty message]'
     }
@@ -505,6 +676,144 @@ export class TelegramChannel implements Channel {
       if (audioPath) {
         try { await unlink(audioPath) } catch { /* ignore cleanup errors */ }
       }
+    }
+  }
+
+  /**
+   * Processes a photo or document message: downloads the file from Telegram
+   * and returns a content string with the file path so Claude can read it.
+   */
+  private async processMediaMessage(
+    message: NonNullable<TelegramUpdate['message']>
+  ): Promise<string> {
+    const caption = message.caption?.trim() || ''
+
+    // For photos, pick the largest resolution (last in array)
+    const photo = message.photo?.length
+      ? message.photo[message.photo.length - 1]
+      : null
+    const doc = message.document
+
+    const fileId = photo?.file_id ?? doc?.file_id
+    if (!fileId) return caption || '[empty media message]'
+
+    try {
+      const filePath = await this.getFilePath(fileId)
+      if (!filePath) {
+        this.logger.error('channel.telegram.media_file_not_found', { fileId })
+        return caption
+          ? `${caption}\n\n[media attachment — could not retrieve file from Telegram]`
+          : '[media attachment — could not retrieve file from Telegram]'
+      }
+
+      const token = this.config.channels.telegram.token
+      const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
+
+      // Determine extension from the file path
+      const ext = filePath.includes('.') ? `.${filePath.split('.').pop()}` : '.bin'
+      const localPath = await downloadToTemp(fileUrl, ext)
+
+      this.logger.info('channel.telegram.media_downloaded', {
+        fileId,
+        path: localPath,
+        type: photo ? 'photo' : 'document',
+        fileName: doc?.file_name
+      })
+
+      const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext.toLowerCase())
+
+      if (isImage) {
+        // Tell Claude to read the image — its Read tool handles images natively
+        const parts = [
+          `[The user sent an image. View it by reading this file: ${localPath}]`
+        ]
+        if (caption) parts.push(caption)
+        return parts.join('\n\n')
+      }
+
+      // For non-image documents
+      const fileName = doc?.file_name ?? basename(localPath)
+      const parts = [
+        `[The user sent a file: ${fileName} — saved at: ${localPath}]`
+      ]
+      if (caption) parts.push(caption)
+      return parts.join('\n\n')
+    } catch (error) {
+      this.logger.error('channel.telegram.media_error', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return caption
+        ? `${caption}\n\n[media attachment — download failed]`
+        : '[media attachment — download failed]'
+    }
+  }
+
+  /** Handles an inline keyboard button press (callback query). */
+  private async handleCallbackQuery(query: NonNullable<TelegramUpdate['callback_query']>): Promise<void> {
+    const senderId = String(query.from.id)
+    if (!isSenderAllowed(senderId, this.config.channels.telegram.allowFrom)) {
+      this.logger.warn('channel.telegram.callback_denied', { senderId })
+      return
+    }
+
+    const chatId = String(query.message?.chat.id ?? query.from.id)
+
+    // Acknowledge the button press immediately
+    await this.answerCallbackQuery(query.id)
+
+    // Show typing while processing
+    this.pendingTyping.add(chatId)
+    await this.sendChatAction(chatId, 'typing')
+
+    const content = `[Button pressed]: ${query.data ?? '[no data]'}`
+
+    const inbound: InboundMessage = {
+      channel: 'telegram',
+      senderId,
+      chatId,
+      content,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        callbackQueryId: query.id,
+        callbackData: query.data,
+        sourceMessageId: query.message?.message_id
+      }
+    }
+
+    this.logger.info('channel.telegram.callback_query', {
+      senderId,
+      chatId,
+      data: query.data
+    })
+
+    await this.bus.publishInbound(inbound)
+  }
+
+  /** Acknowledges a callback query to remove the loading indicator on the button. */
+  private async answerCallbackQuery(queryId: string): Promise<void> {
+    const token = this.config.channels.telegram.token
+    const url = `https://api.telegram.org/bot${token}/answerCallbackQuery`
+
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: queryId })
+      })
+    } catch {
+      // Non-critical — button just keeps spinning briefly
+    }
+  }
+
+  /** Converts our InlineKeyboard type to Telegram's reply_markup format. */
+  private buildInlineKeyboard(keyboard: InlineKeyboard): Record<string, unknown> {
+    return {
+      inline_keyboard: keyboard.map((row) =>
+        row.map((btn) => ({
+          text: btn.text,
+          callback_data: btn.callbackData
+        }))
+      )
     }
   }
 

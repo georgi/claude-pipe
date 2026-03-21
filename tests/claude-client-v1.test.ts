@@ -1,42 +1,20 @@
-import { EventEmitter } from 'node:events'
-import { PassThrough } from 'node:stream'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const spawnMock = vi.fn()
-vi.mock('node:child_process', () => ({
-  spawn: spawnMock
+// Mock the Agent SDK before any imports
+const queryMock = vi.fn()
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  query: queryMock
 }))
 
-type FakeProcess = EventEmitter & {
-  stdin: { end: () => void }
-  stdout: PassThrough
-  stderr: PassThrough
-}
-
-function makeProcess(): FakeProcess {
-  const proc = new EventEmitter() as FakeProcess
-  proc.stdin = { end: () => undefined }
-  proc.stdout = new PassThrough()
-  proc.stderr = new PassThrough()
-  return proc
+async function* makeQueryGen(frames: Record<string, unknown>[]) {
+  for (const frame of frames) {
+    yield frame
+  }
 }
 
 function makeConfig() {
   return {
     model: 'claude-sonnet-4-5' as const,
-    claudeCli: {
-      command: 'claude',
-      args: [
-        '--print',
-        '--verbose',
-        '--output-format',
-        'stream-json',
-        '--permission-mode',
-        'bypassPermissions',
-        '--dangerously-skip-permissions'
-      ]
-    },
     workspace: '/tmp/workspace',
     channels: {
       telegram: { enabled: false, token: '', allowFrom: [] },
@@ -49,24 +27,34 @@ function makeConfig() {
   }
 }
 
-function pushLine(proc: FakeProcess, frame: Record<string, unknown>): void {
-  proc.stdout.write(`${JSON.stringify(frame)}\n`)
-}
-
-describe('ClaudeClient (subprocess stream-json)', () => {
+describe('ClaudeClient (Agent SDK)', () => {
   beforeEach(() => {
-    spawnMock.mockReset()
+    queryMock.mockReset()
   })
 
-  it('spawns claude, parses stream, and persists session id', async () => {
+  it('runs a turn, streams assistant text, and persists session id', async () => {
     const { ClaudeClient } = await import('../src/core/claude-client.js')
-    const proc = makeProcess()
-    spawnMock.mockReturnValue(proc)
 
     const store = {
       get: vi.fn(() => undefined),
-      set: vi.fn(async () => undefined)
+      set: vi.fn(async () => undefined),
+      clear: vi.fn(async () => undefined)
     }
+
+    queryMock.mockReturnValue(makeQueryGen([
+      {
+        type: 'assistant',
+        session_id: 'sess-new',
+        message: { content: [{ type: 'text', text: 'hello from assistant' }] }
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: 'hello from assistant',
+        session_id: 'sess-new'
+      }
+    ]))
 
     const client = new ClaudeClient(
       makeConfig(),
@@ -74,55 +62,47 @@ describe('ClaudeClient (subprocess stream-json)', () => {
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     )
 
-    const turnPromise = client.runTurn('telegram:1', 'hello', {
+    const result = await client.runTurn('telegram:1', 'hello', {
       workspace: '/tmp/workspace',
       channel: 'telegram',
       chatId: '1'
     })
-    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1))
 
-    pushLine(proc, { type: 'system', subtype: 'init', session_id: 'sess-new' })
-    pushLine(proc, {
-      type: 'assistant',
-      session_id: 'sess-new',
-      message: { content: [{ type: 'text', text: 'hello from assistant' }] }
-    })
-    pushLine(proc, {
-      type: 'result',
-      subtype: 'success',
-      is_error: false,
-      session_id: 'sess-new'
-    })
-    proc.stdout.end()
-    proc.emit('close', 0, null)
-
-    const result = await turnPromise
     expect(result).toBe('hello from assistant')
-
-    expect(spawnMock).toHaveBeenCalledTimes(1)
-    const [cmd, args, options] = spawnMock.mock.calls[0] as [
-      string,
-      string[],
-      Record<string, unknown>
-    ]
-    expect(cmd).toContain('claude')
-    expect(args).toContain('--output-format')
-    expect(args).toContain('stream-json')
-    expect(args).toContain('hello')
-    expect(options.cwd).toBe('/tmp/workspace')
-
     expect(store.set).toHaveBeenCalledWith('telegram:1', 'sess-new')
+
+    // query called with correct options
+    expect(queryMock).toHaveBeenCalledTimes(1)
+    const [callArgs] = queryMock.mock.calls[0] as [{ prompt: string; options: Record<string, unknown> }]
+    expect(callArgs.prompt).toBe('hello')
+    expect(callArgs.options.model).toBe('claude-sonnet-4-5')
+    expect(callArgs.options.cwd).toBe('/tmp/workspace')
+    expect(callArgs.options.permissionMode).toBe('bypassPermissions')
   })
 
   it('passes resume session id when available', async () => {
     const { ClaudeClient } = await import('../src/core/claude-client.js')
-    const proc = makeProcess()
-    spawnMock.mockReturnValue(proc)
 
     const store = {
       get: vi.fn(() => ({ sessionId: 'sess-existing', updatedAt: new Date().toISOString() })),
-      set: vi.fn(async () => undefined)
+      set: vi.fn(async () => undefined),
+      clear: vi.fn(async () => undefined)
     }
+
+    queryMock.mockReturnValue(makeQueryGen([
+      {
+        type: 'assistant',
+        session_id: 'sess-existing',
+        message: { content: [{ type: 'text', text: 'resumed' }] }
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: 'resumed',
+        session_id: 'sess-existing'
+      }
+    ]))
 
     const client = new ClaudeClient(
       makeConfig(),
@@ -130,116 +110,69 @@ describe('ClaudeClient (subprocess stream-json)', () => {
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     )
 
-    const turnPromise = client.runTurn('discord:abc', 'continue', {
+    await client.runTurn('discord:abc', 'continue', {
       workspace: '/tmp/workspace',
       channel: 'discord',
       chatId: 'abc'
     })
-    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1))
 
-    pushLine(proc, {
-      type: 'assistant',
-      session_id: 'sess-existing',
-      message: { content: [{ type: 'text', text: 'resumed' }] }
-    })
-    pushLine(proc, { type: 'result', subtype: 'success', is_error: false, session_id: 'sess-existing' })
-    proc.stdout.end()
-    proc.emit('close', 0, null)
-    await turnPromise
-
-    const [, args] = spawnMock.mock.calls[0] as [string, string[]]
-    expect(args).toContain('--resume')
-    const resumeIndex = args.indexOf('--resume')
-    expect(args[resumeIndex + 1]).toBe('sess-existing')
-  })
-
-  it('uses configured claude cli command and args', async () => {
-    const { ClaudeClient } = await import('../src/core/claude-client.js')
-    const proc = makeProcess()
-    spawnMock.mockReturnValue(proc)
-
-    const store = {
-      get: vi.fn(() => undefined),
-      set: vi.fn(async () => undefined)
-    }
-
-    const config = makeConfig()
-    config.claudeCli.command = '/usr/local/bin/claude-custom'
-    config.claudeCli.args = ['--print', '--output-format', 'stream-json']
-
-    const client = new ClaudeClient(config, store as never, {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn()
-    })
-
-    const turnPromise = client.runTurn('telegram:1', 'hello', {
-      workspace: '/tmp/workspace',
-      channel: 'telegram',
-      chatId: '1'
-    })
-    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1))
-
-    pushLine(proc, {
-      type: 'assistant',
-      message: { content: [{ type: 'text', text: 'ok' }] }
-    })
-    pushLine(proc, { type: 'result', subtype: 'success', is_error: false, session_id: 'sess-1' })
-    proc.stdout.end()
-    proc.emit('close', 0, null)
-    await turnPromise
-
-    const [cmd, args] = spawnMock.mock.calls[0] as [string, string[]]
-    expect(cmd).toBe('/usr/local/bin/claude-custom')
-    expect(args.slice(0, 3)).toEqual(['--print', '--output-format', 'stream-json'])
-    expect(args).toContain('--model')
-    expect(args).toContain('claude-sonnet-4-5')
+    const [callArgs] = queryMock.mock.calls[0] as [{ options: Record<string, unknown> }]
+    expect(callArgs.options.resume).toBe('sess-existing')
   })
 
   it('emits tool progress updates via onUpdate callback', async () => {
     const { ClaudeClient } = await import('../src/core/claude-client.js')
-    const proc = makeProcess()
-    spawnMock.mockReturnValue(proc)
 
     const store = {
       get: vi.fn(() => undefined),
-      set: vi.fn(async () => undefined)
+      set: vi.fn(async () => undefined),
+      clear: vi.fn(async () => undefined)
     }
 
-    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
-    const onUpdate = vi.fn(async () => undefined)
-    const client = new ClaudeClient(makeConfig(), store as never, logger)
+    queryMock.mockReturnValue(makeQueryGen([
+      {
+        type: 'assistant',
+        session_id: 'sess-1',
+        message: {
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'WebSearch', input: { query: 'cats' } }]
+        }
+      },
+      {
+        type: 'user',
+        session_id: 'sess-1',
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'done' }]
+        }
+      },
+      {
+        type: 'assistant',
+        session_id: 'sess-1',
+        message: { content: [{ type: 'text', text: 'final answer' }] }
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: 'final answer',
+        session_id: 'sess-1'
+      }
+    ]))
 
-    const turnPromise = client.runTurn('telegram:1', 'web search this', {
+    const onUpdate = vi.fn(async () => undefined)
+    const client = new ClaudeClient(
+      makeConfig(),
+      store as never,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    )
+
+    const text = await client.runTurn('telegram:1', 'web search this', {
       workspace: '/tmp/workspace',
       channel: 'telegram',
       chatId: '1',
       onUpdate
     })
-    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1))
 
-    pushLine(proc, {
-      type: 'assistant',
-      message: {
-        content: [{ type: 'tool_use', id: 'tool-1', name: 'WebSearch', input: { query: 'cats' } }]
-      }
-    })
-    pushLine(proc, {
-      type: 'user',
-      message: {
-        role: 'user',
-        content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'done' }]
-      }
-    })
-    pushLine(proc, {
-      type: 'assistant',
-      message: { content: [{ type: 'text', text: 'final answer' }] }
-    })
-    pushLine(proc, { type: 'result', subtype: 'success', is_error: false, session_id: 'sess-final' })
-    proc.stdout.end()
-    proc.emit('close', 0, null)
-
-    const text = await turnPromise
     expect(text).toBe('final answer')
     expect(onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'turn_started', conversationKey: 'telegram:1' })
@@ -250,5 +183,38 @@ describe('ClaudeClient (subprocess stream-json)', () => {
     expect(onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'tool_call_finished', toolName: 'WebSearch', toolUseId: 'tool-1' })
     )
+  })
+
+  it('returns error message on result with is_error=true', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+
+    const store = {
+      get: vi.fn(() => undefined),
+      set: vi.fn(async () => undefined),
+      clear: vi.fn(async () => undefined)
+    }
+
+    queryMock.mockReturnValue(makeQueryGen([
+      {
+        type: 'result',
+        subtype: 'error_during_execution',
+        is_error: true,
+        session_id: 'sess-err'
+      }
+    ]))
+
+    const client = new ClaudeClient(
+      makeConfig(),
+      store as never,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    )
+
+    const result = await client.runTurn('telegram:1', 'do something', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1'
+    })
+
+    expect(result).toContain('error')
   })
 })

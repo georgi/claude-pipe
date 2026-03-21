@@ -23,11 +23,6 @@ describe('settings', () => {
   it('writeSettings creates file and readSettings returns it', async () => {
     const { writeSettings, readSettings, settingsExist } = await import('../src/config/settings.js')
     const data = {
-      provider: 'claude' as const,
-      claudeCli: {
-        command: 'claude',
-        args: ['--print', '--output-format', 'stream-json']
-      },
       channel: 'telegram' as const,
       token: 'tok_123',
       allowFrom: ['42'],
@@ -43,7 +38,5 @@ describe('settings', () => {
     expect(loaded.model).toBe('claude-sonnet-4-5')
     expect(loaded.workspace).toBe('/tmp/ws')
     expect(loaded.allowFrom).toEqual(['42'])
-    expect(loaded.claudeCli?.command).toBe('claude')
-    expect(loaded.claudeCli?.args).toEqual(['--print', '--output-format', 'stream-json'])
   })
 })

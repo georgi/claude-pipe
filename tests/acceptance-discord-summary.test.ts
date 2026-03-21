@@ -54,8 +54,7 @@ describe('acceptance: discord summary flow', () => {
     expect(claude.runTurn).toHaveBeenCalledWith(
       'discord:chan-1',
       expect.stringContaining('Request: summarize files in workspace'),
-      expect.objectContaining({ channel: 'discord', chatId: 'chan-1' }),
-      undefined
+      expect.objectContaining({ channel: 'discord', chatId: 'chan-1' })
     )
 
     expect(fetch).toHaveBeenCalledWith('chan-1')

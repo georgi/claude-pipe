@@ -14,7 +14,7 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { Attachment, InboundMessage, Logger, OutboundMessage } from '../core/types.js'
+import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
@@ -27,6 +27,8 @@ const SEND_RETRY_BACKOFF_MS = 50
 export class DiscordChannel implements Channel {
   readonly name = 'discord' as const
   private client: Client | null = null
+  /** Pending deferred interactions keyed by chatId, so send() can resolve them. */
+  private pendingInteractions = new Map<string, ChatInputCommandInteraction>()
 
   constructor(
     private readonly config: ClaudePipeConfig,
@@ -83,8 +85,8 @@ export class DiscordChannel implements Channel {
     this.logger.info('channel.discord.stop')
   }
 
-  /** Sends a text message (and optional attachments) to a Discord channel by ID. */
-  async send(message: OutboundMessage): Promise<void> {
+  /** Sends a text message to a Discord channel by ID. Returns a SentMessage for the last chunk. */
+  async send(message: OutboundMessage): Promise<SentMessage | void> {
     if (!this.client || !this.config.channels.discord.enabled) return
 
     const channel = await this.client.channels.fetch(message.chatId)
@@ -126,24 +128,31 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    // Prepare attachments if present
-    const files = this.prepareAttachments(message.attachments)
+    const pendingInteraction = this.pendingInteractions.get(message.chatId)
+    if (pendingInteraction) {
+      this.pendingInteractions.delete(message.chatId)
+    }
 
-    // Send message with attachments
-    const chunks = chunkText(message.content, DISCORD_MESSAGE_MAX)
-    for (let i = 0; i < chunks.length; i++) {
-      const part = chunks[i]
+    let lastMessageId: string | undefined
+    let isFirstChunk = true
+    for (const part of chunkText(message.content, DISCORD_MESSAGE_MAX)) {
       try {
         await retry(
           async () => {
-            // Only send attachments with the first chunk
-            const payload: { content: string; files?: Array<{ attachment: string; name?: string }> } = {
-              content: part
+            // Resolve the deferred interaction for the first chunk,
+            // then fall back to channel.send() for subsequent chunks.
+            if (isFirstChunk && pendingInteraction) {
+              const sent = await pendingInteraction.editReply({ content: part })
+              if (sent && typeof sent === 'object' && 'id' in sent) {
+                lastMessageId = String(sent.id)
+              }
+            } else {
+              const sent = await channel.send({ content: part })
+              if (sent && typeof sent === 'object' && 'id' in sent) {
+                lastMessageId = String(sent.id)
+              }
             }
-            if (i === 0 && files.length > 0) {
-              payload.files = files
-            }
-            await channel.send(payload)
+            isFirstChunk = false
           },
           {
             attempts: SEND_RETRY_ATTEMPTS,
@@ -159,28 +168,59 @@ export class DiscordChannel implements Channel {
       }
     }
 
-    if (files.length > 0) {
-      this.logger.info('channel.discord.attachments_sent', {
-        chatId: message.chatId,
-        count: files.length
+    if (lastMessageId) {
+      return { channel: 'discord', chatId: message.chatId, messageId: lastMessageId }
+    }
+  }
+
+  /** Edits a previously sent Discord message. */
+  async editMessage(sent: SentMessage, newContent: string): Promise<void> {
+    if (!this.client || !this.config.channels.discord.enabled) return
+
+    const channel = await this.client.channels.fetch(sent.chatId)
+    if (!channel || !channel.isTextBased()) return
+
+    try {
+      if ('messages' in channel && channel.messages) {
+        const msg = await channel.messages.fetch(sent.messageId)
+        await msg.edit({ content: newContent })
+      }
+    } catch (error) {
+      this.logger.error('channel.discord.edit_failed', {
+        chatId: sent.chatId,
+        messageId: sent.messageId,
+        error: error instanceof Error ? error.message : String(error)
       })
     }
   }
 
-  /**
-   * Prepares attachments for Discord by converting them to the format Discord expects.
-   * Discord accepts URLs or file paths as attachment sources.
-   * Filters out any attachments without a valid source.
-   */
-  private prepareAttachments(attachments?: Attachment[]): Array<{ attachment: string; name?: string }> {
-    if (!attachments || attachments.length === 0) return []
+  /** Discord does not support message drafts; this is a no-op. */
+  async sendMessageDraft(_chatId: string, _text: string): Promise<SentMessage | void> {
+    // Discord has no equivalent streaming draft API
+  }
 
-    return attachments
-      .filter((att) => att.url || att.path)
-      .map((att) => ({
-        attachment: att.url || att.path || '',
-        name: att.filename
-      }))
+  /** Sends a file as a Discord attachment. */
+  async sendFile(chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+    if (!this.client || !this.config.channels.discord.enabled) return
+
+    const channel = await this.client.channels.fetch(chatId)
+    if (!channel || !channel.isTextBased() || !('send' in channel) || typeof channel.send !== 'function') return
+
+    try {
+      const sent = await channel.send({
+        content: attachment.caption ?? '',
+        files: [attachment.filePath]
+      })
+      if (sent && typeof sent === 'object' && 'id' in sent) {
+        return { channel: 'discord', chatId, messageId: String(sent.id) }
+      }
+    } catch (error) {
+      this.logger.error('channel.discord.send_file_failed', {
+        chatId,
+        filePath: attachment.filePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   private async onMessage(message: Message): Promise<void> {
@@ -291,6 +331,7 @@ export class DiscordChannel implements Channel {
     const content = promptOption ? `${commandName} ${promptOption}` : commandName
 
     await interaction.deferReply()
+    this.pendingInteractions.set(interaction.channelId, interaction)
 
     const inbound: InboundMessage = {
       channel: 'discord',

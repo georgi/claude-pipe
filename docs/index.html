@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>claude-pipe &mdash; Claude Code from your chat apps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #111113;
+      --surface-2: #18181b;
+      --border: #27272a;
+      --border-hover: #3f3f46;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      --accent: #d97706;
+      --accent-soft: rgba(217, 119, 6, 0.12);
+      --blue: #3b82f6;
+      --green: #22c55e;
+      --pink: #ec4899;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* --- Nav --- */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-brand span { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .nav-links a {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--accent); }
+
+    .nav-links .nav-gh {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color 0.2s;
+    }
+
+    .nav-links .nav-gh:hover { border-color: var(--border-hover); }
+
+    .nav-links .nav-gh svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* --- Hero --- */
+    .hero {
+      position: relative;
+      padding: 120px 24px 80px;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -40%; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 800px;
+      background: radial-gradient(circle, rgba(217,119,6,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(217,119,6,0.2);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 100px;
+      margin-bottom: 32px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto 40px;
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: #f59e0b;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(217,119,6,0.25);
+    }
+
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+
+    /* --- Telegram mockup --- */
+    .tg-section {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    .tg-phone {
+      background: #0e1621;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+    }
+
+    /* Telegram header */
+    .tg-header {
+      background: #17212b;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .tg-back {
+      color: #6ab2f2;
+      font-size: 1.1rem;
+    }
+
+    .tg-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    .tg-header-info {
+      flex: 1;
+    }
+
+    .tg-header-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .tg-header-status {
+      font-size: 0.75rem;
+      color: #6ab2f2;
+      margin-top: 1px;
+    }
+
+    .tg-header-icons {
+      display: flex;
+      gap: 16px;
+      color: #6ab2f2;
+      font-size: 1rem;
+    }
+
+    /* Chat area */
+    .tg-chat {
+      padding: 12px 8px;
+      height: 380px;
+      background: #0e1621;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow-y: auto;
+    }
+
+    /* Message bubbles */
+    .tg-msg {
+      max-width: 85%;
+      padding: 7px 11px 4px;
+      border-radius: 12px;
+      font-size: 0.87rem;
+      line-height: 1.45;
+      position: relative;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s, transform 0.25s;
+      word-wrap: break-word;
+    }
+
+    .tg-msg.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tg-msg-out {
+      background: #2b5278;
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .tg-msg-in {
+      background: #182533;
+      color: #fff;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .tg-msg-name {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #6ab2f2;
+      margin-bottom: 2px;
+    }
+
+    .tg-msg-text {
+      white-space: pre-wrap;
+    }
+
+    .tg-msg-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .tg-msg-time {
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .tg-msg-out .tg-msg-time {
+      color: rgba(255,255,255,0.45);
+    }
+
+    .tg-msg-check {
+      font-size: 0.7rem;
+      color: #4fae4e;
+    }
+
+    /* Typing indicator */
+    .tg-typing {
+      display: flex;
+      gap: 3px;
+      padding: 4px 0 2px;
+      align-items: center;
+      height: 18px;
+    }
+
+    .tg-typing-dot {
+      width: 5px; height: 5px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 50%;
+      animation: typing-bounce 1.4s ease-in-out infinite;
+    }
+
+    .tg-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .tg-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes typing-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    /* Progress text style */
+    .tg-progress-text {
+      color: rgba(255,255,255,0.5);
+      font-style: italic;
+    }
+
+    /* Code block inside message */
+    .tg-code {
+      background: rgba(0,0,0,0.25);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      margin: 6px 0 2px;
+      overflow-x: auto;
+      color: #e2e8f0;
+    }
+
+    /* Input bar */
+    .tg-input {
+      background: #17212b;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .tg-input-clip {
+      color: #6ab2f2;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .tg-input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.4);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+    }
+
+    .tg-input-mic {
+      color: #6ab2f2;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    /* --- Flow diagram --- */
+    .flow-section {
+      padding: 80px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      max-width: 500px;
+      margin: 0 auto 48px;
+      line-height: 1.6;
+    }
+
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      max-width: 800px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+    }
+
+    .flow-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      transition: all 0.25s;
+      min-width: 120px;
+    }
+
+    .flow-node:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+    }
+
+    .flow-node .icon { font-size: 1.8rem; margin-bottom: 10px; }
+    .flow-node .name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+    .flow-node .desc { color: var(--text-dim); font-size: 0.75rem; }
+
+    .flow-arrow {
+      color: var(--text-dim);
+      font-size: 1.2rem;
+      padding: 0 8px;
+      opacity: 0.4;
+    }
+
+    /* --- Architecture --- */
+    .arch-section {
+      padding: 80px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .arch-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      max-width: 900px;
+      margin: 0 auto 64px;
+      flex-wrap: wrap;
+    }
+
+    .arch-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      text-align: center;
+      min-width: 120px;
+      transition: all 0.25s;
+    }
+
+    .arch-node:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .arch-node .a-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .arch-node .a-desc {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .arch-node .a-name.c-green { color: var(--green); }
+    .arch-node .a-name.c-blue { color: var(--blue); }
+    .arch-node .a-name.c-accent { color: var(--accent); }
+    .arch-node .a-name.c-pink { color: var(--pink); }
+    .arch-node .a-name.c-purple { color: #a78bfa; }
+
+    .arch-arrow {
+      flex-shrink: 0;
+      color: var(--text-dim);
+      opacity: 0.4;
+      padding: 0 6px;
+    }
+
+    .arch-arrow svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .arch-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto 64px;
+    }
+
+    .arch-detail {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: left;
+    }
+
+    .arch-detail h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .arch-detail p {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.55;
+    }
+
+    .key-files {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .key-files h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .key-file {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+    }
+
+    .key-file code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .key-file span {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    /* --- Integrations --- */
+    .integrations-section {
+      padding: 80px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .integrations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .integration {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      text-align: left;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .integration::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--stripe-color, var(--border));
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+
+    .integration:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+
+    .integration:hover::before { opacity: 1; }
+
+    .integration .icon-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .integration .int-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      background: var(--icon-bg, var(--surface-2));
+    }
+
+    .integration h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .integration p {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-top: 6px;
+    }
+
+    .integration .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* --- Features --- */
+    .features-section {
+      padding: 80px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .features-section .section-label,
+    .features-section h2,
+    .features-section .section-desc {
+      text-align: center;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      transition: all 0.25s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .feature-card .feat-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.55;
+    }
+
+    /* --- Comparison callout --- */
+    .comparison {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 80px 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .comparison-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 32px;
+    }
+
+    .comparison-box h3 {
+      font-size: 1.3rem;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    .comparison-box p {
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-width: 500px;
+      margin: 0 auto;
+      font-size: 0.92rem;
+    }
+
+    .comparison-box .versus {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+
+    .versus-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .versus-item .v-icon {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .versus-item .v-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .versus-item .v-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .versus-eq {
+      display: flex;
+      align-items: center;
+      font-size: 1.5rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* --- FAQ --- */
+    .faq-section {
+      padding: 80px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .faq-section .section-label,
+    .faq-section h2,
+    .faq-section .section-desc {
+      text-align: center;
+    }
+
+    .faq-list {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .faq-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      background: var(--surface);
+      transition: border-color 0.2s;
+    }
+
+    .faq-item:hover { border-color: var(--border-hover); }
+
+    .faq-item summary {
+      padding: 20px 24px;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+
+    .faq-item summary::-webkit-details-marker { display: none; }
+
+    .faq-item summary .faq-chevron {
+      width: 20px;
+      height: 20px;
+      color: var(--text-dim);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .faq-item[open] summary .faq-chevron {
+      transform: rotate(180deg);
+    }
+
+    .faq-answer {
+      padding: 0 24px 20px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      line-height: 1.65;
+    }
+
+    /* --- CTA / Quick Start --- */
+    .cta-section {
+      padding: 80px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .cta-section h2 { margin-bottom: 16px; }
+    .cta-section .section-desc { margin-bottom: 32px; }
+
+    .terminal {
+      max-width: 560px;
+      margin: 0 auto 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      text-align: left;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: rgba(239, 68, 68, 0.7); }
+    .terminal-dot.yellow { background: rgba(234, 179, 8, 0.7); }
+    .terminal-dot.green { background: rgba(34, 197, 94, 0.7); }
+
+    .terminal-title {
+      margin-left: 8px;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .terminal-body {
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+    }
+
+    .terminal-body .dollar { color: var(--text-dim); }
+    .terminal-body .cmd { color: var(--accent); }
+    .terminal-body .arg { color: var(--text-muted); }
+
+    .terminal-hint {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(217, 119, 6, 0.2);
+      border-radius: 8px;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .terminal-hint p {
+      font-size: 0.82rem;
+      color: var(--accent);
+    }
+
+    .terminal-hint code {
+      background: rgba(217, 119, 6, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+    }
+
+    /* --- Footer --- */
+    footer {
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--text); }
+
+    /* --- Responsive --- */
+    @media (max-width: 640px) {
+      .nav-links a:not(.nav-gh) { display: none; }
+      .hero { padding: 80px 20px 60px; }
+      .flow { gap: 8px; }
+      .flow-node { padding: 16px; min-width: 90px; }
+      .flow-node .icon { font-size: 1.4rem; }
+      .flow-node .name { font-size: 0.8rem; }
+      .flow-arrow { padding: 0 4px; font-size: 1rem; }
+      .versus-eq { font-size: 1.2rem; }
+      .tg-section { padding: 0 12px 80px; }
+      .arch-flow { gap: 4px; }
+      .arch-node { padding: 10px 12px; min-width: 80px; }
+      .arch-node .a-name { font-size: 0.75rem; }
+      .arch-node .a-desc { font-size: 0.65rem; }
+      .arch-arrow { padding: 0 2px; }
+      .arch-arrow svg { width: 12px; height: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">claude<span>-pipe</span></a>
+    <div class="nav-links">
+      <a href="#architecture">Architecture</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="#get-started">Get Started</a>
+      <a href="https://github.com/georgi/claude-pipe" target="_blank" rel="noopener" class="nav-gh">
+        <svg viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <span data-stars>GitHub</span>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span> claude-pipe v1</div>
+  <h1>Claude Code,<br>from your <span>chat app</span></h1>
+  <p class="subtitle">
+    Send a Telegram message. Get code written, files edited, emails drafted, meetings scheduled &mdash; all through the same Claude you know and love.
+  </p>
+  <div class="hero-actions">
+    <a href="https://github.com/georgi/claude-pipe" class="btn btn-primary">View on GitHub</a>
+    <a href="#get-started" class="btn btn-secondary">Get started</a>
+  </div>
+</section>
+
+<!-- Telegram mockup -->
+<section class="tg-section">
+  <div class="tg-phone">
+    <div class="tg-header">
+      <div class="tg-back">&#x2190;</div>
+      <div class="tg-avatar">CP</div>
+      <div class="tg-header-info">
+        <div class="tg-header-name">claude-pipe</div>
+        <div class="tg-header-status" id="tgStatus">online</div>
+      </div>
+      <div class="tg-header-icons">
+        <span>&#x1F50D;</span>
+        <span>&#x22EE;</span>
+      </div>
+    </div>
+    <div class="tg-chat" id="tgChat"></div>
+    <div class="tg-input">
+      <div class="tg-input-clip">&#x1F4CE;</div>
+      <div class="tg-input-field">Message</div>
+      <div class="tg-input-mic">&#x1F3A4;</div>
+    </div>
+  </div>
+</section>
+
+<!-- Flow -->
+<section class="flow-section">
+  <div class="section-label">How it works</div>
+  <h2>Simple plumbing, powerful results</h2>
+  <p class="section-desc">
+    Your message flows through claude-pipe to a real Claude Code session running on your machine.
+  </p>
+  <div class="flow">
+    <div class="flow-node">
+      <div class="icon">&#x1F4AC;</div>
+      <div class="name">You</div>
+      <div class="desc">Telegram / Discord</div>
+    </div>
+    <div class="flow-arrow">&#x2192;</div>
+    <div class="flow-node">
+      <div class="icon">&#x1F527;</div>
+      <div class="name">claude-pipe</div>
+      <div class="desc">Your server</div>
+    </div>
+    <div class="flow-arrow">&#x2192;</div>
+    <div class="flow-node">
+      <div class="icon">&#x2728;</div>
+      <div class="name">Claude Code</div>
+      <div class="desc">Agent CLI</div>
+    </div>
+    <div class="flow-arrow">&#x2192;</div>
+    <div class="flow-node">
+      <div class="icon">&#x1F30D;</div>
+      <div class="name">Everything</div>
+      <div class="desc">Files, APIs, web</div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section class="arch-section" id="architecture">
+  <div class="section-label">Architecture</div>
+  <h2>Single process. Event bus. Pluggable channels.</h2>
+  <p class="section-desc">
+    One Node.js process runs everything. Channels and the agent loop are decoupled through an async message bus.
+  </p>
+
+  <!-- Flow diagram -->
+  <div class="arch-flow">
+    <div class="arch-node">
+      <div class="a-name c-green">Telegram</div>
+      <div class="a-desc">channel adapter</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-green">Discord</div>
+      <div class="a-desc">channel adapter</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-green">CLI</div>
+      <div class="a-desc">channel adapter</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-blue">Message Bus</div>
+      <div class="a-desc">inbound / outbound</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-accent">Agent Loop</div>
+      <div class="a-desc">commands &amp; LLM turns</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-pink">Agent SDK</div>
+      <div class="a-desc">query() per turn</div>
+    </div>
+    <div class="arch-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+    <div class="arch-node">
+      <div class="a-name c-purple">Session Store</div>
+      <div class="a-desc">JSON persistence</div>
+    </div>
+  </div>
+
+  <!-- Architecture details -->
+  <div class="arch-details">
+    <div class="arch-detail">
+      <h3>Message Bus</h3>
+      <p>Channels and the agent loop are fully decoupled through async inbound/outbound queues. Channels publish; the agent consumes, runs a turn, and publishes replies back.</p>
+    </div>
+    <div class="arch-detail">
+      <h3>Pluggable Channels</h3>
+      <p>Each channel implements the same adapter interface: start, stop, send, editMessage. The channel manager owns lifecycle and routes outbound messages to the right adapter.</p>
+    </div>
+    <div class="arch-detail">
+      <h3>Command Interception</h3>
+      <p>Slash commands (/session, /model, /config) are intercepted before reaching the LLM and execute instantly without spending tokens.</p>
+    </div>
+    <div class="arch-detail">
+      <h3>Streaming Updates</h3>
+      <p>During a turn, tool call progress and streaming text are pushed back as editable messages that get replaced with the final response.</p>
+    </div>
+  </div>
+
+  <!-- Key files -->
+  <div class="key-files">
+    <h3>Key Files</h3>
+    <div class="key-file">
+      <code>index.ts</code>
+      <span>&mdash; Boots the runtime: config, bus, agent, channels, heartbeat</span>
+    </div>
+    <div class="key-file">
+      <code>core/agent-loop.ts</code>
+      <span>&mdash; Consumes inbound messages, runs LLM turns, publishes replies</span>
+    </div>
+    <div class="key-file">
+      <code>core/bus.ts</code>
+      <span>&mdash; Async message bus with inbound/outbound queues</span>
+    </div>
+    <div class="key-file">
+      <code>channels/manager.ts</code>
+      <span>&mdash; Owns channel lifecycle and outbound dispatch</span>
+    </div>
+    <div class="key-file">
+      <code>core/claude-client.ts</code>
+      <span>&mdash; Wraps Agent SDK query(), handles streaming and session persistence</span>
+    </div>
+    <div class="key-file">
+      <code>core/session-store.ts</code>
+      <span>&mdash; Persists conversation sessions to a JSON file</span>
+    </div>
+  </div>
+</section>
+
+<!-- Integrations -->
+<section class="integrations-section">
+  <div class="section-label">Integrations</div>
+  <h2>Connect to the tools you use</h2>
+  <p class="section-desc">
+    Since claude-pipe runs Claude Code under the hood, you get access to the full ecosystem of skills and tools &mdash; including Google services.
+  </p>
+  <div class="integrations-grid">
+    <div class="integration" style="--stripe-color:#ea4335;--icon-bg:rgba(234,67,53,0.1)">
+      <div class="icon-row">
+        <div class="int-icon">&#x2709;&#xFE0F;</div>
+        <h3>Gmail</h3>
+      </div>
+      <p>Search your inbox, draft replies, send emails. All from a Telegram message.</p>
+      <span class="tag" style="background:rgba(234,67,53,0.1);color:#ea4335">gog gmail</span>
+    </div>
+    <div class="integration" style="--stripe-color:#4285f4;--icon-bg:rgba(66,133,244,0.1)">
+      <div class="icon-row">
+        <div class="int-icon">&#x1F4C4;</div>
+        <h3>Google Docs</h3>
+      </div>
+      <p>Create, read, and edit documents. Summarize meeting notes. Draft proposals.</p>
+      <span class="tag" style="background:rgba(66,133,244,0.1);color:#4285f4">gog docs</span>
+    </div>
+    <div class="integration" style="--stripe-color:#0f9d58;--icon-bg:rgba(15,157,88,0.1)">
+      <div class="icon-row">
+        <div class="int-icon">&#x1F4C5;</div>
+        <h3>Google Calendar</h3>
+      </div>
+      <p>Check your schedule, create events, find free slots. "What's on my calendar today?"</p>
+      <span class="tag" style="background:rgba(15,157,88,0.1);color:#0f9d58">gog calendar</span>
+    </div>
+    <div class="integration" style="--stripe-color:#f4b400;--icon-bg:rgba(244,180,0,0.1)">
+      <div class="icon-row">
+        <div class="int-icon">&#x1F4BE;</div>
+        <h3>Google Drive</h3>
+      </div>
+      <p>Browse, search, and manage files in your Drive. Find that doc you forgot about.</p>
+      <span class="tag" style="background:rgba(244,180,0,0.1);color:#d97706">gog drive</span>
+    </div>
+    <div class="integration" style="--stripe-color:#3b82f6;--icon-bg:rgba(59,130,246,0.1)">
+      <div class="icon-row">
+        <div class="int-icon">&#x1F4BB;</div>
+        <h3>Code &amp; Shell</h3>
+      </div>
+      <p>Read, write, and refactor code. Run shell commands. Commit and push to git.</p>
+      <span class="tag" style="background:rgba(59,130,246,0.1);color:#3b82f6">full access</span>
+    </div>
+    <div class="integration" style="--stripe-color:#8b5cf6;--icon-bg:rgba(139,92,246,0.1)">
+      <div class="icon-row">
+        <div class="int-icon">&#x1F310;</div>
+        <h3>Web Search</h3>
+      </div>
+      <p>Search the web, fetch pages, research topics. The agent can browse for you.</p>
+      <span class="tag" style="background:rgba(139,92,246,0.1);color:#8b5cf6">brave search</span>
+    </div>
+  </div>
+</section>
+
+<!-- Comparison -->
+<section class="comparison">
+  <div class="comparison-box">
+    <h3>Same Claude, different front door</h3>
+    <p>
+      claude-pipe doesn't limit Claude. It's the full Claude Code experience &mdash; same tools, same skills, same context &mdash; just accessible from your phone instead of a terminal.
+    </p>
+    <div class="versus">
+      <div class="versus-item">
+        <div class="v-icon" style="background:var(--surface-2)">&#x1F4BB;</div>
+        <div class="v-name">Claude Code</div>
+        <div class="v-label">Terminal on your laptop</div>
+      </div>
+      <div class="versus-eq">=</div>
+      <div class="versus-item">
+        <div class="v-icon" style="background:var(--accent-soft)">&#x1F4F1;</div>
+        <div class="v-name">claude-pipe</div>
+        <div class="v-label">Telegram on your phone</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features-section" id="features">
+  <div class="section-label">Why claude-pipe</div>
+  <h2>Built for how you actually work</h2>
+  <p class="section-desc">
+    A lightweight bridge between your chat apps and a full agent runtime.
+  </p>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feat-icon">&#x1F3E0;</div>
+      <h3>Runs on your machine</h3>
+      <p>No cloud relay. Your data stays local. The agent runs where your code and credentials live.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">&#x26A1;</div>
+      <h3>Streaming responses</h3>
+      <p>See Claude thinking in real-time. Draft messages update live as the agent works through your request.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">&#x1F5C2;&#xFE0F;</div>
+      <h3>Workspace aware</h3>
+      <p>Point it at any directory. The agent understands your project structure, reads your CLAUDE.md, and follows your conventions.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">&#x1F680;</div>
+      <h3>2-minute setup</h3>
+      <p>Interactive wizard configures everything. Pick your channel, paste your bot token, choose a model. Done.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq-section" id="faq">
+  <div class="section-label">FAQ</div>
+  <h2>Common questions</h2>
+  <p class="section-desc">Everything you need to know before getting started.</p>
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary>
+        What is claude-pipe?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        claude-pipe is a lightweight bridge that connects your chat apps (Telegram, Discord) to a real Claude Code session running on your machine. You send a message from your phone and get the full Claude Code experience &mdash; file editing, shell commands, web search, Google integrations &mdash; without opening a terminal.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Is it the same as Claude Code?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Yes. claude-pipe uses the official Claude Agent SDK under the hood &mdash; the same tools, skills, MCP servers, and context as Claude Code. It's just a different front door: your phone instead of a terminal.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        What do I need to run it?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Node.js 20+, Claude Code installed and logged in, and a bot token for your channel (Telegram or Discord). The interactive setup wizard handles the rest. Your machine needs to stay running since the agent runs locally.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Does my data leave my machine?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Messages flow through the Telegram/Discord API (as with any bot), but the agent itself runs entirely on your machine. Files, code, and credentials never leave your server. Sessions are stored in a local JSON file.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Can I restrict who can use the bot?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Yes. Each channel has an allow-list setting. Only user IDs in the list can interact with the bot. If the list is empty, everyone is allowed. The setup wizard helps you configure this.
+      </div>
+    </details>
+    <details class="faq-item">
+      <summary>
+        Which models are supported?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="faq-answer">
+        Any model available in Claude Code: Haiku, Sonnet, Opus, or a custom model string. Set it in settings or switch on the fly with the /model slash command.
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- CTA / Quick Start -->
+<section class="cta-section" id="get-started">
+  <div class="section-label">Get started</div>
+  <h2>Three commands, one assistant</h2>
+  <p class="section-desc">
+    Clone, install, run. The interactive wizard handles the rest.
+  </p>
+  <div class="terminal">
+    <div class="terminal-header">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+      <span class="terminal-title">Terminal</span>
+    </div>
+    <div class="terminal-body">
+      <div><span class="dollar">$</span> <span class="cmd">git clone</span> <span class="arg">https://github.com/georgi/claude-pipe.git</span></div>
+      <div><span class="dollar">$</span> <span class="cmd">cd</span> <span class="arg">claude-pipe</span></div>
+      <div><span class="dollar">$</span> <span class="cmd">npm run dev</span></div>
+    </div>
+  </div>
+  <div class="terminal-hint">
+    <p>The setup wizard walks you through everything: channel selection, bot token, model choice, workspace directory.</p>
+  </div>
+  <br><br>
+  <a href="https://github.com/georgi/claude-pipe" class="btn btn-primary">View on GitHub</a>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>Built by <a href="https://github.com/georgi">Matthias Georgi</a> &middot; Powered by <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></p>
+</footer>
+
+<script>
+  const chat = document.getElementById('tgChat');
+  const statusEl = document.getElementById('tgStatus');
+  const now = new Date();
+  const timeStr = h => h + ':' + String(now.getMinutes()).padStart(2, '0');
+  const t = timeStr(String(now.getHours()).padStart(2, '0'));
+
+  function createMsg(type, text, time) {
+    const el = document.createElement('div');
+    el.className = 'tg-msg ' + (type === 'out' ? 'tg-msg-out' : 'tg-msg-in');
+    const nameHtml = type === 'in' ? '<div class="tg-msg-name">claude-pipe</div>' : '';
+    const checkHtml = type === 'out' ? '<span class="tg-msg-check">&#x2713;&#x2713;</span>' : '';
+    el.innerHTML = nameHtml +
+      '<div class="tg-msg-text"></div>' +
+      '<div class="tg-msg-meta"><span class="tg-msg-time">' + (time || t) + '</span>' + checkHtml + '</div>';
+    return el;
+  }
+
+  // The full demo script
+  const script = [
+    // User sends first message
+    { action: 'send', type: 'out', text: 'what meetings do I have tomorrow?' },
+    { action: 'wait', ms: 400 },
+    { action: 'status', text: 'typing...' },
+    { action: 'wait', ms: 600 },
+
+    // Claude responds - streaming updates in same bubble
+    { action: 'send', type: 'in', text: 'Checking Google Calendar...', id: 'r1', progress: true },
+    { action: 'wait', ms: 1200 },
+    { action: 'update', id: 'r1', text: 'You have 2 meetings tomorrow:\n\n10:00 \u2013 Standup (30min)\n14:00 \u2013 Design review with Sarah (1hr)\n\nWant me to add anything to your calendar?', progress: false },
+    { action: 'status', text: 'online' },
+    { action: 'wait', ms: 2000 },
+
+    // User sends second message
+    { action: 'send', type: 'out', text: 'draft a reply to the latest email from Sarah' },
+    { action: 'wait', ms: 400 },
+    { action: 'status', text: 'typing...' },
+    { action: 'wait', ms: 500 },
+
+    // Claude streams progress updates
+    { action: 'send', type: 'in', text: 'Searching Gmail...', id: 'r2', progress: true },
+    { action: 'wait', ms: 1000 },
+    { action: 'update', id: 'r2', text: 'Found email: "Q2 design specs"\nDrafting reply...', progress: true },
+    { action: 'wait', ms: 1400 },
+    { action: 'update', id: 'r2', text: 'Draft ready:\n\n"Hi Sarah,\n\nThanks for sending the Q2 specs. The new component library looks great \u2013 I\'ll review the Figma links before our design review tomorrow.\n\nOne question: should we include the dark mode variants in the first pass?\n\nBest,\nMatthias"\n\nSend it or want changes?', progress: false },
+    { action: 'status', text: 'online' },
+    { action: 'wait', ms: 2500 },
+
+    // User sends third message
+    { action: 'send', type: 'out', text: 'send it, then fix the bug in auth.ts line 42' },
+    { action: 'wait', ms: 400 },
+    { action: 'status', text: 'typing...' },
+    { action: 'wait', ms: 500 },
+
+    { action: 'send', type: 'in', text: 'Sending email...', id: 'r3', progress: true },
+    { action: 'wait', ms: 900 },
+    { action: 'update', id: 'r3', text: 'Email sent \u2713\nReading src/auth.ts...', progress: true },
+    { action: 'wait', ms: 1200 },
+    { action: 'update', id: 'r3', text: 'Email sent \u2713\n\nFixed the null check on line 42. The token validation was missing an expiry guard:\n\nif (!token || token.exp < Date.now())\n\nCommitted to main and pushed.', progress: false },
+    { action: 'status', text: 'online' },
+  ];
+
+  const msgById = {};
+  let step = 0;
+
+  function runNext() {
+    if (step >= script.length) {
+      // Loop after a pause
+      setTimeout(() => {
+        chat.innerHTML = '';
+        Object.keys(msgById).forEach(k => delete msgById[k]);
+        step = 0;
+        runNext();
+      }, 4000);
+      return;
+    }
+
+    const s = script[step++];
+
+    switch (s.action) {
+      case 'send': {
+        const msg = createMsg(s.type, '', t);
+        const textEl = msg.querySelector('.tg-msg-text');
+        if (s.progress) {
+          textEl.innerHTML = '<span class="tg-progress-text">' + escHtml(s.text) + '</span>';
+        } else {
+          textEl.textContent = s.text;
+        }
+        chat.appendChild(msg);
+        // Trigger animation
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => msg.classList.add('visible'));
+        });
+        if (s.id) msgById[s.id] = msg;
+        chat.scrollTop = chat.scrollHeight;
+        runNext();
+        break;
+      }
+
+      case 'update': {
+        const msg = msgById[s.id];
+        if (msg) {
+          const textEl = msg.querySelector('.tg-msg-text');
+          if (s.progress) {
+            textEl.innerHTML = '<span class="tg-progress-text">' + escHtml(s.text) + '</span>';
+          } else {
+            textEl.textContent = s.text;
+          }
+          chat.scrollTop = chat.scrollHeight;
+        }
+        runNext();
+        break;
+      }
+
+      case 'status':
+        statusEl.textContent = s.text;
+        runNext();
+        break;
+
+      case 'wait':
+        setTimeout(runNext, s.ms);
+        break;
+    }
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  }
+
+  setTimeout(runNext, 800);
+
+  // GitHub stars
+  fetch('https://api.github.com/repos/georgi/claude-pipe')
+    .then(r => r.json())
+    .then(data => {
+      if (data.stargazers_count) {
+        document.querySelectorAll('[data-stars]').forEach(el => {
+          el.textContent = data.stargazers_count + '+ Stars';
+        });
+      }
+    })
+    .catch(() => {});
+</script>
+
+</body>
+</html>

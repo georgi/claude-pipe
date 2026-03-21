@@ -26,15 +26,50 @@ export interface InboundMessage {
 }
 
 /**
+ * A file to be sent alongside or instead of a text message.
+ */
+export interface FileAttachment {
+  /** Absolute path to the file on disk. */
+  filePath: string
+  /** Optional caption shown with the file. */
+  caption?: string
+}
+
+/**
+ * A single inline keyboard button.
+ */
+export interface InlineButton {
+  /** Button label text. */
+  text: string
+  /** Callback data sent back when pressed. */
+  callbackData: string
+}
+
+/**
+ * An inline keyboard: array of rows, each row an array of buttons.
+ */
+export type InlineKeyboard = InlineButton[][]
+
+/**
  * Normalized outbound message consumed by a channel adapter.
  */
 export interface OutboundMessage {
   channel: ChannelName
   chatId: string
   content: string
-  attachments?: Attachment[]
-  replyTo?: string
   metadata?: Record<string, unknown>
+  attachments?: FileAttachment[]
+  /** Optional inline keyboard to display below the message. */
+  keyboard?: InlineKeyboard
+}
+
+/**
+ * Opaque reference to a sent message, used for subsequent edits.
+ */
+export interface SentMessage {
+  channel: ChannelName
+  chatId: string
+  messageId: string
 }
 
 /**
@@ -62,6 +97,7 @@ export type AgentTurnUpdateKind =
   | 'tool_call_started'
   | 'tool_call_finished'
   | 'tool_call_failed'
+  | 'text_streaming'
   | 'turn_finished'
 
 export interface AgentTurnUpdate {
@@ -70,6 +106,8 @@ export interface AgentTurnUpdate {
   message: string
   toolName?: string
   toolUseId?: string
+  /** Partial accumulated response text, present when kind is 'text_streaming'. */
+  text?: string
 }
 
 /**

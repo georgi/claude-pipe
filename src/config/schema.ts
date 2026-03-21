@@ -20,14 +20,7 @@ const cliChannelSchema = z.object({
  * Runtime configuration schema for Claude Pipe.
  */
 export const configSchema = z.object({
-  llmProvider: z.enum(['claude', 'codex']).default('claude'),
   model: z.string(),
-  claudeCli: z
-    .object({
-      command: z.string().default('claude'),
-      args: z.array(z.string()).default([])
-    })
-    .optional(),
   workspace: z.string(),
   channels: z.object({
     telegram: channelSchema,
@@ -65,6 +58,13 @@ export const configSchema = z.object({
       maxBytes: 1_000_000,
       maxFiles: 3
     }),
+  personality: z
+    .object({
+      name: z.string(),
+      traits: z.string()
+    })
+    .optional(),
+  env: z.record(z.string(), z.string()).optional(),
   sessionStorePath: z.string(),
   maxToolIterations: z.number().int().positive().default(20),
   heartbeat: z

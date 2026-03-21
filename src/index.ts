@@ -1,10 +1,12 @@
+import { TelegramChannel } from './channels/telegram.js'
 import { ChannelManager } from './channels/manager.js'
 import { setupCommands } from './commands/index.js'
+import { discoverSkills } from './commands/skills.js'
 import { loadConfig } from './config/load.js'
 import { readSettings, settingsExist } from './config/settings.js'
 import { AgentLoop } from './core/agent-loop.js'
 import { MessageBus } from './core/bus.js'
-import { createModelClient, resolveProviderFromConfig } from './core/client-factory.js'
+import { createModelClient } from './core/client-factory.js'
 import { createHeartbeat } from './core/heartbeat.js'
 import { logger, setLoggerMuted } from './core/logger.js'
 import { SessionStore } from './core/session-store.js'
@@ -71,8 +73,7 @@ async function main(): Promise<void> {
 
   logger.info('startup.config', {
     workspace: config.workspace,
-    model: config.model,
-    provider: resolveProviderFromConfig(config)
+    model: config.model
   })
 
   const modelClient = createModelClient(config, sessionStore, logger)
@@ -82,22 +83,57 @@ async function main(): Promise<void> {
 
   const { handler } = setupCommands({ config, claude: modelClient, sessionStore })
   agent.setCommandHandler(handler)
+  agent.setChannelManager(channels)
 
-  const shutdown = async (signal: string): Promise<void> => {
+  let shuttingDown = false
+  const shutdown = (signal: string): void => {
+    if (shuttingDown) return
+    shuttingDown = true
     logger.info('shutdown.signal', { signal })
     heartbeat.stop()
     agent.stop()
-    await channels.stopAll()
+    // Force exit after 2 s in case channel pollers are slow to stop
+    setTimeout(() => process.exit(0), 2000).unref()
+    void channels.stopAll().then(() => process.exit(0))
   }
 
-  process.on('SIGINT', () => {
-    void shutdown('SIGINT')
-  })
-  process.on('SIGTERM', () => {
-    void shutdown('SIGTERM')
-  })
+  process.on('SIGINT', () => shutdown('SIGINT'))
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
 
   await channels.startAll()
+
+  // Register user-invocable skills as Telegram bot commands
+  if (config.channels.telegram.enabled && config.channels.telegram.token) {
+    const skills = discoverSkills()
+    if (skills.length > 0) {
+      const { registry } = setupCommands({ config, claude: modelClient, sessionStore })
+      const builtinMeta = registry.toMeta()
+      const skillCommands = skills.map(s => ({
+        command: s.name.replace(/-/g, '_'),
+        description: s.description
+      }))
+      const builtinCommands = builtinMeta.map(m => ({
+        command: m.telegramName,
+        description: m.description
+      }))
+      const allCommands = [...builtinCommands, ...skillCommands].slice(0, 100) // Telegram limit
+      await TelegramChannel.registerBotCommands(
+        config.channels.telegram.token,
+        allCommands.map(c => ({
+          name: c.command,
+          description: c.description,
+          category: 'utility' as const,
+          telegramName: c.command
+        })),
+        logger
+      )
+      logger.info('startup.skills_registered', {
+        count: skillCommands.length,
+        names: skills.map(s => s.name)
+      })
+    }
+  }
+
   await agent.start()
   heartbeat.start()
 }

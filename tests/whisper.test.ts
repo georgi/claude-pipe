@@ -91,11 +91,9 @@ describe('whisper', () => {
   })
 
   describe('WHISPER_INSTALL_INSTRUCTIONS', () => {
-    it('contains install instructions for macOS and source build', () => {
+    it('contains install instructions for whisper', () => {
       expect(WHISPER_INSTALL_INSTRUCTIONS).toContain('brew install whisper-cpp')
-      expect(WHISPER_INSTALL_INSTRUCTIONS).toContain('git clone')
-      expect(WHISPER_INSTALL_INSTRUCTIONS).toContain('WHISPER_CPP_PATH')
-      expect(WHISPER_INSTALL_INSTRUCTIONS).toContain('WHISPER_CPP_MODEL')
+      expect(WHISPER_INSTALL_INSTRUCTIONS).toContain('OPENAI_API_KEY')
     })
   })
 })
