@@ -3,9 +3,6 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
   findWhisperBinary,
   findWhisperModel,
-  isFfmpegAvailable,
-  transcribeAudio,
-  downloadToTemp,
   WHISPER_INSTALL_INSTRUCTIONS
 } from '../src/audio/whisper.js'
 
@@ -47,7 +44,11 @@ describe('whisper', () => {
     it('searches PATH for known binary names', async () => {
       mockExistsSync.mockReturnValue(false)
       mockExecFile.mockImplementation(
-        (_cmd: string, args: string[], cb: (err: Error | null, result: { stdout: string }) => void) => {
+        (
+          _cmd: string,
+          args: string[],
+          cb: (err: Error | null, result: { stdout: string }) => void
+        ) => {
           if (args[0] === 'whisper-cpp') {
             cb(null, { stdout: '/usr/local/bin/whisper-cpp\n' })
           } else {

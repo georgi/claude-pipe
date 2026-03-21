@@ -96,10 +96,7 @@ describe('CommandHandler', () => {
   })
 
   it('denies admin commands to non-admin users', async () => {
-    const handler = setup(
-      [makeCommand({ name: 'secret', permission: 'admin' })],
-      ['admin1']
-    )
+    const handler = setup([makeCommand({ name: 'secret', permission: 'admin' })], ['admin1'])
 
     const result = await handler.execute('/secret', 'telegram', '42', 'regular-user')
     expect(result).toEqual({

@@ -166,7 +166,9 @@ describe('DiscordChannel', () => {
     expect(inbound.attachments?.length).toBe(1)
     expect(inbound.attachments?.[0].type).toBe('image')
     expect(inbound.attachments?.[0].filename).toBe('screenshot.png')
-    expect(inbound.attachments?.[0].url).toBe('https://cdn.discordapp.com/attachments/123/456/screenshot.png')
+    expect(inbound.attachments?.[0].url).toBe(
+      'https://cdn.discordapp.com/attachments/123/456/screenshot.png'
+    )
     expect(inbound.attachments?.[0].mimeType).toBe('image/png')
   })
 
@@ -208,5 +210,4 @@ describe('DiscordChannel', () => {
     expect(inbound.attachments?.[1].type).toBe('video')
     expect(inbound.attachments?.[1].filename).toBe('video.mp4')
   })
-
 })

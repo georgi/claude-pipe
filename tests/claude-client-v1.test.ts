@@ -41,26 +41,28 @@ describe('ClaudeClient (Agent SDK)', () => {
       clear: vi.fn(async () => undefined)
     }
 
-    queryMock.mockReturnValue(makeQueryGen([
-      {
-        type: 'assistant',
-        session_id: 'sess-new',
-        message: { content: [{ type: 'text', text: 'hello from assistant' }] }
-      },
-      {
-        type: 'result',
-        subtype: 'success',
-        is_error: false,
-        result: 'hello from assistant',
-        session_id: 'sess-new'
-      }
-    ]))
-
-    const client = new ClaudeClient(
-      makeConfig(),
-      store as never,
-      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'assistant',
+          session_id: 'sess-new',
+          message: { content: [{ type: 'text', text: 'hello from assistant' }] }
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'hello from assistant',
+          session_id: 'sess-new'
+        }
+      ])
     )
+
+    const client = new ClaudeClient(makeConfig(), store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
 
     const result = await client.runTurn('telegram:1', 'hello', {
       workspace: '/tmp/workspace',
@@ -73,7 +75,9 @@ describe('ClaudeClient (Agent SDK)', () => {
 
     // query called with correct options
     expect(queryMock).toHaveBeenCalledTimes(1)
-    const [callArgs] = queryMock.mock.calls[0] as [{ prompt: string; options: Record<string, unknown> }]
+    const [callArgs] = queryMock.mock.calls[0] as [
+      { prompt: string; options: Record<string, unknown> }
+    ]
     expect(callArgs.prompt).toBe('hello')
     expect(callArgs.options.model).toBe('claude-sonnet-4-5')
     expect(callArgs.options.cwd).toBe('/tmp/workspace')
@@ -89,26 +93,28 @@ describe('ClaudeClient (Agent SDK)', () => {
       clear: vi.fn(async () => undefined)
     }
 
-    queryMock.mockReturnValue(makeQueryGen([
-      {
-        type: 'assistant',
-        session_id: 'sess-existing',
-        message: { content: [{ type: 'text', text: 'resumed' }] }
-      },
-      {
-        type: 'result',
-        subtype: 'success',
-        is_error: false,
-        result: 'resumed',
-        session_id: 'sess-existing'
-      }
-    ]))
-
-    const client = new ClaudeClient(
-      makeConfig(),
-      store as never,
-      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'assistant',
+          session_id: 'sess-existing',
+          message: { content: [{ type: 'text', text: 'resumed' }] }
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'resumed',
+          session_id: 'sess-existing'
+        }
+      ])
     )
+
+    const client = new ClaudeClient(makeConfig(), store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
 
     await client.runTurn('discord:abc', 'continue', {
       workspace: '/tmp/workspace',
@@ -129,42 +135,46 @@ describe('ClaudeClient (Agent SDK)', () => {
       clear: vi.fn(async () => undefined)
     }
 
-    queryMock.mockReturnValue(makeQueryGen([
-      {
-        type: 'assistant',
-        session_id: 'sess-1',
-        message: {
-          content: [{ type: 'tool_use', id: 'tool-1', name: 'WebSearch', input: { query: 'cats' } }]
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'assistant',
+          session_id: 'sess-1',
+          message: {
+            content: [
+              { type: 'tool_use', id: 'tool-1', name: 'WebSearch', input: { query: 'cats' } }
+            ]
+          }
+        },
+        {
+          type: 'user',
+          session_id: 'sess-1',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'done' }]
+          }
+        },
+        {
+          type: 'assistant',
+          session_id: 'sess-1',
+          message: { content: [{ type: 'text', text: 'final answer' }] }
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'final answer',
+          session_id: 'sess-1'
         }
-      },
-      {
-        type: 'user',
-        session_id: 'sess-1',
-        message: {
-          role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'done' }]
-        }
-      },
-      {
-        type: 'assistant',
-        session_id: 'sess-1',
-        message: { content: [{ type: 'text', text: 'final answer' }] }
-      },
-      {
-        type: 'result',
-        subtype: 'success',
-        is_error: false,
-        result: 'final answer',
-        session_id: 'sess-1'
-      }
-    ]))
+      ])
+    )
 
     const onUpdate = vi.fn(async () => undefined)
-    const client = new ClaudeClient(
-      makeConfig(),
-      store as never,
-      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
-    )
+    const client = new ClaudeClient(makeConfig(), store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
 
     const text = await client.runTurn('telegram:1', 'web search this', {
       workspace: '/tmp/workspace',
@@ -178,10 +188,18 @@ describe('ClaudeClient (Agent SDK)', () => {
       expect.objectContaining({ kind: 'turn_started', conversationKey: 'telegram:1' })
     )
     expect(onUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'tool_call_started', toolName: 'WebSearch', toolUseId: 'tool-1' })
+      expect.objectContaining({
+        kind: 'tool_call_started',
+        toolName: 'WebSearch',
+        toolUseId: 'tool-1'
+      })
     )
     expect(onUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'tool_call_finished', toolName: 'WebSearch', toolUseId: 'tool-1' })
+      expect.objectContaining({
+        kind: 'tool_call_finished',
+        toolName: 'WebSearch',
+        toolUseId: 'tool-1'
+      })
     )
   })
 
@@ -194,20 +212,22 @@ describe('ClaudeClient (Agent SDK)', () => {
       clear: vi.fn(async () => undefined)
     }
 
-    queryMock.mockReturnValue(makeQueryGen([
-      {
-        type: 'result',
-        subtype: 'error_during_execution',
-        is_error: true,
-        session_id: 'sess-err'
-      }
-    ]))
-
-    const client = new ClaudeClient(
-      makeConfig(),
-      store as never,
-      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          session_id: 'sess-err'
+        }
+      ])
     )
+
+    const client = new ClaudeClient(makeConfig(), store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
 
     const result = await client.runTurn('telegram:1', 'do something', {
       workspace: '/tmp/workspace',

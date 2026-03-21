@@ -14,7 +14,13 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { FileAttachment, InboundMessage, Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type {
+  FileAttachment,
+  InboundMessage,
+  Logger,
+  OutboundMessage,
+  SentMessage
+} from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
 
 const DISCORD_MESSAGE_MAX = 1800
@@ -204,7 +210,13 @@ export class DiscordChannel implements Channel {
     if (!this.client || !this.config.channels.discord.enabled) return
 
     const channel = await this.client.channels.fetch(chatId)
-    if (!channel || !channel.isTextBased() || !('send' in channel) || typeof channel.send !== 'function') return
+    if (
+      !channel ||
+      !channel.isTextBased() ||
+      !('send' in channel) ||
+      typeof channel.send !== 'function'
+    )
+      return
 
     try {
       const sent = await channel.send({

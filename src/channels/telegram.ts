@@ -8,13 +8,16 @@ import type { ClaudePipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
-import type { FileAttachment, InboundMessage, InlineKeyboard, Logger, OutboundMessage, SentMessage } from '../core/types.js'
+import type {
+  FileAttachment,
+  InboundMessage,
+  InlineKeyboard,
+  Logger,
+  OutboundMessage,
+  SentMessage
+} from '../core/types.js'
 import { isSenderAllowed, type Channel } from './base.js'
-import {
-  transcribeAudio,
-  downloadToTemp,
-  WHISPER_INSTALL_INSTRUCTIONS
-} from '../audio/whisper.js'
+import { transcribeAudio, downloadToTemp, WHISPER_INSTALL_INSTRUCTIONS } from '../audio/whisper.js'
 
 type TelegramVoice = {
   file_id: string
@@ -60,7 +63,6 @@ type TelegramVideo = {
   file_size?: number
 }
 
-
 type TelegramUpdate = {
   update_id: number
   message?: {
@@ -92,7 +94,15 @@ const SEND_RETRY_BACKOFF_MS = 50
 const PID_FILE = join(tmpdir(), 'claude-pipe-telegram.pid')
 
 /** Telegram Bot API chat actions for typing indicators. */
-type ChatAction = 'typing' | 'upload_photo' | 'upload_video' | 'upload_audio' | 'upload_document' | 'find_location' | 'record_video' | 'record_voice'
+type ChatAction =
+  | 'typing'
+  | 'upload_photo'
+  | 'upload_video'
+  | 'upload_audio'
+  | 'upload_document'
+  | 'find_location'
+  | 'record_video'
+  | 'record_voice'
 
 /**
  * Telegram adapter using Bot API long polling.
@@ -124,7 +134,11 @@ export class TelegramChannel implements Channel {
     } catch {
       // Process already dead or no permission — ignore
     } finally {
-      try { unlinkSync(PID_FILE) } catch { /* ignore */ }
+      try {
+        unlinkSync(PID_FILE)
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -148,7 +162,11 @@ export class TelegramChannel implements Channel {
   async stop(): Promise<void> {
     this.running = false
     await this.pollTask
-    try { unlinkSync(PID_FILE) } catch { /* ignore */ }
+    try {
+      unlinkSync(PID_FILE)
+    } catch {
+      /* ignore */
+    }
     this.logger.info('channel.telegram.stop')
   }
 
@@ -564,7 +582,9 @@ export class TelegramChannel implements Channel {
           type: 'document',
           url: fileUrl,
           filename: message.document.file_name || filePath.split('/').pop() || 'document',
-          ...(message.document.mime_type !== undefined ? { mimeType: message.document.mime_type } : {}),
+          ...(message.document.mime_type !== undefined
+            ? { mimeType: message.document.mime_type }
+            : {}),
           ...(message.document.file_size !== undefined ? { size: message.document.file_size } : {})
         })
         this.logger.info('channel.telegram.document_attached', {
@@ -674,7 +694,11 @@ export class TelegramChannel implements Channel {
     } finally {
       // Clean up downloaded audio file
       if (audioPath) {
-        try { await unlink(audioPath) } catch { /* ignore cleanup errors */ }
+        try {
+          await unlink(audioPath)
+        } catch {
+          /* ignore cleanup errors */
+        }
       }
     }
   }
@@ -689,9 +713,7 @@ export class TelegramChannel implements Channel {
     const caption = message.caption?.trim() || ''
 
     // For photos, pick the largest resolution (last in array)
-    const photo = message.photo?.length
-      ? message.photo[message.photo.length - 1]
-      : null
+    const photo = message.photo?.length ? message.photo[message.photo.length - 1] : null
     const doc = message.document
 
     const fileId = photo?.file_id ?? doc?.file_id
@@ -724,18 +746,14 @@ export class TelegramChannel implements Channel {
 
       if (isImage) {
         // Tell Claude to read the image — its Read tool handles images natively
-        const parts = [
-          `[The user sent an image. View it by reading this file: ${localPath}]`
-        ]
+        const parts = [`[The user sent an image. View it by reading this file: ${localPath}]`]
         if (caption) parts.push(caption)
         return parts.join('\n\n')
       }
 
       // For non-image documents
       const fileName = doc?.file_name ?? basename(localPath)
-      const parts = [
-        `[The user sent a file: ${fileName} — saved at: ${localPath}]`
-      ]
+      const parts = [`[The user sent a file: ${fileName} — saved at: ${localPath}]`]
       if (caption) parts.push(caption)
       return parts.join('\n\n')
     } catch (error) {
@@ -749,7 +767,9 @@ export class TelegramChannel implements Channel {
   }
 
   /** Handles an inline keyboard button press (callback query). */
-  private async handleCallbackQuery(query: NonNullable<TelegramUpdate['callback_query']>): Promise<void> {
+  private async handleCallbackQuery(
+    query: NonNullable<TelegramUpdate['callback_query']>
+  ): Promise<void> {
     const senderId = String(query.from.id)
     if (!isSenderAllowed(senderId, this.config.channels.telegram.allowFrom)) {
       this.logger.warn('channel.telegram.callback_denied', { senderId })
