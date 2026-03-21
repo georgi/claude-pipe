@@ -249,12 +249,46 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    // Process attachments from Discord message
+    const attachments: InboundMessage['attachments'] = []
+    if (message.attachments && message.attachments.size > 0) {
+      for (const [, attachment] of message.attachments) {
+        let attachmentType: 'image' | 'video' | 'audio' | 'document' | 'file' = 'file'
+        if (attachment.contentType) {
+          if (attachment.contentType.startsWith('image/')) {
+            attachmentType = 'image'
+          } else if (attachment.contentType.startsWith('video/')) {
+            attachmentType = 'video'
+          } else if (attachment.contentType.startsWith('audio/')) {
+            attachmentType = 'audio'
+          } else {
+            attachmentType = 'document'
+          }
+        }
+
+        attachments.push({
+          type: attachmentType,
+          url: attachment.url,
+          filename: attachment.name ?? 'attachment',
+          ...(attachment.contentType !== null ? { mimeType: attachment.contentType } : {}),
+          size: attachment.size
+        })
+
+        this.logger.info('channel.discord.attachment', {
+          type: attachmentType,
+          filename: attachment.name,
+          size: attachment.size
+        })
+      }
+    }
+
     const inbound: InboundMessage = {
       channel: 'discord',
       senderId,
       chatId: message.channelId,
       content: message.content?.trim() || '[empty message]',
       timestamp: new Date().toISOString(),
+      ...(attachments.length > 0 ? { attachments } : {}),
       metadata: {
         messageId: message.id,
         guildId: message.guildId ?? undefined

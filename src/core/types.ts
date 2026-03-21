@@ -1,6 +1,18 @@
 export type ChannelName = 'telegram' | 'discord' | 'cli'
 
 /**
+ * Media attachment metadata.
+ */
+export interface Attachment {
+  type: 'image' | 'video' | 'audio' | 'document' | 'file'
+  url?: string
+  path?: string
+  mimeType?: string
+  size?: number
+  filename?: string
+}
+
+/**
  * Normalized inbound message emitted by a channel adapter.
  */
 export interface InboundMessage {
@@ -9,6 +21,7 @@ export interface InboundMessage {
   chatId: string
   content: string
   timestamp: string
+  attachments?: Attachment[]
   metadata?: Record<string, unknown>
 }
 
@@ -44,7 +57,6 @@ export interface OutboundMessage {
   channel: ChannelName
   chatId: string
   content: string
-  replyTo?: string
   metadata?: Record<string, unknown>
   attachments?: FileAttachment[]
   /** Optional inline keyboard to display below the message. */
