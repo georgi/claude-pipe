@@ -23,6 +23,13 @@ import {
 } from './definitions/utility.js'
 import { claudeAskCommand, claudeModelCommand } from './definitions/claude.js'
 import { configSetCommand, configGetCommand } from './definitions/config.js'
+import {
+  pluginsCommand,
+  pluginSearchCommand,
+  pluginInstallCommand,
+  pluginRemoveCommand,
+  pluginInfoCommand
+} from './definitions/plugin.js'
 import { CommandHandler } from './handler.js'
 import { CommandRegistry } from './registry.js'
 import type { CommandDefinition } from './types.js'
@@ -121,6 +128,13 @@ export function setupCommands(
   registry.register(stopCommand((key) => claude.cancelTurn(key)))
   registry.register(restartCommand())
   registry.register(hotReloadCommand(projectRoot))
+
+  // --- Plugin commands ---
+  registry.register(pluginsCommand())
+  registry.register(pluginSearchCommand())
+  registry.register(pluginInstallCommand())
+  registry.register(pluginRemoveCommand())
+  registry.register(pluginInfoCommand())
 
   // --- Custom commands ---
   for (const cmd of options.customCommands ?? []) {

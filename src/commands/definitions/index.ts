@@ -14,3 +14,10 @@ export {
 } from './utility.js'
 export { claudeAskCommand, claudeModelCommand } from './claude.js'
 export { configSetCommand, configGetCommand } from './config.js'
+export {
+  pluginsCommand,
+  pluginSearchCommand,
+  pluginInstallCommand,
+  pluginRemoveCommand,
+  pluginInfoCommand
+} from './plugin.js'

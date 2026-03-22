@@ -4,7 +4,7 @@ import type { ChannelName } from '../core/types.js'
 export type PermissionLevel = 'user' | 'admin'
 
 /** Supported command category groupings. */
-export type CommandCategory = 'session' | 'claude' | 'config' | 'utility'
+export type CommandCategory = 'session' | 'claude' | 'config' | 'utility' | 'plugin'
 
 /**
  * Context available to every command handler at execution time.
