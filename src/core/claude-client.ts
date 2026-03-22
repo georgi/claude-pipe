@@ -39,7 +39,15 @@ const BASE_SYSTEM_PROMPT = [
   '',
   'When a user presses a button, you receive: [Button pressed]: callback_data',
   'Use keyboards for quick choices, confirmations, or navigation. Keep callback_data short (<64 chars).',
-  'Only one keyboard marker per response. The keyboard attaches to the last text chunk.'
+  'Only one keyboard marker per response. The keyboard attaches to the last text chunk.',
+  '',
+  '## Memory',
+  'You have a persistent memory system. Memories from past conversations may be included in your context.',
+  'To save something to memory for future conversations, include a marker in your response:',
+  '[[memory:key_name|content to remember]]',
+  '',
+  'Use descriptive keys like "user_preference_language" or "project_nodetool_status".',
+  'Only save information that would be useful in future conversations.',
 ].join('\n')
 
 /** Builds the full system prompt: base instructions + optional personality. */

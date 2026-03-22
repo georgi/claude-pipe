@@ -10,6 +10,8 @@ import { createModelClient } from './core/client-factory.js'
 import { createHeartbeat } from './core/heartbeat.js'
 import { logger, setLoggerMuted } from './core/logger.js'
 import { SessionStore } from './core/session-store.js'
+import { DailyLog } from './memory/daily-log.js'
+import { MemoryStore } from './memory/store.js'
 import { runOnboarding } from './onboarding/wizard.js'
 
 /** Check if --reconfigure flag was passed */
@@ -71,6 +73,11 @@ async function main(): Promise<void> {
   const sessionStore = new SessionStore(config.sessionStorePath)
   await sessionStore.init()
 
+  const dataDir = `${config.workspace}/data`
+  const memoryStore = new MemoryStore(`${dataDir}/memory.db`)
+  memoryStore.init()
+  const dailyLog = new DailyLog(`${dataDir}/daily-logs`)
+
   logger.info('startup.config', {
     workspace: config.workspace,
     model: config.model
@@ -84,12 +91,14 @@ async function main(): Promise<void> {
   const { handler } = setupCommands({ config, claude: modelClient, sessionStore })
   agent.setCommandHandler(handler)
   agent.setChannelManager(channels)
+  agent.setMemory(memoryStore, dailyLog)
 
   let shuttingDown = false
   const shutdown = (signal: string): void => {
     if (shuttingDown) return
     shuttingDown = true
     logger.info('shutdown.signal', { signal })
+    memoryStore.close()
     heartbeat.stop()
     agent.stop()
     // Force exit after 2 s in case channel pollers are slow to stop
