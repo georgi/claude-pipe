@@ -77,6 +77,17 @@ export const configSchema = z.object({
     .default({
       enabled: true,
       intervalMinutes: 30
+    }),
+  memory: z
+    .object({
+      enabled: z.boolean().default(true),
+      dbPath: z.string().default('data/memory.sqlite'),
+      dailyLogPath: z.string().default('data/logs')
+    })
+    .default({
+      enabled: true,
+      dbPath: 'data/memory.sqlite',
+      dailyLogPath: 'data/logs'
     })
 })
 
