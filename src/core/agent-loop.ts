@@ -1,6 +1,8 @@
 import type { CommandHandler } from '../commands/handler.js'
 import type { ChannelManager } from '../channels/manager.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
+import type { DailyLog } from '../memory/daily-log.js'
+import type { MemoryStore } from '../memory/store.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import type { ModelClient } from './model-client.js'
@@ -31,6 +33,8 @@ export class AgentLoop {
   private readonly lastProgressByConversation = new Map<string, { key: string; at: number }>()
   private commandHandler: CommandHandler | null = null
   private channelManager: ChannelManager | null = null
+  private memoryStore: MemoryStore | null = null
+  private dailyLog: DailyLog | null = null
 
   constructor(
     private readonly bus: MessageBus,
@@ -47,6 +51,12 @@ export class AgentLoop {
   /** Attaches a channel manager for direct message editing during tool calls. */
   setChannelManager(manager: ChannelManager): void {
     this.channelManager = manager
+  }
+
+  /** Attaches the persistent memory system. */
+  setMemory(store: MemoryStore, dailyLog: DailyLog): void {
+    this.memoryStore = store
+    this.dailyLog = dailyLog
   }
 
   /** Starts the infinite processing loop. */
@@ -101,11 +111,7 @@ export class AgentLoop {
       }
     }
 
-    const modelInput = applySummaryTemplate(
-      inbound.content,
-      this.config.summaryPrompt,
-      this.config.workspace
-    )
+    const modelInput = await this.buildModelInput(inbound)
 
     let statusMessage: SentMessage | null = null
     let streamMessage: SentMessage | null = null
@@ -238,6 +244,22 @@ export class AgentLoop {
       }
     )
 
+    // Extract memory save markers: [[memory:key_name|content to remember]]
+    processed = processed.replace(
+      /\[\[memory:([^|]+)\|([^\]]+)\]\]/g,
+      (_match, key: string, value: string) => {
+        if (this.memoryStore) {
+          try {
+            this.memoryStore.save(key.trim(), value.trim())
+            this.logger.info('memory.saved', { key: key.trim() })
+          } catch (err: unknown) {
+            this.logger.warn('memory.save_failed', { key: key.trim(), error: String(err) })
+          }
+        }
+        return ''
+      }
+    )
+
     const content = processed.trim()
 
     if (attachments.length > 0) {
@@ -275,6 +297,67 @@ export class AgentLoop {
       await this.bus.publishOutbound(outbound)
     }
 
+    // Log assistant response to daily log
+    if (this.dailyLog) {
+      void this.dailyLog.append(conversationKey, 'assistant', content).catch(() => {})
+    }
+
     this.logger.info('agent.outbound', { conversationKey })
+  }
+
+  /**
+   * Builds the model input by combining memory context with the user message.
+   *
+   * When memory is available, prepends relevant memories and recent conversation
+   * log entries before the actual user request.
+   */
+  private async buildModelInput(inbound: InboundMessage): Promise<string> {
+    const conversationKey = `${inbound.channel}:${inbound.chatId}`
+    const baseInput = applySummaryTemplate(
+      inbound.content,
+      this.config.summaryPrompt,
+      this.config.workspace
+    )
+
+    // Log inbound message to daily log
+    if (this.dailyLog) {
+      void this.dailyLog.append(conversationKey, 'user', inbound.content).catch(() => {})
+    }
+
+    if (!this.memoryStore && !this.dailyLog) return baseInput
+
+    const sections: string[] = []
+
+    // Search memory for relevant context
+    if (this.memoryStore) {
+      try {
+        const memories = this.memoryStore.search(inbound.content, 5)
+        if (memories.length > 0) {
+          const lines = memories.map(
+            (m) => `- [${m.key}]: ${m.content.slice(0, 200)}`
+          )
+          sections.push(`# Relevant memories\n${lines.join('\n')}`)
+        }
+      } catch {
+        // Non-critical — proceed without memory context
+      }
+    }
+
+    // Include recent conversation log entries
+    if (this.dailyLog) {
+      try {
+        const todayLog = await this.dailyLog.getToday()
+        if (todayLog) {
+          sections.push(`# Today's conversation log\n${todayLog.slice(-2000)}`)
+        }
+      } catch {
+        // Non-critical — proceed without log context
+      }
+    }
+
+    if (sections.length === 0) return baseInput
+
+    sections.push(`# Current request\n${baseInput}`)
+    return sections.join('\n\n')
   }
 }
