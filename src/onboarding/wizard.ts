@@ -44,7 +44,8 @@ async function chooseChannel(
   rl: readline.Interface,
   current?: 'telegram' | 'discord' | 'cli'
 ): Promise<'telegram' | 'discord' | 'cli'> {
-  const currentLabel = current === 'telegram' ? '1' : current === 'discord' ? '2' : current === 'cli' ? '3' : ''
+  const currentLabel =
+    current === 'telegram' ? '1' : current === 'discord' ? '2' : current === 'cli' ? '3' : ''
   console.log(
     'Which messaging platform do you want to use?\n  1) Telegram\n  2) Discord\n  3) CLI (local terminal)\n'
   )
@@ -169,8 +170,7 @@ async function choosePersonality(
   current?: PersonalitySettings
 ): Promise<PersonalitySettings> {
   console.log(
-    '\nGive your assistant a personality!\n' +
-      '  Pick a name and describe how it should behave.\n'
+    '\nGive your assistant a personality!\n' + '  Pick a name and describe how it should behave.\n'
   )
 
   const defaultName = current?.name || 'Piper'
@@ -182,8 +182,7 @@ async function choosePersonality(
       '  "formal and professional", "casual and witty"\n'
   )
   const defaultTraits = current?.traits || 'friendly, direct, and concise'
-  const traits =
-    (await ask(rl, `Personality [${defaultTraits}]: `)) || defaultTraits
+  const traits = (await ask(rl, `Personality [${defaultTraits}]: `)) || defaultTraits
 
   console.log(`\n✔  Your assistant is called ${name} — ${traits}.\n`)
   return { name, traits }

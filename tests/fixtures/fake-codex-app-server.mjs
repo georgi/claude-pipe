@@ -52,7 +52,11 @@ for await (const line of rl) {
 
   if (msg.method === 'turn/start') {
     turnId = 'turn-fake-2'
-    send({ jsonrpc: '2.0', id: msg.id, result: { turn: { id: turnId, status: 'in_progress', error: null } } })
+    send({
+      jsonrpc: '2.0',
+      id: msg.id,
+      result: { turn: { id: turnId, status: 'in_progress', error: null } }
+    })
     send({
       jsonrpc: '2.0',
       method: 'turn/started',

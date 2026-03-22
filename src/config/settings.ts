@@ -51,5 +51,9 @@ export function readSettings(): Settings {
 export function writeSettings(settings: Settings): void {
   const dir = defaultConfigDir()
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+  fs.writeFileSync(
+    path.join(dir, 'settings.json'),
+    JSON.stringify(settings, null, 2) + '\n',
+    'utf-8'
+  )
 }

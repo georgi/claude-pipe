@@ -27,9 +27,7 @@ export function discoverSkills(): SkillInfo[] {
     // Resolve symlinks
     let realPath: string
     try {
-      realPath = lstatSync(entryPath).isSymbolicLink()
-        ? resolve(entryPath)
-        : entryPath
+      realPath = lstatSync(entryPath).isSymbolicLink() ? resolve(entryPath) : entryPath
     } catch {
       continue
     }
@@ -77,8 +75,10 @@ function parseFrontmatter(content: string): Record<string, string> | null {
     const key = line.slice(0, colonIdx).trim()
     let value = line.slice(colonIdx + 1).trim()
     // Strip surrounding quotes
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1)
     }
     fields[key] = value

@@ -108,18 +108,18 @@ async function main(): Promise<void> {
     if (skills.length > 0) {
       const { registry } = setupCommands({ config, claude: modelClient, sessionStore })
       const builtinMeta = registry.toMeta()
-      const skillCommands = skills.map(s => ({
+      const skillCommands = skills.map((s) => ({
         command: s.name.replace(/-/g, '_'),
         description: s.description
       }))
-      const builtinCommands = builtinMeta.map(m => ({
+      const builtinCommands = builtinMeta.map((m) => ({
         command: m.telegramName,
         description: m.description
       }))
       const allCommands = [...builtinCommands, ...skillCommands].slice(0, 100) // Telegram limit
       await TelegramChannel.registerBotCommands(
         config.channels.telegram.token,
-        allCommands.map(c => ({
+        allCommands.map((c) => ({
           name: c.command,
           description: c.description,
           category: 'utility' as const,
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
       )
       logger.info('startup.skills_registered', {
         count: skillCommands.length,
-        names: skills.map(s => s.name)
+        names: skills.map((s) => s.name)
       })
     }
   }

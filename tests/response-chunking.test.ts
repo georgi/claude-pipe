@@ -33,7 +33,11 @@ describe('response chunking', () => {
     const bus = new MessageBus()
     const channel = new TelegramChannel(makeConfig(), bus, logger)
 
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, text: async () => '' })) as unknown as typeof fetch
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => ''
+    })) as unknown as typeof fetch
     global.fetch = fetchMock
 
     const longContent = 'a'.repeat(5000)

@@ -77,7 +77,11 @@ export class ChannelManager {
   }
 
   /** Sends a file through the appropriate channel adapter. */
-  async sendFile(channelName: string, chatId: string, attachment: FileAttachment): Promise<SentMessage | void> {
+  async sendFile(
+    channelName: string,
+    chatId: string,
+    attachment: FileAttachment
+  ): Promise<SentMessage | void> {
     const channel = this.channels.find((ch) => ch.name === channelName)
     if (!channel) {
       this.logger.warn('channel.unknown', { channel: channelName })
