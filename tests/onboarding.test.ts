@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 describe('onboarding wizard', () => {
   const tmpDir = path.join(import.meta.dirname ?? __dirname, '..', '.test-onboarding-ws')

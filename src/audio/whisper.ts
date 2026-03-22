@@ -110,10 +110,14 @@ export async function isFfmpegAvailable(): Promise<boolean> {
 export async function convertToWav(inputPath: string): Promise<string> {
   const wavPath = inputPath.replace(/\.[^.]+$/, '.wav')
   await execFileAsync('ffmpeg', [
-    '-i', inputPath,
-    '-ar', '16000',
-    '-ac', '1',
-    '-c:a', 'pcm_s16le',
+    '-i',
+    inputPath,
+    '-ar',
+    '16000',
+    '-ac',
+    '1',
+    '-c:a',
+    'pcm_s16le',
     '-y',
     wavPath
   ])
@@ -137,7 +141,7 @@ export async function transcribeAudio(audioFilePath: string): Promise<Transcribe
 
       const transcript = await openai.audio.transcriptions.create({
         file: new File([blob], 'audio.wav', { type: 'audio/wav' }),
-        model: 'whisper-1',
+        model: 'whisper-1'
       })
 
       const text = transcript.text.trim()
@@ -174,11 +178,11 @@ export async function transcribeAudio(audioFilePath: string): Promise<Transcribe
 
     const WHISPER_TIMEOUT_MS = 120_000
 
-    const { stdout } = await execFileAsync(binary, [
-      '-m', model,
-      '-f', wavPath,
-      '--no-timestamps'
-    ], { timeout: WHISPER_TIMEOUT_MS })
+    const { stdout } = await execFileAsync(
+      binary,
+      ['-m', model, '-f', wavPath, '--no-timestamps'],
+      { timeout: WHISPER_TIMEOUT_MS }
+    )
 
     const text = stdout.trim()
     if (!text) {
@@ -192,7 +196,11 @@ export async function transcribeAudio(audioFilePath: string): Promise<Transcribe
   } finally {
     // Clean up temporary WAV file
     if (wavPath) {
-      try { await unlink(wavPath) } catch { /* ignore */ }
+      try {
+        await unlink(wavPath)
+      } catch {
+        /* ignore */
+      }
     }
   }
 }

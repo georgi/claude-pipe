@@ -37,7 +37,11 @@ describe('channel retry behavior', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'error' })
-      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => '' }) as unknown as typeof fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => ''
+      }) as unknown as typeof fetch
     global.fetch = fetchMock
 
     await channel.send({ channel: 'telegram', chatId: '123', content: 'hello' })

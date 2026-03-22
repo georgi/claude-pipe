@@ -6,7 +6,11 @@ export function setLoggerMuted(value: boolean): void {
   muted = value
 }
 
-function emit(level: 'INFO' | 'WARN' | 'ERROR', event: string, data?: Record<string, unknown>): void {
+function emit(
+  level: 'INFO' | 'WARN' | 'ERROR',
+  event: string,
+  data?: Record<string, unknown>
+): void {
   if (muted) return
   const payload = {
     ts: new Date().toISOString(),
@@ -14,7 +18,6 @@ function emit(level: 'INFO' | 'WARN' | 'ERROR', event: string, data?: Record<str
     event,
     ...(data ?? {})
   }
-  // eslint-disable-next-line no-console
   console.log(JSON.stringify(payload))
 }
 

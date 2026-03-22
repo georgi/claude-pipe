@@ -6,7 +6,14 @@ import type { MemoryStore } from '../memory/store.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import type { ModelClient } from './model-client.js'
-import type { AgentTurnUpdate, FileAttachment, InlineKeyboard, InboundMessage, Logger, SentMessage } from './types.js'
+import type {
+  AgentTurnUpdate,
+  FileAttachment,
+  InlineKeyboard,
+  InboundMessage,
+  Logger,
+  SentMessage
+} from './types.js'
 
 /**
  * Converts a raw tool name into a human-readable label safe for Telegram Markdown.
@@ -220,7 +227,10 @@ export class AgentLoop {
       /\[\[file:([^|\]]+?)(?:\|([^\]]*))?\]\]/g,
       (_match, filePath: string, caption?: string) => {
         const trimmedCaption = caption?.trim()
-        attachments.push({ filePath: filePath.trim(), ...(trimmedCaption ? { caption: trimmedCaption } : {}) })
+        attachments.push({
+          filePath: filePath.trim(),
+          ...(trimmedCaption ? { caption: trimmedCaption } : {})
+        })
         return ''
       }
     )
@@ -228,21 +238,18 @@ export class AgentLoop {
     // Extract inline keyboard markers: [[keyboard:Label1=data1,Label2=data2|Label3=data3,Label4=data4]]
     // Pipe separates rows, comma separates buttons within a row
     let keyboard: InlineKeyboard | undefined
-    processed = processed.replace(
-      /\[\[keyboard:([^\]]+)\]\]/g,
-      (_match, spec: string) => {
-        const rows = spec.split('|').map((row: string) =>
-          row.split(',').map((btn: string) => {
-            const parts = btn.split('=')
-            const text = parts[0] ?? ''
-            const callbackData = parts.length > 1 ? parts.slice(1).join('=') : text.trim()
-            return { text: text.trim(), callbackData: callbackData.trim() }
-          })
-        )
-        keyboard = rows
-        return ''
-      }
-    )
+    processed = processed.replace(/\[\[keyboard:([^\]]+)\]\]/g, (_match, spec: string) => {
+      const rows = spec.split('|').map((row: string) =>
+        row.split(',').map((btn: string) => {
+          const parts = btn.split('=')
+          const text = parts[0] ?? ''
+          const callbackData = parts.length > 1 ? parts.slice(1).join('=') : text.trim()
+          return { text: text.trim(), callbackData: callbackData.trim() }
+        })
+      )
+      keyboard = rows
+      return ''
+    })
 
     // Extract memory save markers: [[memory:key_name|content to remember]]
     processed = processed.replace(

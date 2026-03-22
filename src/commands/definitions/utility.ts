@@ -138,9 +138,7 @@ export function pingCommand(): CommandDefinition {
  * /stop
  * Cancels the in-progress Claude turn for the current conversation.
  */
-export function stopCommand(
-  cancelTurn: (conversationKey: string) => void
-): CommandDefinition {
+export function stopCommand(cancelTurn: (conversationKey: string) => void): CommandDefinition {
   return {
     name: 'stop',
     category: 'utility',
@@ -185,8 +183,7 @@ export function hotReloadCommand(projectRoot: string): CommandDefinition {
     aliases: ['hr'],
     permission: 'admin',
     async execute(): Promise<CommandResult> {
-      const isDevMode =
-        process.argv[1]?.endsWith('.ts') || process.argv[1]?.includes('/tsx')
+      const isDevMode = process.argv[1]?.endsWith('.ts') || process.argv[1]?.includes('/tsx')
 
       setImmediate(async () => {
         // In production mode, rebuild TypeScript before spawning

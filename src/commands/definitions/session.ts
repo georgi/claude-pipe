@@ -39,9 +39,7 @@ export function sessionListCommand(
       if (sessions.length === 0) {
         return { content: 'No active sessions.' }
       }
-      const lines = sessions.map(
-        (s, i) => `${i + 1}. \`${s.key}\` — last active ${s.updatedAt}`
-      )
+      const lines = sessions.map((s, i) => `${i + 1}. \`${s.key}\` — last active ${s.updatedAt}`)
       return { content: `**Active sessions (${sessions.length}):**\n${lines.join('\n')}` }
     }
   }

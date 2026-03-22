@@ -135,7 +135,9 @@ export class Heartbeat {
     const parts: string[] = ['💓 Heartbeat']
 
     if (this.outboundMessagesCount > 0) {
-      parts.push(`- ${this.outboundMessagesCount} message${this.outboundMessagesCount > 1 ? 's' : ''} sent`)
+      parts.push(
+        `- ${this.outboundMessagesCount} message${this.outboundMessagesCount > 1 ? 's' : ''} sent`
+      )
     }
 
     if (this.lastActivityTimestamp) {

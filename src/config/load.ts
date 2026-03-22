@@ -13,7 +13,6 @@ function parseCsv(input: string | undefined): string[] {
     .filter(Boolean)
 }
 
-
 /**
  * Loads runtime configuration.
  *
@@ -79,31 +78,30 @@ export function loadConfig(): ClaudePipeConfig {
   return configSchema.parse({
     model: process.env.CLAUDEPIPE_MODEL ?? '',
     workspace: process.env.CLAUDEPIPE_WORKSPACE ?? process.cwd(),
-      channels: {
-        telegram: {
-          enabled: process.env.CLAUDEPIPE_TELEGRAM_ENABLED === 'true',
+    channels: {
+      telegram: {
+        enabled: process.env.CLAUDEPIPE_TELEGRAM_ENABLED === 'true',
         token: process.env.CLAUDEPIPE_TELEGRAM_TOKEN ?? '',
         allowFrom: parseCsv(process.env.CLAUDEPIPE_TELEGRAM_ALLOW_FROM)
       },
-        discord: {
-          enabled: process.env.CLAUDEPIPE_DISCORD_ENABLED === 'true',
-          token: process.env.CLAUDEPIPE_DISCORD_TOKEN ?? '',
-          allowFrom: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_FROM),
-          allowChannels: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS)
-        },
-        cli: {
-          enabled: process.env.CLAUDEPIPE_CLI_ENABLED === 'true',
-          allowFrom: parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
-        }
+      discord: {
+        enabled: process.env.CLAUDEPIPE_DISCORD_ENABLED === 'true',
+        token: process.env.CLAUDEPIPE_DISCORD_TOKEN ?? '',
+        allowFrom: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_FROM),
+        allowChannels: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS)
       },
+      cli: {
+        enabled: process.env.CLAUDEPIPE_CLI_ENABLED === 'true',
+        allowFrom: parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+      }
+    },
     summaryPrompt: {
       enabled: process.env.CLAUDEPIPE_SUMMARY_PROMPT_ENABLED !== 'false',
       template: process.env.CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate
     },
     transcriptLog: {
       enabled: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED === 'true',
-      path:
-        process.env.CLAUDEPIPE_TRANSCRIPT_LOG_PATH ?? `${process.cwd()}/data/transcript.jsonl`,
+      path: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_PATH ?? `${process.cwd()}/data/transcript.jsonl`,
       maxBytes: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES
         ? Number(process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES)
         : 1_000_000,

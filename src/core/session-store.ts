@@ -1,19 +1,27 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 import type { SessionMap, SessionRecord } from './types.js'
+
+const LOCK_RETRIES = 10
+const LOCK_RETRY_DELAY_MS = 50
+const LOCK_STALE_MS = 10_000
 
 /**
  * File-backed session ID map.
  *
  * Persists only conversation key -> Claude session ID metadata.
+ * Uses a directory-based lockfile to prevent concurrent write corruption
+ * across multiple processes.
  */
 export class SessionStore {
   private readonly path: string
+  private readonly lockPath: string
   private map: SessionMap = {}
 
   constructor(path: string) {
     this.path = path
+    this.lockPath = `${path}.lock`
   }
 
   /** Loads persisted map state and ensures data directory exists. */
@@ -54,8 +62,52 @@ export class SessionStore {
   }
 
   private async persist(): Promise<void> {
-    const tmp = `${this.path}.tmp`
-    await writeFile(tmp, JSON.stringify(this.map, null, 2), 'utf-8')
-    await rename(tmp, this.path)
+    await this.acquireLock()
+    try {
+      const tmp = `${this.path}.tmp`
+      await writeFile(tmp, JSON.stringify(this.map, null, 2), 'utf-8')
+      await rename(tmp, this.path)
+    } finally {
+      await this.releaseLock()
+    }
+  }
+
+  /**
+   * Acquires a directory-based lock. `mkdir` is atomic on all major platforms,
+   * so only one process will succeed in creating the lock directory.
+   * Retries with linear backoff and breaks stale locks older than LOCK_STALE_MS.
+   */
+  private async acquireLock(): Promise<void> {
+    for (let i = 0; i < LOCK_RETRIES; i++) {
+      try {
+        await mkdir(this.lockPath)
+        return
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
+        await this.breakStaleLock()
+        await new Promise((r) => setTimeout(r, LOCK_RETRY_DELAY_MS * (i + 1)))
+      }
+    }
+    throw new Error(`Failed to acquire lock after ${LOCK_RETRIES} retries: ${this.lockPath}`)
+  }
+
+  private async releaseLock(): Promise<void> {
+    try {
+      await rmdir(this.lockPath)
+    } catch {
+      /* lock already removed — safe to ignore */
+    }
+  }
+
+  /** Removes a stale lock directory if it is older than LOCK_STALE_MS. */
+  private async breakStaleLock(): Promise<void> {
+    try {
+      const info = await stat(this.lockPath)
+      if (Date.now() - info.mtimeMs > LOCK_STALE_MS) {
+        await rmdir(this.lockPath)
+      }
+    } catch {
+      /* lock disappeared between check and removal — fine */
+    }
   }
 }

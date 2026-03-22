@@ -12,7 +12,15 @@ import {
   sessionInfoCommand,
   sessionDeleteCommand
 } from './definitions/session.js'
-import { helpCommand, statusCommand, pingCommand, reloadCommand, stopCommand, restartCommand, hotReloadCommand } from './definitions/utility.js'
+import {
+  helpCommand,
+  statusCommand,
+  pingCommand,
+  reloadCommand,
+  stopCommand,
+  restartCommand,
+  hotReloadCommand
+} from './definitions/utility.js'
 import { claudeAskCommand, claudeModelCommand } from './definitions/claude.js'
 import { configSetCommand, configGetCommand } from './definitions/config.js'
 import { CommandHandler } from './handler.js'

@@ -6,7 +6,12 @@ import type { CommandDefinition, CommandResult } from '../types.js'
  * Sends a prompt directly to Claude (convenience wrapper).
  */
 export function claudeAskCommand(
-  runTurn: (conversationKey: string, prompt: string, channel: ChannelName, chatId: string) => Promise<string>
+  runTurn: (
+    conversationKey: string,
+    prompt: string,
+    channel: ChannelName,
+    chatId: string
+  ) => Promise<string>
 ): CommandDefinition {
   return {
     name: 'claude_ask',

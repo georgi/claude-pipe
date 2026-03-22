@@ -14,8 +14,8 @@ const BASE_SYSTEM_PROMPT = [
   '## Communication style',
   '- Be direct and concise — your human is reading on a phone, not a desktop.',
   '- Bias toward action. When you can just do something, do it and report back.',
-  '- Don\'t repeat the question back. Just answer it.',
-  '- Don\'t pad responses with filler or unnecessary disclaimers.',
+  "- Don't repeat the question back. Just answer it.",
+  "- Don't pad responses with filler or unnecessary disclaimers.",
   '- Use short paragraphs and line breaks. Avoid markdown tables — use plain text lists instead.',
   '- If a response would be long, summarize and offer to elaborate.',
   '',
@@ -58,7 +58,7 @@ function buildSystemPrompt(config: ClaudePipeConfig): string {
     `You are ${name}, a personal AI assistant that lives inside chat apps.`,
     `Your personality: ${traits}.`,
     '',
-    BASE_SYSTEM_PROMPT,
+    BASE_SYSTEM_PROMPT
   ].join('\n')
 }
 
@@ -123,11 +123,15 @@ export class ClaudeClient implements ModelClient {
             kind: 'text_streaming',
             conversationKey,
             message: 'Streaming response...',
-            text,
+            text
           })
         } else if (block.type === 'tool_use') {
           if (block.id) toolNamesByCallId.set(block.id, block.name)
-          this.logger.info('claude.tool_call_started', { conversationKey, toolName: block.name, toolUseId: block.id })
+          this.logger.info('claude.tool_call_started', {
+            conversationKey,
+            toolName: block.name,
+            toolUseId: block.id
+          })
           await this.publishUpdate(context, {
             kind: 'tool_call_started',
             conversationKey,
@@ -143,8 +147,17 @@ export class ClaudeClient implements ModelClient {
       const msgContent = message.message.content
       const blocks = Array.isArray(msgContent) ? msgContent : []
       for (const block of blocks) {
-        if (typeof block === 'object' && block !== null && 'type' in block && block.type === 'tool_result') {
-          const toolResult = block as { type: 'tool_result'; tool_use_id?: string; content?: unknown }
+        if (
+          typeof block === 'object' &&
+          block !== null &&
+          'type' in block &&
+          block.type === 'tool_result'
+        ) {
+          const toolResult = block as {
+            type: 'tool_result'
+            tool_use_id?: string
+            content?: unknown
+          }
           const toolUseId = toolResult.tool_use_id
           const toolName = toolUseId ? toolNamesByCallId.get(toolUseId) : undefined
           const summary = summarizeToolResult(toolResult.content)
@@ -193,14 +206,23 @@ export class ClaudeClient implements ModelClient {
         options: {
           ...(savedSession?.sessionId ? { resume: savedSession.sessionId } : {}),
           model: this.config.model,
-          systemPrompt: { type: 'preset', preset: 'claude_code', append: buildSystemPrompt(this.config) },
+          systemPrompt: {
+            type: 'preset',
+            preset: 'claude_code',
+            append: buildSystemPrompt(this.config)
+          },
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
           cwd: this.config.workspace,
-          abortController: abort,
+          abortController: abort
         }
       })) {
-        const { text } = await this.handleMessage(message, conversationKey, context, toolNamesByCallId)
+        const { text } = await this.handleMessage(
+          message,
+          conversationKey,
+          context,
+          toolNamesByCallId
+        )
         if (text) responseText = text
 
         if (message.type === 'result') {
@@ -208,15 +230,25 @@ export class ClaudeClient implements ModelClient {
 
           if (message.is_error) {
             this.logger.error('claude.turn_failed', { conversationKey, subtype: message.subtype })
-            await this.publishUpdate(context, { kind: 'turn_finished', conversationKey, message: 'Turn failed' })
+            await this.publishUpdate(context, {
+              kind: 'turn_finished',
+              conversationKey,
+              message: 'Turn failed'
+            })
             return 'Sorry, I hit an error while processing that request.'
           }
 
           this.logger.info('claude.turn_finished', { conversationKey })
-          await this.publishUpdate(context, { kind: 'turn_finished', conversationKey, message: 'Turn finished' })
+          await this.publishUpdate(context, {
+            kind: 'turn_finished',
+            conversationKey,
+            message: 'Turn finished'
+          })
 
           const finalText = 'result' in message ? message.result : ''
-          return responseText || finalText || 'I completed processing but have no response to return.'
+          return (
+            responseText || finalText || 'I completed processing but have no response to return.'
+          )
         }
       }
     } finally {

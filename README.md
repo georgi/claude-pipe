@@ -120,16 +120,16 @@ During a turn, tool call progress is shown as editable status messages (🔧 →
 
 ### Key Files
 
-| File | Role |
-|---|---|
-| `src/index.ts` | Boots the runtime — config, bus, agent, channels, heartbeat |
-| `src/core/agent-loop.ts` | Consumes inbound messages, runs LLM turns, publishes replies |
+| File                        | Role                                                                 |
+| --------------------------- | -------------------------------------------------------------------- |
+| `src/index.ts`              | Boots the runtime — config, bus, agent, channels, heartbeat          |
+| `src/core/agent-loop.ts`    | Consumes inbound messages, runs LLM turns, publishes replies         |
 | `src/core/claude-client.ts` | Wraps Agent SDK `query()`, handles streaming and session persistence |
-| `src/core/bus.ts` | Async message bus with inbound/outbound queues |
-| `src/channels/manager.ts` | Owns channel lifecycle and outbound dispatch |
-| `src/core/session-store.ts` | Persists conversation sessions to a JSON file |
-| `src/commands/handler.ts` | Slash command interception and execution |
-| `src/config/load.ts` | Loads and validates settings from `~/.claude-pipe/settings.json` |
+| `src/core/bus.ts`           | Async message bus with inbound/outbound queues                       |
+| `src/channels/manager.ts`   | Owns channel lifecycle and outbound dispatch                         |
+| `src/core/session-store.ts` | Persists conversation sessions to a JSON file                        |
+| `src/commands/handler.ts`   | Slash command interception and execution                             |
+| `src/config/load.ts`        | Loads and validates settings from `~/.claude-pipe/settings.json`     |
 
 ## Configuration reference
 
@@ -149,34 +149,34 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 }
 ```
 
-| Setting | What it does |
-|---|---|
-| `channel` | Platform to use: `telegram`, `discord`, or `cli` |
-| `token` | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
-| `allowFrom` | Array of allowed user IDs (empty = allow everyone) |
-| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels) |
-| `model` | Claude model (e.g. `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-5`) |
-| `workspace` | Root directory Claude can access |
-| `personality` | Optional: give your assistant a `name` and `traits` description |
-| `env` | Optional: environment variables to inject at startup |
+| Setting         | What it does                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                              |
+| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
+| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                            |
+| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels)                                                       |
+| `model`         | Claude model (e.g. `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-5`)                                                |
+| `workspace`     | Root directory Claude can access                                                                                              |
+| `personality`   | Optional: give your assistant a `name` and `traits` description                                                               |
+| `env`           | Optional: environment variables to inject at startup                                                                          |
 
 ### Advanced configuration via environment variables
 
 For options not in the settings file, use a `.env` file in `~/.claude-pipe/` or the project root.
 
-| Variable | What it does |
-|---|---|
-| `CLAUDEPIPE_SESSION_STORE_PATH` | Where to save session data (default: `{workspace}/data/sessions.json`) |
-| `CLAUDEPIPE_MAX_TOOL_ITERATIONS` | Max tool calls per turn (default: 20) |
-| `CLAUDEPIPE_SUMMARY_PROMPT_ENABLED` | Enable summary prompt templates |
-| `CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE` | Template for summary requests (supports `{{workspace}}` and `{{request}}`) |
-| `CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED` | Log conversations to a file |
-| `CLAUDEPIPE_TRANSCRIPT_LOG_PATH` | Path for transcript log file |
-| `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation |
-| `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep |
-| `CLAUDEPIPE_CLI_ENABLED` | Enable CLI channel (`true`/`false`) |
-| `CLAUDEPIPE_DISCORD_ALLOW_CHANNELS` | Comma-separated allowed Discord channel IDs (empty = allow all) |
-| `CLAUDEPIPE_CLI_ALLOW_FROM` | Comma-separated allowed sender IDs for CLI mode |
+| Variable                              | What it does                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------- |
+| `CLAUDEPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)     |
+| `CLAUDEPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                      |
+| `CLAUDEPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                            |
+| `CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE`  | Template for summary requests (supports `{{workspace}}` and `{{request}}`) |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED`   | Log conversations to a file                                                |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_PATH`      | Path for transcript log file                                               |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation                                   |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                 |
+| `CLAUDEPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                        |
+| `CLAUDEPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)            |
+| `CLAUDEPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                            |
 
 ### Permissions
 

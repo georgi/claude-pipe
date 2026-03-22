@@ -19,7 +19,5 @@ export function applySummaryTemplate(
   const likelySummaryRequest = SUMMARY_PATTERN.test(input) && FILE_PATTERN.test(input)
   if (!likelySummaryRequest) return input
 
-  return config.template
-    .replaceAll('{{workspace}}', workspace)
-    .replaceAll('{{request}}', input)
+  return config.template.replaceAll('{{workspace}}', workspace).replaceAll('{{request}}', input)
 }

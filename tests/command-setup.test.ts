@@ -41,7 +41,10 @@ describe('setupCommands', () => {
   it('registers all built-in commands automatically', () => {
     const { registry } = setupCommands(makeDeps())
 
-    const names = registry.all().map((c) => c.name).sort()
+    const names = registry
+      .all()
+      .map((c) => c.name)
+      .sort()
     expect(names).toContain('session_new')
     expect(names).toContain('session_list')
     expect(names).toContain('session_info')
