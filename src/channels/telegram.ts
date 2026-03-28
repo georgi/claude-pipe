@@ -121,6 +121,54 @@ export class TelegramChannel implements Channel {
     private readonly logger: Logger
   ) {}
 
+  /** Builds a Telegram Bot API URL for the given method. */
+  private apiUrl(method: string): string {
+    return `https://api.telegram.org/bot${this.config.channels.telegram.token}/${method}`
+  }
+
+  /**
+   * Sends a JSON payload to the Telegram Bot API. If the response indicates a
+   * Markdown parse error, automatically retries without `parse_mode`.
+   */
+  private async callApi(
+    method: string,
+    payload: Record<string, unknown>
+  ): Promise<{ ok: boolean; result?: Record<string, unknown> }> {
+    const url = this.apiUrl(method)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const body = await response.text()
+      if (body.includes("can't parse entities") && 'parse_mode' in payload) {
+        const { parse_mode: _, ...rest } = payload
+        const fallback = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(rest)
+        })
+        if (!fallback.ok) {
+          const fbBody = await fallback.text()
+          throw new Error(`telegram ${method} failed (${fallback.status}): ${fbBody}`)
+        }
+        try {
+          return (await fallback.json()) as { ok: boolean; result?: Record<string, unknown> }
+        } catch {
+          return { ok: true }
+        }
+      }
+      throw new Error(`telegram ${method} failed (${response.status}): ${body}`)
+    }
+
+    try {
+      return (await response.json()) as { ok: boolean; result?: Record<string, unknown> }
+    } catch {
+      return { ok: true }
+    }
+  }
   /** Kills any previously running instance using the PID file. */
   private killExistingInstance(): void {
     if (!existsSync(PID_FILE)) return
@@ -178,9 +226,6 @@ export class TelegramChannel implements Channel {
       return
     }
 
-    const token = this.config.channels.telegram.token
-
-    const url = `https://api.telegram.org/bot${token}/sendMessage`
     const chunks = chunkText(message.content, TELEGRAM_MESSAGE_MAX)
 
     let lastMessageId: string | undefined
@@ -201,41 +246,10 @@ export class TelegramChannel implements Channel {
               payload.reply_markup = this.buildInlineKeyboard(message.keyboard)
             }
 
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify(payload)
-            })
-
-            if (!response.ok) {
-              const body = await response.text()
-              // Retry without parse_mode if Markdown parsing fails
-              if (body.includes("can't parse entities")) {
-                delete payload.parse_mode
-                const fallback = await fetch(url, {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify(payload)
-                })
-                if (!fallback.ok) {
-                  const fbBody = await fallback.text()
-                  throw new Error(`telegram send failed (${fallback.status}): ${fbBody}`)
-                }
-                return fallback
-              }
-              throw new Error(`telegram send failed (${response.status}): ${body}`)
-            }
-
-            try {
-              const json = (await response.json()) as {
-                ok: boolean
-                result?: { message_id?: number }
-              }
-              if (json.ok && json.result?.message_id != null) {
-                lastMessageId = String(json.result.message_id)
-              }
-            } catch {
-              // Message sent successfully but couldn't parse response for message ID
+            const json = await this.callApi('sendMessage', payload)
+            const messageId = (json.result as { message_id?: number } | undefined)?.message_id
+            if (json.ok && messageId != null) {
+              lastMessageId = String(messageId)
             }
           },
           {
@@ -347,36 +361,13 @@ export class TelegramChannel implements Channel {
   async sendMessageDraft(chatId: string, text: string): Promise<SentMessage | void> {
     if (!this.config.channels.telegram.enabled) return
 
-    const token = this.config.channels.telegram.token
-    const url = `https://api.telegram.org/bot${token}/sendMessageDraft`
-
     try {
-      const payload: Record<string, unknown> = {
+      await this.callApi('sendMessageDraft', {
         chat_id: Number(chatId),
         draft_id: 1,
         text,
         parse_mode: 'Markdown'
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload)
       })
-
-      if (!response.ok) {
-        const body = await response.text()
-        if (body.includes("can't parse entities")) {
-          delete payload.parse_mode
-          await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-          return
-        }
-        throw new Error(`telegram sendMessageDraft failed (${response.status}): ${body}`)
-      }
     } catch (error) {
       this.logger.error('channel.telegram.draft_failed', {
         chatId,
@@ -389,43 +380,15 @@ export class TelegramChannel implements Channel {
   async editMessage(sent: SentMessage, newContent: string): Promise<void> {
     if (!this.config.channels.telegram.enabled) return
 
-    const token = this.config.channels.telegram.token
-    const url = `https://api.telegram.org/bot${token}/editMessageText`
-
     try {
       await retry(
         async () => {
-          const payload: Record<string, unknown> = {
+          await this.callApi('editMessageText', {
             chat_id: Number(sent.chatId),
             message_id: Number(sent.messageId),
             text: newContent,
             parse_mode: 'Markdown'
-          }
-
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload)
           })
-
-          if (!response.ok) {
-            const body = await response.text()
-            // Retry without parse_mode if Markdown parsing fails
-            if (body.includes("can't parse entities")) {
-              delete payload.parse_mode
-              const fallback = await fetch(url, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(payload)
-              })
-              if (!fallback.ok) {
-                const fbBody = await fallback.text()
-                throw new Error(`telegram editMessageText failed (${fallback.status}): ${fbBody}`)
-              }
-              return
-            }
-            throw new Error(`telegram editMessageText failed (${response.status}): ${body}`)
-          }
         },
         {
           attempts: SEND_RETRY_ATTEMPTS,
@@ -443,25 +406,13 @@ export class TelegramChannel implements Channel {
 
   /** Sends a chat action (typing, uploading, etc.) to Telegram. */
   private async sendChatAction(chatId: string, action: ChatAction): Promise<void> {
-    const token = this.config.channels.telegram.token
-    const url = `https://api.telegram.org/bot${token}/sendChatAction`
-
     try {
       await retry(
         async () => {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: Number(chatId),
-              action
-            })
+          await this.callApi('sendChatAction', {
+            chat_id: Number(chatId),
+            action
           })
-
-          if (!response.ok) {
-            const body = await response.text()
-            throw new Error(`telegram sendChatAction failed (${response.status}): ${body}`)
-          }
         },
         {
           attempts: 1,
@@ -504,8 +455,7 @@ export class TelegramChannel implements Channel {
   }
 
   private async getUpdates(): Promise<TelegramUpdate[]> {
-    const token = this.config.channels.telegram.token
-    const url = new URL(`https://api.telegram.org/bot${token}/getUpdates`)
+    const url = new URL(this.apiUrl('getUpdates'))
     url.searchParams.set('timeout', '25')
     url.searchParams.set('offset', String(this.nextOffset))
     url.searchParams.set('allowed_updates', JSON.stringify(['message', 'callback_query']))
@@ -811,15 +761,8 @@ export class TelegramChannel implements Channel {
 
   /** Acknowledges a callback query to remove the loading indicator on the button. */
   private async answerCallbackQuery(queryId: string): Promise<void> {
-    const token = this.config.channels.telegram.token
-    const url = `https://api.telegram.org/bot${token}/answerCallbackQuery`
-
     try {
-      await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: queryId })
-      })
+      await this.callApi('answerCallbackQuery', { callback_query_id: queryId })
     } catch {
       // Non-critical — button just keeps spinning briefly
     }
@@ -841,23 +784,12 @@ export class TelegramChannel implements Channel {
    * Resolves a Telegram file_id to a downloadable file_path via the Bot API.
    */
   private async getFilePath(fileId: string): Promise<string | null> {
-    const token = this.config.channels.telegram.token
-    const url = `https://api.telegram.org/bot${token}/getFile`
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ file_id: fileId })
-    })
-
-    if (!response.ok) return null
-
-    const json = (await response.json()) as {
-      ok: boolean
-      result?: { file_path?: string }
+    try {
+      const json = await this.callApi('getFile', { file_id: fileId })
+      return json.ok ? ((json.result as { file_path?: string })?.file_path ?? null) : null
+    } catch {
+      return null
     }
-
-    return json.ok ? (json.result?.file_path ?? null) : null
   }
 
   /**

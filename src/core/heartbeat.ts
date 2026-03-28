@@ -75,16 +75,11 @@ export class Heartbeat {
 
   /** Subscribes to the message bus to track outbound messages. */
   private subscribeToActivity(): void {
-    // We need to intercept publishOutbound calls to track activity
-    // This is done by wrapping the original method
-    const originalPublishOutbound = this.bus.publishOutbound.bind(this.bus)
-    this.bus.publishOutbound = async (msg) => {
-      // Only count non-empty, non-progress messages as useful output
+    this.bus.onOutbound((msg) => {
       if (msg.content && msg.content.length > 0 && !msg.metadata?.kind) {
         this.recordActivity()
       }
-      return originalPublishOutbound(msg)
-    }
+    })
   }
 
   /** Performs the heartbeat check. */

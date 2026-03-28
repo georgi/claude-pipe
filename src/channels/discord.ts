@@ -26,6 +26,8 @@ import { isSenderAllowed, type Channel } from './base.js'
 const DISCORD_MESSAGE_MAX = 1800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
+/** Discord interaction tokens expire after 15 minutes; clean up stale entries. */
+const INTERACTION_TTL_MS = 14 * 60 * 1000
 
 /**
  * Discord adapter using discord.js gateway client + channel send API.
@@ -34,7 +36,11 @@ export class DiscordChannel implements Channel {
   readonly name = 'discord' as const
   private client: Client | null = null
   /** Pending deferred interactions keyed by chatId, so send() can resolve them. */
-  private pendingInteractions = new Map<string, ChatInputCommandInteraction>()
+  private pendingInteractions = new Map<
+    string,
+    { interaction: ChatInputCommandInteraction; createdAt: number }
+  >()
+  private cleanupTimer: NodeJS.Timeout | null = null
 
   constructor(
     private readonly config: ClaudePipeConfig,
@@ -80,11 +86,17 @@ export class DiscordChannel implements Channel {
     })
 
     await this.client.login(this.config.channels.discord.token)
+    this.startInteractionCleanup()
     this.logger.info('channel.discord.start')
   }
 
   /** Logs out and destroys the Discord client. */
   async stop(): Promise<void> {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+    this.pendingInteractions.clear()
     if (!this.client) return
     await this.client.destroy()
     this.client = null
@@ -134,8 +146,9 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    const pendingInteraction = this.pendingInteractions.get(message.chatId)
-    if (pendingInteraction) {
+    const pending = this.pendingInteractions.get(message.chatId)
+    const pendingInteraction = pending?.interaction
+    if (pending) {
       this.pendingInteractions.delete(message.chatId)
     }
 
@@ -343,7 +356,10 @@ export class DiscordChannel implements Channel {
     const content = promptOption ? `${commandName} ${promptOption}` : commandName
 
     await interaction.deferReply()
-    this.pendingInteractions.set(interaction.channelId, interaction)
+    this.pendingInteractions.set(interaction.channelId, {
+      interaction,
+      createdAt: Date.now()
+    })
 
     const inbound: InboundMessage = {
       channel: 'discord',
@@ -363,6 +379,20 @@ export class DiscordChannel implements Channel {
   private isChannelAllowed(chatId: string): boolean {
     const allowChannels = this.config.channels.discord.allowChannels ?? []
     return allowChannels.length === 0 || allowChannels.includes(chatId)
+  }
+
+  /** Periodically removes stale pending interactions to prevent memory leaks. */
+  private startInteractionCleanup(): void {
+    this.cleanupTimer = setInterval(() => {
+      const now = Date.now()
+      for (const [chatId, entry] of this.pendingInteractions) {
+        if (now - entry.createdAt > INTERACTION_TTL_MS) {
+          this.pendingInteractions.delete(chatId)
+          this.logger.warn('channel.discord.interaction_expired', { chatId })
+        }
+      }
+    }, 60_000)
+    this.cleanupTimer.unref()
   }
 
   /**

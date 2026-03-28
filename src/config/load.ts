@@ -30,7 +30,13 @@ export function loadConfig(): ClaudePipeConfig {
   loadEnv()
 
   if (settingsExist()) {
-    const s = readSettings()
+    let s: ReturnType<typeof readSettings>
+    try {
+      s = readSettings()
+    } catch (err: unknown) {
+      const detail = err instanceof SyntaxError ? 'invalid JSON' : String(err)
+      throw new Error(`Failed to read settings from ${getConfigDir()}/settings.json: ${detail}`)
+    }
 
     // Apply env vars from settings to process.env (don't override existing vars)
     if (s.env) {
