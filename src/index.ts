@@ -143,8 +143,8 @@ async function main(): Promise<void> {
     }
   }
 
-  await agent.start()
   heartbeat.start()
+  await agent.start()
 }
 
 main().catch((error: unknown) => {

@@ -143,8 +143,11 @@ export class AgentLoop {
             })
             if (sent) streamMessage = sent
           }
-        } catch {
-          // Non-critical — streaming draft update failed
+        } catch (err: unknown) {
+          this.logger.warn('agent.draft_update_failed', {
+            conversationKey,
+            error: err instanceof Error ? err.message : String(err)
+          })
         }
         return
       }
@@ -209,8 +212,11 @@ export class AgentLoop {
           })
           if (sent) statusMessage = sent
         }
-      } catch {
-        // Non-critical — log already covers the update
+      } catch (err: unknown) {
+        this.logger.warn('agent.progress_update_failed', {
+          conversationKey,
+          error: err instanceof Error ? err.message : String(err)
+        })
       }
     }
 
@@ -296,7 +302,11 @@ export class AgentLoop {
             await this.channelManager.sendFile(inbound.channel, inbound.chatId, attachment)
           }
         }
-      } catch {
+      } catch (err: unknown) {
+        this.logger.warn('agent.edit_fallback', {
+          conversationKey,
+          error: err instanceof Error ? err.message : String(err)
+        })
         // Fall through to normal outbound publish
         await this.bus.publishOutbound(outbound)
       }
@@ -345,8 +355,10 @@ export class AgentLoop {
           )
           sections.push(`# Relevant memories\n${lines.join('\n')}`)
         }
-      } catch {
-        // Non-critical — proceed without memory context
+      } catch (err: unknown) {
+        this.logger.warn('agent.memory_search_failed', {
+          error: err instanceof Error ? err.message : String(err)
+        })
       }
     }
 
@@ -357,8 +369,10 @@ export class AgentLoop {
         if (todayLog) {
           sections.push(`# Today's conversation log\n${todayLog.slice(-2000)}`)
         }
-      } catch {
-        // Non-critical — proceed without log context
+      } catch (err: unknown) {
+        this.logger.warn('agent.daily_log_read_failed', {
+          error: err instanceof Error ? err.message : String(err)
+        })
       }
     }
 
