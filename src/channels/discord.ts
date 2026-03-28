@@ -392,6 +392,7 @@ export class DiscordChannel implements Channel {
         }
       }
     }, 60_000)
+    // Allow the Node.js process to exit even if this timer is still active
     this.cleanupTimer.unref()
   }
 

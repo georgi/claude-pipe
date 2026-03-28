@@ -53,8 +53,12 @@ export class MessageBus {
     return new Promise<OutboundMessage>((resolve) => this.outboundWaiters.push(resolve))
   }
 
-  /** Registers a listener that is called for every outbound message. */
-  onOutbound(listener: OutboundListener): void {
+  /** Registers a listener that is called for every outbound message. Returns an unsubscribe function. */
+  onOutbound(listener: OutboundListener): () => void {
     this.outboundListeners.push(listener)
+    return () => {
+      const idx = this.outboundListeners.indexOf(listener)
+      if (idx >= 0) this.outboundListeners.splice(idx, 1)
+    }
   }
 }
