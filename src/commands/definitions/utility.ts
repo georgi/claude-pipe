@@ -177,7 +177,7 @@ export function restartCommand(): CommandDefinition {
  */
 export function hotReloadCommand(projectRoot: string): CommandDefinition {
   return {
-    name: 'hot-reload',
+    name: 'hot_reload',
     category: 'utility',
     description: 'Rebuild and restart the bot process in-place (no process manager needed)',
     aliases: ['hr'],
