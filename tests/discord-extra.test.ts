@@ -263,19 +263,31 @@ describe('DiscordChannel — additional paths', () => {
           category: 'utility',
           telegramName: 'help'
         },
+        // A command whose name already includes the group prefix — Discord's
+        // subcommand name should be the bare suffix, not the double-prefixed
+        // value (e.g. `/pi ask`, not `/pi pi_ask`).
         {
-          name: 'new',
-          description: 'new session',
-          category: 'session',
-          telegramName: 'session_new',
-          group: 'session'
+          name: 'pi_ask',
+          description: 'send a prompt',
+          category: 'pi',
+          telegramName: 'pi_ask',
+          group: 'pi'
         }
       ],
       logger
     )
 
     expect(setToken).toHaveBeenCalledWith('tok')
-    expect(put).toHaveBeenCalled()
+    expect(put).toHaveBeenCalledTimes(1)
+
+    const [, putBody] = put.mock.calls[0] as [string, { body: Array<Record<string, unknown>> }]
+    const body = putBody.body
+    const piGroup = body.find((entry) => entry.name === 'pi') as
+      | { name: string; options: Array<{ name: string }> }
+      | undefined
+    expect(piGroup).toBeDefined()
+    expect(piGroup?.options.map((o) => o.name)).toEqual(['ask'])
+
     expect(logger.info).toHaveBeenCalledWith(
       'channel.discord.slash_commands_registered',
       expect.any(Object)

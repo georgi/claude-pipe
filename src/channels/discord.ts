@@ -400,14 +400,17 @@ export class DiscordChannel implements Channel {
       })
     }
 
-    // Grouped commands as subcommands (e.g. /session new, /pi ask)
+    // Grouped commands as subcommands (e.g. /session new, /pi ask).
+    // The Discord subcommand name must NOT repeat the group prefix, so for a
+    // command named `pi_ask` in group `pi` we expose `ask`, not `pi_ask`.
     for (const [group, cmds] of grouped) {
+      const prefix = `${group}_`
       body.push({
         name: group,
         description: `${group.charAt(0).toUpperCase() + group.slice(1)} commands`,
         options: cmds.map((cmd) => ({
           type: 1, // SUB_COMMAND
-          name: cmd.name,
+          name: cmd.name.startsWith(prefix) ? cmd.name.slice(prefix.length) : cmd.name,
           description: cmd.description
         }))
       })

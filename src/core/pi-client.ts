@@ -200,14 +200,13 @@ export class PiClient implements ModelClient {
   }
 
   private async makeResourceLoader(): Promise<DefaultResourceLoader> {
+    // Let Pi's natural discovery load the workspace AGENTS.md, user-installed
+    // extensions from ~/.pi/agent/extensions/, and skills from
+    // ~/.pi/agent/skills/. Our instructions extension is appended via
+    // `extensionFactories` and runs alongside whatever the user has configured.
     const loader = new DefaultResourceLoader({
       cwd: this.config.workspace,
       agentDir: this.agentDir,
-      noExtensions: true,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
       extensionFactories: [createInstructionsExtension(() => buildSystemPrompt(this.config))]
     })
     await loader.reload()
@@ -378,14 +377,29 @@ export class PiClient implements ModelClient {
   }
 
   async startNewSession(conversationKey: string): Promise<void> {
+    const cached = this.sessions.get(conversationKey)
+    if (cached) {
+      // Abort any in-flight prompt so it can't keep streaming or holding
+      // resources after the session is replaced.
+      try {
+        await cached.abort()
+      } catch {
+        /* abort may reject if no prompt is in flight — ignore */
+      }
+    }
     this.sessions.delete(conversationKey)
     this.eventChain.delete(conversationKey)
     await this.store.clear(conversationKey)
   }
 
-  /** Used by the /pi_model command to swap the model on every cached session. */
+  /**
+   * Used by the `/pi_model` command to swap the model on every cached session.
+   *
+   * Mutates the shared config object in place so `/pi_model` (no args),
+   * `/status`, and `/reload` continue to see a consistent model value.
+   */
   setModel(modelString: string): void {
-    this.config = { ...this.config, model: modelString }
+    this.config.model = modelString
     const resolved = resolveModel(modelString, this.modelRegistry)
     for (const session of this.sessions.values()) {
       void session.setModel(resolved)

@@ -57,16 +57,22 @@ export function sessionInfoCommand(
     category: 'session',
     description: 'Show session info for the current chat',
     aliases: [],
-    permission: 'user',
+    // Admin-only because session file paths can disclose local filesystem
+    // layout (usernames, workspace directories, etc.) to any allowed
+    // chat participant.
+    permission: 'admin',
     async execute(ctx: CommandContext): Promise<CommandResult> {
       const session = getSession(ctx.conversationKey)
       if (!session) {
         return { content: 'No active session for this chat.' }
       }
+      // Show only the basename so the absolute path isn't leaked even to
+      // admins via casual screenshot/copy-paste of bot output.
+      const basename = session.sessionFile.split(/[/\\]/).pop() ?? session.sessionFile
       return {
         content:
           `**Session info:**\n` +
-          `• Session file: \`${session.sessionFile}\`\n` +
+          `• Session file: \`${basename}\`\n` +
           `• Last active: ${session.updatedAt}`
       }
     }

@@ -54,15 +54,20 @@ describe('Session commands', () => {
     expect(result.content).toBe('No active sessions.')
   })
 
-  it('/session_info returns session details', async () => {
+  it('/session_info is admin-only and shows only the session file basename', async () => {
     const cmd = sessionInfoCommand(() => ({
-      sessionFile: '/sessions/sess-abc.jsonl',
+      sessionFile: '/Users/secret-user/private-workspace/.pi/sessions/sess-abc.jsonl',
       updatedAt: '2025-01-01T00:00:00Z'
     }))
 
+    expect(cmd.permission).toBe('admin')
+
     const result = await cmd.execute(makeCtx())
-    expect(result.content).toContain('sess-abc')
+    expect(result.content).toContain('sess-abc.jsonl')
     expect(result.content).toContain('Session info')
+    // The full path must not leak via the message content
+    expect(result.content).not.toContain('/Users/secret-user')
+    expect(result.content).not.toContain('private-workspace')
   })
 
   it('/session_info returns no-session message', async () => {

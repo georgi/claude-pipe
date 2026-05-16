@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const WHISPER_ENV_KEYS = ['OPENAI_API_KEY', 'WHISPER_CPP_PATH', 'WHISPER_CPP_MODEL'] as const
 
 vi.mock('node:child_process', () => ({
   execFile: vi.fn()
@@ -43,11 +45,21 @@ const mockExistsSync = existsSync as ReturnType<typeof vi.fn>
 const mockReadFile = readFile as unknown as ReturnType<typeof vi.fn>
 
 describe('transcribeAudio', () => {
+  const savedEnv: Record<string, string | undefined> = {}
+
   beforeEach(() => {
     vi.resetAllMocks()
-    delete process.env.OPENAI_API_KEY
-    delete process.env.WHISPER_CPP_PATH
-    delete process.env.WHISPER_CPP_MODEL
+    for (const k of WHISPER_ENV_KEYS) {
+      savedEnv[k] = process.env[k]
+      delete process.env[k]
+    }
+  })
+
+  afterEach(() => {
+    for (const k of WHISPER_ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k]
+      else process.env[k] = savedEnv[k]
+    }
   })
 
   it('uses the OpenAI Whisper API when OPENAI_API_KEY is set', async () => {

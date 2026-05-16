@@ -120,7 +120,7 @@ During a turn, tool call progress is shown as editable status messages (🔧 →
 
 ### Pi instructions extension
 
-pi-pipe's house instructions (concise communication style, attachment / inline-keyboard / memory marker protocols, plus your personality) are contributed to the agent through a Pi extension registered on the `DefaultResourceLoader`. The extension hooks `before_agent_start` and appends its content to the chained system prompt. Filesystem discovery of user extensions/skills/themes is disabled by default — Pi only sees what pi-pipe explicitly hands it.
+pi-pipe's house instructions (concise communication style, attachment / inline-keyboard / memory marker protocols, plus your personality) are contributed to the agent through a Pi extension registered on the `DefaultResourceLoader`. The extension hooks `before_agent_start` and appends its content to the chained system prompt. Pi's normal discovery still runs alongside — your workspace `AGENTS.md`, extensions installed in `~/.pi/agent/extensions/`, and skills in `~/.pi/agent/skills/` all load as usual.
 
 ### Key Files
 
