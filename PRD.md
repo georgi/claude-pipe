@@ -102,7 +102,7 @@ Optional transcript logging to JSONL for debugging (disabled by default).
 ## 10. Risks
 
 - Pi SDK behavior may change with updates; pin the package version.
-- Streaming-event shapes may evolve (tool_execution_* field names) and require translator updates.
+- Streaming-event shapes may evolve (tool*execution*\* field names) and require translator updates.
 - Full permissions increase operational risk by design (accepted for v1).
 
 ## 11. Success Criteria

@@ -42,9 +42,7 @@ describe('runOnboarding', () => {
 
   async function runWithAnswers(
     answers: string[],
-    existing?: Parameters<
-      typeof import('../src/onboarding/wizard.js').runOnboarding
-    >[0]
+    existing?: Parameters<typeof import('../src/onboarding/wizard.js').runOnboarding>[0]
   ): Promise<unknown> {
     const fakeIn = new PassThrough()
     const fakeOut = new PassThrough()
@@ -103,10 +101,7 @@ describe('runOnboarding', () => {
     // For gpt-5 (preset '3'), pressing Enter passes '' which falls through to
     // the free-form custom-model prompt — so we need an extra Enter for that.
     // 1 channel + 1 model preset + 1 custom-model fallback + 1 workspace + 2 personality = 6
-    const updated = (await runWithAnswers(
-      ['', '', '', '', '', ''],
-      existing
-    )) as typeof existing
+    const updated = (await runWithAnswers(['', '', '', '', '', ''], existing)) as typeof existing
 
     expect(updated.channel).toBe('cli')
     expect(updated.model).toBe('gpt-5')
@@ -137,10 +132,7 @@ describe('runOnboarding', () => {
     }
 
     // 1 channel + 1 model preset + 1 custom-model name + 1 workspace + 2 personality = 6
-    const updated = (await runWithAnswers(
-      ['', '', '', '', '', ''],
-      existing
-    )) as typeof existing
+    const updated = (await runWithAnswers(['', '', '', '', '', ''], existing)) as typeof existing
     expect(updated.model).toBe('something-unknown')
   })
 

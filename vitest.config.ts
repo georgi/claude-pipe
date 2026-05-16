@@ -14,9 +14,9 @@ export default defineConfig({
         'src/commands/types.ts',
         // The main entrypoint — exercised end-to-end through integration runs,
         // not unit tests. It would require booting every subsystem.
-        'src/index.ts',
+        'src/index.ts'
       ],
-      reporter: ['text', 'html'],
-    },
-  },
+      reporter: ['text', 'html']
+    }
+  }
 })

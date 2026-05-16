@@ -228,10 +228,7 @@ describe('TelegramChannel', () => {
     cfg.channels.telegram.token = ''
     const channel = new TelegramChannel(cfg, new MessageBus(), logger)
     await channel.start()
-    expect(logger.warn).toHaveBeenCalledWith(
-      'channel.telegram.misconfigured',
-      expect.any(Object)
-    )
+    expect(logger.warn).toHaveBeenCalledWith('channel.telegram.misconfigured', expect.any(Object))
   })
 
   it('retries without Markdown parse_mode when entities cannot be parsed', async () => {
@@ -280,7 +277,9 @@ describe('TelegramChannel', () => {
     })) as unknown as typeof fetch
     global.fetch = fetchMock
 
-    await (channel as unknown as { handleCallbackQuery: (q: unknown) => Promise<void> }).handleCallbackQuery({
+    await (
+      channel as unknown as { handleCallbackQuery: (q: unknown) => Promise<void> }
+    ).handleCallbackQuery({
       id: 'cb-1',
       data: 'menu_open',
       from: { id: 100 },
@@ -297,7 +296,9 @@ describe('TelegramChannel', () => {
     const bus = new MessageBus()
     const channel = new TelegramChannel(makeConfig(), bus, logger)
 
-    await (channel as unknown as { handleCallbackQuery: (q: unknown) => Promise<void> }).handleCallbackQuery({
+    await (
+      channel as unknown as { handleCallbackQuery: (q: unknown) => Promise<void> }
+    ).handleCallbackQuery({
       id: 'cb-2',
       data: 'menu_open',
       from: { id: 999 },

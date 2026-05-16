@@ -8,7 +8,7 @@ vi.mock('node:os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:os')>()
   return {
     ...actual,
-    homedir: vi.fn(actual.homedir),
+    homedir: vi.fn(actual.homedir)
   }
 })
 
@@ -35,7 +35,7 @@ const ENV_KEYS = [
   'PIPIPE_TRANSCRIPT_LOG_MAX_BYTES',
   'PIPIPE_TRANSCRIPT_LOG_MAX_FILES',
   'PIPIPE_SESSION_STORE_PATH',
-  'PIPIPE_MAX_TOOL_ITERATIONS',
+  'PIPIPE_MAX_TOOL_ITERATIONS'
 ]
 
 describe('loadConfig', () => {
@@ -134,7 +134,7 @@ describe('loadConfig', () => {
         allowFrom: ['boss'],
         model: 'claude-sonnet-4-5',
         workspace: fakeHome,
-        env: { CUSTOM_KEY: 'hello' },
+        env: { CUSTOM_KEY: 'hello' }
       }),
       'utf-8'
     )
@@ -165,7 +165,7 @@ describe('loadConfig', () => {
         allowFrom: [],
         model: 'claude-sonnet-4-5',
         workspace: fakeHome,
-        env: { ALREADY_SET: 'from-settings' },
+        env: { ALREADY_SET: 'from-settings' }
       }),
       'utf-8'
     )

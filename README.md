@@ -124,16 +124,16 @@ pi-pipe's house instructions (concise communication style, attachment / inline-k
 
 ### Key Files
 
-| File                        | Role                                                                   |
-| --------------------------- | ---------------------------------------------------------------------- |
-| `src/index.ts`              | Boots the runtime — config, bus, agent, channels, heartbeat            |
-| `src/core/agent-loop.ts`    | Consumes inbound messages, runs LLM turns, publishes replies           |
-| `src/core/pi-client.ts`     | Wraps the Pi SDK AgentSession, handles streaming and session caching   |
-| `src/core/bus.ts`           | Async message bus with inbound/outbound queues                         |
-| `src/channels/manager.ts`   | Owns channel lifecycle and outbound dispatch                           |
-| `src/core/session-store.ts` | Persists session-file paths to a JSON file for cross-restart resume    |
-| `src/commands/handler.ts`   | Slash command interception and execution                               |
-| `src/config/load.ts`        | Loads and validates settings from `~/.pi-pipe/settings.json`           |
+| File                        | Role                                                                 |
+| --------------------------- | -------------------------------------------------------------------- |
+| `src/index.ts`              | Boots the runtime — config, bus, agent, channels, heartbeat          |
+| `src/core/agent-loop.ts`    | Consumes inbound messages, runs LLM turns, publishes replies         |
+| `src/core/pi-client.ts`     | Wraps the Pi SDK AgentSession, handles streaming and session caching |
+| `src/core/bus.ts`           | Async message bus with inbound/outbound queues                       |
+| `src/channels/manager.ts`   | Owns channel lifecycle and outbound dispatch                         |
+| `src/core/session-store.ts` | Persists session-file paths to a JSON file for cross-restart resume  |
+| `src/commands/handler.ts`   | Slash command interception and execution                             |
+| `src/config/load.ts`        | Loads and validates settings from `~/.pi-pipe/settings.json`         |
 
 ## Configuration reference
 
@@ -153,16 +153,16 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 }
 ```
 
-| Setting         | What it does                                                                                                                              |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                                          |
-| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications)             |
-| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                                        |
-| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels)                                                                   |
-| `model`         | Pi model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id` for explicit provider)                                 |
-| `workspace`     | Root directory Pi can access                                                                                                              |
-| `personality`   | Optional: give your assistant a `name` and `traits` description                                                                           |
-| `env`           | Optional: environment variables to inject at startup                                                                                      |
+| Setting         | What it does                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                              |
+| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
+| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                            |
+| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels)                                                       |
+| `model`         | Pi model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id` for explicit provider)                    |
+| `workspace`     | Root directory Pi can access                                                                                                  |
+| `personality`   | Optional: give your assistant a `name` and `traits` description                                                               |
+| `env`           | Optional: environment variables to inject at startup                                                                          |
 
 ### Authentication
 
@@ -178,19 +178,19 @@ Set them in your shell profile or in `~/.pi-pipe/.env`.
 
 For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the project root.
 
-| Variable                            | What it does                                                                |
-| ----------------------------------- | --------------------------------------------------------------------------- |
-| `PIPIPE_SESSION_STORE_PATH`         | Where to save session data (default: `{workspace}/data/sessions.json`)      |
-| `PIPIPE_MAX_TOOL_ITERATIONS`        | Max tool calls per turn (default: 20)                                       |
-| `PIPIPE_SUMMARY_PROMPT_ENABLED`     | Enable summary prompt templates                                             |
-| `PIPIPE_SUMMARY_PROMPT_TEMPLATE`    | Template for summary requests (supports `{{workspace}}` and `{{request}}`)  |
-| `PIPIPE_TRANSCRIPT_LOG_ENABLED`     | Log conversations to a file                                                 |
-| `PIPIPE_TRANSCRIPT_LOG_PATH`        | Path for transcript log file                                                |
-| `PIPIPE_TRANSCRIPT_LOG_MAX_BYTES`   | Max transcript file size before rotation                                    |
-| `PIPIPE_TRANSCRIPT_LOG_MAX_FILES`   | Number of rotated transcript files to keep                                  |
-| `PIPIPE_CLI_ENABLED`                | Enable CLI channel (`true`/`false`)                                         |
-| `PIPIPE_DISCORD_ALLOW_CHANNELS`     | Comma-separated allowed Discord channel IDs (empty = allow all)             |
-| `PIPIPE_CLI_ALLOW_FROM`             | Comma-separated allowed sender IDs for CLI mode                             |
+| Variable                          | What it does                                                               |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `PIPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)     |
+| `PIPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                      |
+| `PIPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                            |
+| `PIPIPE_SUMMARY_PROMPT_TEMPLATE`  | Template for summary requests (supports `{{workspace}}` and `{{request}}`) |
+| `PIPIPE_TRANSCRIPT_LOG_ENABLED`   | Log conversations to a file                                                |
+| `PIPIPE_TRANSCRIPT_LOG_PATH`      | Path for transcript log file                                               |
+| `PIPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation                                   |
+| `PIPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                 |
+| `PIPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                        |
+| `PIPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)            |
+| `PIPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                            |
 
 ### Permissions
 

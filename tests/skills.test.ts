@@ -8,7 +8,7 @@ vi.mock('node:os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:os')>()
   return {
     ...actual,
-    homedir: vi.fn(actual.homedir),
+    homedir: vi.fn(actual.homedir)
   }
 })
 
@@ -53,7 +53,7 @@ describe('discoverSkills', () => {
     expect(skills).toHaveLength(1)
     expect(skills[0]).toMatchObject({
       name: 'summarise',
-      description: 'Summarise the workspace',
+      description: 'Summarise the workspace'
     })
   })
 
@@ -64,7 +64,7 @@ describe('discoverSkills', () => {
         'name: review',
         'description: Review the diff',
         'user-invocable: true',
-        'argument-hint: <pr_number>',
+        'argument-hint: <pr_number>'
       ].join('\n')
     )
 

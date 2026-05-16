@@ -619,16 +619,18 @@ describe('AgentLoop', () => {
   it('falls back to bus publish when channel-manager.editMessage throws', async () => {
     const bus = new MessageBus()
     const pi = {
-      runTurn: vi.fn(async (_k: string, _i: string, ctx: { onUpdate?: (e: unknown) => Promise<void> }) => {
-        await ctx.onUpdate?.({
-          kind: 'tool_call_started',
-          conversationKey: 'telegram:42',
-          message: 'Using tool: read',
-          toolName: 'read',
-          toolUseId: 't1'
-        })
-        return 'reply text'
-      }),
+      runTurn: vi.fn(
+        async (_k: string, _i: string, ctx: { onUpdate?: (e: unknown) => Promise<void> }) => {
+          await ctx.onUpdate?.({
+            kind: 'tool_call_started',
+            conversationKey: 'telegram:42',
+            message: 'Using tool: read',
+            toolName: 'read',
+            toolUseId: 't1'
+          })
+          return 'reply text'
+        }
+      ),
       startNewSession: vi.fn(async () => undefined),
       closeAll: vi.fn()
     }

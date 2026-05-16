@@ -4,7 +4,7 @@ import {
   reloadCommand,
   restartCommand,
   hotReloadCommand,
-  stopCommand,
+  stopCommand
 } from '../src/commands/definitions/utility.js'
 import type { CommandContext } from '../src/commands/types.js'
 import type { PiPipeConfig } from '../src/config/schema.js'
@@ -17,7 +17,7 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
     conversationKey: 'telegram:42',
     args: [],
     rawArgs: '',
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -26,14 +26,14 @@ describe('reloadCommand', () => {
     const config = {
       model: 'old-model',
       workspace: '/old',
-      personality: { name: 'Old', traits: 'grumpy' },
+      personality: { name: 'Old', traits: 'grumpy' }
     } as unknown as PiPipeConfig
 
     const reloadConfig = (): PiPipeConfig =>
       ({
         model: 'new-model',
         workspace: '/new',
-        personality: { name: 'New', traits: 'cheerful' },
+        personality: { name: 'New', traits: 'cheerful' }
       }) as PiPipeConfig
 
     const cmd = reloadCommand(config, reloadConfig)

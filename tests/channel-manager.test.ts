@@ -11,13 +11,13 @@ function makeConfig(): PiPipeConfig {
     channels: {
       telegram: { enabled: false, token: '', allowFrom: [] },
       discord: { enabled: false, token: '', allowFrom: [] },
-      cli: { enabled: false, allowFrom: [] },
+      cli: { enabled: false, allowFrom: [] }
     },
     summaryPrompt: { enabled: false, template: '' },
     transcriptLog: { enabled: false, path: '/tmp/t' },
     sessionStorePath: '/tmp/sessions.json',
     maxToolIterations: 20,
-    heartbeat: { enabled: false, intervalMinutes: 30 },
+    heartbeat: { enabled: false, intervalMinutes: 30 }
   } as PiPipeConfig
 }
 

@@ -200,10 +200,7 @@ describe('DiscordChannel', () => {
     const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     const channel = new DiscordChannel(cfg, new MessageBus(), log)
     await channel.start()
-    expect(log.warn).toHaveBeenCalledWith(
-      'channel.discord.misconfigured',
-      expect.any(Object)
-    )
+    expect(log.warn).toHaveBeenCalledWith('channel.discord.misconfigured', expect.any(Object))
   })
 
   it('send() warns when channel is not text-based', async () => {

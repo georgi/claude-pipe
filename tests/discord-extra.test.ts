@@ -34,7 +34,6 @@ describe('DiscordChannel — additional paths', () => {
         client: unknown
       }
     ).pendingInteractions.set('c1', { editReply } as unknown as never)
-
     ;(channel as unknown as { client: unknown }).client = {
       channels: {
         fetch: vi.fn(async () => ({ isTextBased: () => true, send: channelSend }))
@@ -62,10 +61,7 @@ describe('DiscordChannel — additional paths', () => {
     }
 
     await channel.send({ channel: 'discord', chatId: 'c1', content: 'oops' })
-    expect(logger.error).toHaveBeenCalledWith(
-      'channel.discord.send_failed',
-      expect.any(Object)
-    )
+    expect(logger.error).toHaveBeenCalledWith('channel.discord.send_failed', expect.any(Object))
   })
 
   it('editMessage logs error when underlying fetch throws', async () => {
@@ -85,14 +81,8 @@ describe('DiscordChannel — additional paths', () => {
       }
     }
 
-    await channel.editMessage(
-      { channel: 'discord', chatId: 'c1', messageId: 'm1' },
-      'new text'
-    )
-    expect(logger.error).toHaveBeenCalledWith(
-      'channel.discord.edit_failed',
-      expect.any(Object)
-    )
+    await channel.editMessage({ channel: 'discord', chatId: 'c1', messageId: 'm1' }, 'new text')
+    expect(logger.error).toHaveBeenCalledWith('channel.discord.edit_failed', expect.any(Object))
   })
 
   it('sendFile sends a Discord attachment and returns SentMessage', async () => {
@@ -156,13 +146,11 @@ describe('DiscordChannel — additional paths', () => {
       guildId: 'g1'
     }
 
-    await (
-      channel as unknown as { onInteraction: (i: unknown) => Promise<void> }
-    ).onInteraction(fakeInteraction)
-
-    expect(reply).toHaveBeenCalledWith(
-      expect.objectContaining({ ephemeral: true })
+    await (channel as unknown as { onInteraction: (i: unknown) => Promise<void> }).onInteraction(
+      fakeInteraction
     )
+
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }))
   })
 
   it('onInteraction denies interactions in a non-allowed channel', async () => {
@@ -182,9 +170,9 @@ describe('DiscordChannel — additional paths', () => {
       guildId: 'g1'
     }
 
-    await (
-      channel as unknown as { onInteraction: (i: unknown) => Promise<void> }
-    ).onInteraction(fakeInteraction)
+    await (channel as unknown as { onInteraction: (i: unknown) => Promise<void> }).onInteraction(
+      fakeInteraction
+    )
     expect(reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('not authorised') })
     )
@@ -209,9 +197,9 @@ describe('DiscordChannel — additional paths', () => {
       guildId: 'g1'
     }
 
-    await (
-      channel as unknown as { onInteraction: (i: unknown) => Promise<void> }
-    ).onInteraction(fakeInteraction)
+    await (channel as unknown as { onInteraction: (i: unknown) => Promise<void> }).onInteraction(
+      fakeInteraction
+    )
 
     const inbound = await bus.consumeInbound()
     expect(inbound.content).toBe('/session_new')
@@ -236,9 +224,9 @@ describe('DiscordChannel — additional paths', () => {
       guildId: 'g1'
     }
 
-    await (
-      channel as unknown as { onInteraction: (i: unknown) => Promise<void> }
-    ).onInteraction(fakeInteraction)
+    await (channel as unknown as { onInteraction: (i: unknown) => Promise<void> }).onInteraction(
+      fakeInteraction
+    )
 
     const inbound = await bus.consumeInbound()
     expect(inbound.content).toBe('/pi_ask what is 2+2')
@@ -262,9 +250,7 @@ describe('DiscordChannel — additional paths', () => {
     })
 
     vi.resetModules()
-    const { DiscordChannel: FreshDiscordChannel } = await import(
-      '../src/channels/discord.js'
-    )
+    const { DiscordChannel: FreshDiscordChannel } = await import('../src/channels/discord.js')
     const logger = log()
 
     await FreshDiscordChannel.registerSlashCommands(

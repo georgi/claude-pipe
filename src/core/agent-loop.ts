@@ -340,9 +340,7 @@ export class AgentLoop {
       try {
         const memories = this.memoryStore.search(inbound.content, 5)
         if (memories.length > 0) {
-          const lines = memories.map(
-            (m) => `- [${m.key}]: ${m.content.slice(0, 200)}`
-          )
+          const lines = memories.map((m) => `- [${m.key}]: ${m.content.slice(0, 200)}`)
           sections.push(`# Relevant memories\n${lines.join('\n')}`)
         }
       } catch {

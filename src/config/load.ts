@@ -52,26 +52,26 @@ export function loadConfig(): PiPipeConfig {
         telegram: {
           enabled: telegramEnabled,
           token: telegramEnabled ? s.token : '',
-          allowFrom: telegramEnabled ? s.allowFrom : [],
+          allowFrom: telegramEnabled ? s.allowFrom : []
         },
         discord: {
           enabled: discordEnabled,
           token: discordEnabled ? s.token : '',
           allowFrom: discordEnabled ? s.allowFrom : [],
-          allowChannels: discordEnabled ? s.allowChannels : undefined,
+          allowChannels: discordEnabled ? s.allowChannels : undefined
         },
         cli: {
           enabled: cliEnabled || process.env.PIPIPE_CLI_ENABLED === 'true',
-          allowFrom: cliEnabled ? s.allowFrom : parseCsv(process.env.PIPIPE_CLI_ALLOW_FROM),
-        },
+          allowFrom: cliEnabled ? s.allowFrom : parseCsv(process.env.PIPIPE_CLI_ALLOW_FROM)
+        }
       },
       summaryPrompt: {
         enabled: true,
-        template: defaultSummaryTemplate,
+        template: defaultSummaryTemplate
       },
       personality: s.personality,
       sessionStorePath: `${s.workspace}/data/sessions.json`,
-      maxToolIterations: 20,
+      maxToolIterations: 20
     })
   }
 
@@ -82,22 +82,22 @@ export function loadConfig(): PiPipeConfig {
       telegram: {
         enabled: process.env.PIPIPE_TELEGRAM_ENABLED === 'true',
         token: process.env.PIPIPE_TELEGRAM_TOKEN ?? '',
-        allowFrom: parseCsv(process.env.PIPIPE_TELEGRAM_ALLOW_FROM),
+        allowFrom: parseCsv(process.env.PIPIPE_TELEGRAM_ALLOW_FROM)
       },
       discord: {
         enabled: process.env.PIPIPE_DISCORD_ENABLED === 'true',
         token: process.env.PIPIPE_DISCORD_TOKEN ?? '',
         allowFrom: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_FROM),
-        allowChannels: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_CHANNELS),
+        allowChannels: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_CHANNELS)
       },
       cli: {
         enabled: process.env.PIPIPE_CLI_ENABLED === 'true',
-        allowFrom: parseCsv(process.env.PIPIPE_CLI_ALLOW_FROM),
-      },
+        allowFrom: parseCsv(process.env.PIPIPE_CLI_ALLOW_FROM)
+      }
     },
     summaryPrompt: {
       enabled: process.env.PIPIPE_SUMMARY_PROMPT_ENABLED !== 'false',
-      template: process.env.PIPIPE_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate,
+      template: process.env.PIPIPE_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate
     },
     transcriptLog: {
       enabled: process.env.PIPIPE_TRANSCRIPT_LOG_ENABLED === 'true',
@@ -107,10 +107,10 @@ export function loadConfig(): PiPipeConfig {
         : 1_000_000,
       maxFiles: process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES
         ? Number(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES)
-        : 3,
+        : 3
     },
     sessionStorePath:
       process.env.PIPIPE_SESSION_STORE_PATH ?? `${process.cwd()}/data/sessions.json`,
-    maxToolIterations: Number(process.env.PIPIPE_MAX_TOOL_ITERATIONS ?? 20),
+    maxToolIterations: Number(process.env.PIPIPE_MAX_TOOL_ITERATIONS ?? 20)
   })
 }

@@ -112,7 +112,7 @@ describe('CliChannel', () => {
     output.read()
 
     await channel.editMessage({ channel: 'cli', chatId: 'x', messageId: '1' }, 'updated text')
-    expect((output.read()?.toString() ?? '')).toContain('bot (edit)> updated text')
+    expect(output.read()?.toString() ?? '').toContain('bot (edit)> updated text')
   })
 
   it('sendMessageDraft writes a (draft) marker', async () => {
@@ -126,7 +126,7 @@ describe('CliChannel', () => {
     output.read()
 
     await channel.sendMessageDraft('x', 'draft text')
-    expect((output.read()?.toString() ?? '')).toContain('bot (draft)> draft text')
+    expect(output.read()?.toString() ?? '').toContain('bot (draft)> draft text')
   })
 
   it('sendFile writes a (file) marker with caption if provided', async () => {

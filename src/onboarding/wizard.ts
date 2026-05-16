@@ -124,7 +124,10 @@ async function chooseModel(rl: readline.Interface, currentModel?: string): Promi
   if (choice in PI_MODEL_PRESETS) return PI_MODEL_PRESETS[choice]!
 
   const currentLabel = currentModel ? ` [${currentModel}]` : ''
-  const custom = await ask(rl, `Enter model name (e.g. kimi-k2, glm-4.6, gemini-2.5-pro)${currentLabel}: `)
+  const custom = await ask(
+    rl,
+    `Enter model name (e.g. kimi-k2, glm-4.6, gemini-2.5-pro)${currentLabel}: `
+  )
   return custom || currentModel || 'claude-sonnet-4-5'
 }
 

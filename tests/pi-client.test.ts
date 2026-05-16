@@ -10,9 +10,7 @@ type FakeSession = {
   setModel: ReturnType<typeof vi.fn>
 }
 
-const createAgentSessionMock = vi.fn<
-  (...args: unknown[]) => Promise<{ session: FakeSession }>
->()
+const createAgentSessionMock = vi.fn<(...args: unknown[]) => Promise<{ session: FakeSession }>>()
 const sessionManagerCreateMock = vi.fn((cwd: string) => ({ kind: 'create', cwd }))
 const sessionManagerOpenMock = vi.fn((file: string) => ({ kind: 'open', file }))
 const reloadMock = vi.fn(async () => undefined)
@@ -109,7 +107,12 @@ describe('PiClient (Pi SDK)', () => {
       {
         type: 'message_update',
         message: {} as never,
-        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'hello ', partial: {} as never }
+        assistantMessageEvent: {
+          type: 'text_delta',
+          contentIndex: 0,
+          delta: 'hello ',
+          partial: {} as never
+        }
       },
       {
         type: 'message_update',
@@ -203,7 +206,12 @@ describe('PiClient (Pi SDK)', () => {
       {
         type: 'message_update',
         message: {} as never,
-        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'first', partial: {} as never }
+        assistantMessageEvent: {
+          type: 'text_delta',
+          contentIndex: 0,
+          delta: 'first',
+          partial: {} as never
+        }
       }
     ])
     createAgentSessionMock.mockResolvedValueOnce({ session })
@@ -295,9 +303,7 @@ describe('PiClient (Pi SDK)', () => {
         toolUseId: 'tool-1'
       })
     )
-    expect(onUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'turn_finished' })
-    )
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'turn_finished' }))
   })
 
   it('emits tool_call_failed and apology text when tool errors with no response', async () => {

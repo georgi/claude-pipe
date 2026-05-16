@@ -49,7 +49,7 @@ export class SessionStore {
   async set(conversationKey: string, sessionFile: string): Promise<void> {
     this.map[conversationKey] = {
       sessionFile,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
     await this.persist()
   }

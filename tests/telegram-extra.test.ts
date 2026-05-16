@@ -107,9 +107,9 @@ describe('TelegramChannel — file resolution & sending', () => {
     }) as unknown as typeof fetch
 
     await expect(
-      (channel as unknown as { answerCallbackQuery: (id: string) => Promise<void> }).answerCallbackQuery(
-        'cb-1'
-      )
+      (
+        channel as unknown as { answerCallbackQuery: (id: string) => Promise<void> }
+      ).answerCallbackQuery('cb-1')
     ).resolves.toBeUndefined()
   })
 
@@ -179,10 +179,7 @@ describe('TelegramChannel — file resolution & sending', () => {
     })) as unknown as typeof fetch
 
     await channel.send({ channel: 'telegram', chatId: '200', content: 'hi' })
-    expect(log.error).toHaveBeenCalledWith(
-      'channel.telegram.send_failed',
-      expect.any(Object)
-    )
+    expect(log.error).toHaveBeenCalledWith('channel.telegram.send_failed', expect.any(Object))
   })
 
   it('editMessage logs error when retry fails', async () => {
@@ -195,14 +192,8 @@ describe('TelegramChannel — file resolution & sending', () => {
       text: async () => 'bad request'
     })) as unknown as typeof fetch
 
-    await channel.editMessage(
-      { channel: 'telegram', chatId: '200', messageId: '555' },
-      'updated'
-    )
-    expect(log.error).toHaveBeenCalledWith(
-      'channel.telegram.edit_failed',
-      expect.any(Object)
-    )
+    await channel.editMessage({ channel: 'telegram', chatId: '200', messageId: '555' }, 'updated')
+    expect(log.error).toHaveBeenCalledWith('channel.telegram.edit_failed', expect.any(Object))
   })
 
   it('editMessage falls back to parse_mode-less retry on parse error', async () => {
@@ -313,9 +304,7 @@ describe('TelegramChannel — handleMessage with media', () => {
       'processMediaMessage'
     ).mockResolvedValue('image processed')
 
-    await (
-      channel as unknown as { handleMessage: (u: unknown) => Promise<void> }
-    ).handleMessage({
+    await (channel as unknown as { handleMessage: (u: unknown) => Promise<void> }).handleMessage({
       update_id: 1,
       message: {
         message_id: 9,
@@ -445,9 +434,7 @@ describe('TelegramChannel — handleMessage with media', () => {
         processMediaMessage: (m: unknown) => Promise<string>
       }
     ).processMediaMessage({
-      photo: [
-        { file_id: 'p1', file_unique_id: 'pu', width: 100, height: 100 }
-      ],
+      photo: [{ file_id: 'p1', file_unique_id: 'pu', width: 100, height: 100 }],
       caption: 'a photo'
     })
     expect(content).toContain('reading this file')
@@ -596,9 +583,7 @@ describe('TelegramChannel — handleMessage with media', () => {
       json: async () => ({ ok: true })
     })) as unknown as typeof fetch
 
-    await (
-      channel as unknown as { handleMessage: (u: unknown) => Promise<void> }
-    ).handleMessage({
+    await (channel as unknown as { handleMessage: (u: unknown) => Promise<void> }).handleMessage({
       update_id: 2,
       message: {
         message_id: 9,

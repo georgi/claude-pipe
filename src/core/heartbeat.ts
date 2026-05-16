@@ -153,11 +153,7 @@ export class Heartbeat {
 /**
  * Creates a heartbeat instance from config.
  */
-export function createHeartbeat(
-  config: PiPipeConfig,
-  bus: MessageBus,
-  logger: Logger
-): Heartbeat {
+export function createHeartbeat(config: PiPipeConfig, bus: MessageBus, logger: Logger): Heartbeat {
   const heartbeatConfig: HeartbeatConfig = {
     enabled: config.heartbeat?.enabled ?? true,
     intervalMs: (config.heartbeat?.intervalMinutes ?? 30) * 60 * 1000,

@@ -122,8 +122,7 @@ describe('transcribeAudio', () => {
     process.env.WHISPER_CPP_PATH = '/usr/bin/whisper-cpp'
     process.env.WHISPER_CPP_MODEL = '/models/ggml-base.en.bin'
     mockExistsSync.mockImplementation(
-      (p: string) =>
-        p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
+      (p: string) => p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
     )
 
     let stage = 0
@@ -164,8 +163,7 @@ describe('transcribeAudio', () => {
     process.env.WHISPER_CPP_PATH = '/usr/bin/whisper-cpp'
     process.env.WHISPER_CPP_MODEL = '/models/ggml-base.en.bin'
     mockExistsSync.mockImplementation(
-      (p: string) =>
-        p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
+      (p: string) => p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
     )
 
     mockExecFile.mockImplementation(
@@ -199,8 +197,7 @@ describe('transcribeAudio', () => {
     process.env.WHISPER_CPP_PATH = '/usr/bin/whisper-cpp'
     process.env.WHISPER_CPP_MODEL = '/models/ggml-base.en.bin'
     mockExistsSync.mockImplementation(
-      (p: string) =>
-        p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
+      (p: string) => p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
     )
 
     mockExecFile.mockImplementation(
@@ -234,8 +231,7 @@ describe('transcribeAudio', () => {
     process.env.WHISPER_CPP_PATH = '/usr/bin/whisper-cpp'
     process.env.WHISPER_CPP_MODEL = '/models/ggml-base.en.bin'
     mockExistsSync.mockImplementation(
-      (p: string) =>
-        p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
+      (p: string) => p === '/usr/bin/whisper-cpp' || p === '/models/ggml-base.en.bin'
     )
     mockExecFile.mockImplementation(
       (
@@ -295,7 +291,11 @@ describe('convertToWav', () => {
 describe('isFfmpegAvailable', () => {
   it('returns true when which ffmpeg succeeds', async () => {
     mockExecFile.mockImplementation(
-      (_cmd: string, _args: string[], cb: (err: Error | null, result: { stdout: string }) => void) => {
+      (
+        _cmd: string,
+        _args: string[],
+        cb: (err: Error | null, result: { stdout: string }) => void
+      ) => {
         cb(null, { stdout: '/usr/bin/ffmpeg\n' })
       }
     )

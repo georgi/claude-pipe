@@ -12,11 +12,11 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
   },
   SessionManager: { create: vi.fn(), open: vi.fn() },
   getAgentDir: vi.fn(() => '/tmp/.pi/agent'),
-  createAgentSession: vi.fn(),
+  createAgentSession: vi.fn()
 }))
 
 vi.mock('@earendil-works/pi-ai', () => ({
-  getModel: vi.fn(),
+  getModel: vi.fn()
 }))
 
 describe('createModelClient', () => {
@@ -24,10 +24,15 @@ describe('createModelClient', () => {
     const config = {
       model: 'claude-sonnet-4-5',
       workspace: '/tmp',
-      transcriptLog: { enabled: false, path: '/tmp/t.jsonl' },
+      transcriptLog: { enabled: false, path: '/tmp/t.jsonl' }
     } as unknown as PiPipeConfig
 
-    const store = { get: vi.fn(), set: vi.fn(), clear: vi.fn(), entries: vi.fn(() => ({})) } as never
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      clear: vi.fn(),
+      entries: vi.fn(() => ({}))
+    } as never
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 
     const client = createModelClient(config, store, logger)

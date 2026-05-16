@@ -15,10 +15,7 @@ describe('SessionStore', () => {
     await store.init()
     await store.set('telegram:123', '/sessions/sess-abc.jsonl')
 
-    const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<
-      string,
-      { sessionFile: string }
-    >
+    const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<string, { sessionFile: string }>
     expect(raw['telegram:123']?.sessionFile).toBe('/sessions/sess-abc.jsonl')
 
     const reloaded = new SessionStore(path)
@@ -37,10 +34,7 @@ describe('SessionStore', () => {
 
     expect(store.get('telegram:123')).toBeUndefined()
 
-    const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<
-      string,
-      { sessionFile: string }
-    >
+    const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<string, { sessionFile: string }>
     expect(raw['telegram:123']).toBeUndefined()
   })
 
@@ -77,10 +71,7 @@ describe('SessionStore', () => {
     expect(store.get('a:3')?.sessionFile).toBe('/sessions/sess-3.jsonl')
 
     // File should be valid JSON
-    const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<
-      string,
-      { sessionFile: string }
-    >
+    const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<string, { sessionFile: string }>
     expect(Object.keys(raw)).toHaveLength(3)
   })
 

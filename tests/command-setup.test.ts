@@ -153,12 +153,7 @@ describe('setupCommands', () => {
     const deps = makeDeps()
     const { handler } = setupCommands(deps)
 
-    await handler.execute(
-      '/config_set summaryPromptEnabled true',
-      'telegram',
-      '42',
-      'admin1'
-    )
+    await handler.execute('/config_set summaryPromptEnabled true', 'telegram', '42', 'admin1')
     const result = await handler.execute(
       '/config_get summaryPromptEnabled',
       'telegram',
@@ -173,8 +168,8 @@ describe('setupCommands', () => {
     const { handler } = setupCommands(deps)
 
     await handler.execute('/stop', 'telegram', '42', 'admin1')
-    expect((deps.pi as unknown as { cancelTurn: ReturnType<typeof vi.fn> }).cancelTurn).toHaveBeenCalledWith(
-      'telegram:42'
-    )
+    expect(
+      (deps.pi as unknown as { cancelTurn: ReturnType<typeof vi.fn> }).cancelTurn
+    ).toHaveBeenCalledWith('telegram:42')
   })
 })

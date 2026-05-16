@@ -7,7 +7,7 @@ import {
   SessionManager,
   type AgentSession,
   type AgentSessionEvent,
-  type ExtensionAPI,
+  type ExtensionAPI
 } from '@earendil-works/pi-coding-agent'
 import { getModel } from '@earendil-works/pi-ai'
 import type { Model } from '@earendil-works/pi-ai'
@@ -58,7 +58,7 @@ const BASE_SYSTEM_PROMPT = [
   '[[memory:key_name|content to remember]]',
   '',
   'Use descriptive keys like "user_preference_language" or "project_nodetool_status".',
-  'Only save information that would be useful in future conversations.',
+  'Only save information that would be useful in future conversations.'
 ].join('\n')
 
 /** Builds the full system prompt: base instructions + optional personality. */
@@ -69,7 +69,7 @@ function buildSystemPrompt(config: PiPipeConfig): string {
     `You are ${name}, a personal AI assistant that lives inside chat apps.`,
     `Your personality: ${traits}.`,
     '',
-    BASE_SYSTEM_PROMPT,
+    BASE_SYSTEM_PROMPT
   ].join('\n')
 }
 
@@ -101,7 +101,7 @@ const PROVIDER_PREFIXES: Array<[RegExp, string]> = [
   [/^grok|^xai/i, 'xai'],
   [/^qwen/i, 'alibaba'],
   [/^minimax/i, 'minimax'],
-  [/^glm|^zai/i, 'zai'],
+  [/^glm|^zai/i, 'zai']
 ]
 
 /**
@@ -148,7 +148,9 @@ function extractErrorText(result: unknown): string {
     if (typeof r.message === 'string') return r.message
     if (Array.isArray(r.content)) {
       const parts = r.content
-        .map((c) => (c && typeof c === 'object' && 'text' in c ? (c as { text?: string }).text : ''))
+        .map((c) =>
+          c && typeof c === 'object' && 'text' in c ? (c as { text?: string }).text : ''
+        )
         .filter(Boolean)
       if (parts.length > 0) return parts.join(' ')
     }
@@ -190,7 +192,7 @@ export class PiClient implements ModelClient {
         : {}),
       ...(this.config.transcriptLog.maxFiles != null
         ? { maxFiles: this.config.transcriptLog.maxFiles }
-        : {}),
+        : {})
     })
     this.agentDir = getAgentDir()
     const authStorage = AuthStorage.create()
@@ -206,7 +208,7 @@ export class PiClient implements ModelClient {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      extensionFactories: [createInstructionsExtension(() => buildSystemPrompt(this.config))],
+      extensionFactories: [createInstructionsExtension(() => buildSystemPrompt(this.config))]
     })
     await loader.reload()
     return loader
@@ -230,7 +232,7 @@ export class PiClient implements ModelClient {
       model,
       modelRegistry: this.modelRegistry,
       resourceLoader,
-      sessionManager,
+      sessionManager
     })
 
     if (!saved?.sessionFile && session.sessionFile) {
@@ -273,7 +275,7 @@ export class PiClient implements ModelClient {
               kind: 'text_streaming',
               conversationKey,
               message: 'Streaming response...',
-              text: responseText,
+              text: responseText
             })
           })
         }
@@ -289,7 +291,7 @@ export class PiClient implements ModelClient {
             conversationKey,
             message: `Using tool: ${toolName}`,
             toolName,
-            toolUseId,
+            toolUseId
           })
         })
         return
@@ -310,7 +312,7 @@ export class PiClient implements ModelClient {
             conversationKey,
             message: failed ? `Tool failed: ${toolName}` : `Tool completed: ${toolName}`,
             toolName,
-            toolUseId,
+            toolUseId
           })
         })
         return
@@ -322,7 +324,7 @@ export class PiClient implements ModelClient {
       await this.publishUpdate(context, {
         kind: 'turn_started',
         conversationKey,
-        message: 'Working on it...',
+        message: 'Working on it...'
       })
     })
     await this.transcript.log(conversationKey, { type: 'user', text: userText })
@@ -347,7 +349,7 @@ export class PiClient implements ModelClient {
       await this.publishUpdate(context, {
         kind: 'turn_finished',
         conversationKey,
-        message: aborted ? 'Turn cancelled' : 'Turn finished',
+        message: aborted ? 'Turn cancelled' : 'Turn finished'
       })
     })
     await this.drain(conversationKey)

@@ -46,7 +46,7 @@ describe('Heartbeat', () => {
         enabled: true,
         intervalMs: 1000,
         defaultChannel: 'telegram',
-        defaultChatId: '42',
+        defaultChatId: '42'
       },
       bus,
       logger
@@ -97,7 +97,7 @@ describe('Heartbeat', () => {
       channel: 'cli',
       chatId: 'x',
       content: 'working...',
-      metadata: { kind: 'progress' },
+      metadata: { kind: 'progress' }
     })
     await bus.consumeOutbound()
 
@@ -115,7 +115,7 @@ describe('Heartbeat', () => {
         enabled: true,
         intervalMs: 1000,
         defaultChannel: 'cli',
-        defaultChatId: 'a',
+        defaultChatId: 'a'
       },
       bus,
       logger
@@ -142,8 +142,8 @@ describe('createHeartbeat', () => {
         enabled: true,
         intervalMinutes: 5,
         defaultChannel: 'telegram',
-        defaultChatId: 'group-42',
-      },
+        defaultChatId: 'group-42'
+      }
     } as unknown as PiPipeConfig
 
     const hb = createHeartbeat(cfg, new MessageBus(), fakeLogger())
