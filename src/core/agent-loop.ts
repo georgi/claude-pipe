@@ -1,6 +1,6 @@
 import type { CommandHandler } from '../commands/handler.js'
 import type { ChannelManager } from '../channels/manager.js'
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import type { DailyLog } from '../memory/daily-log.js'
 import type { MemoryStore } from '../memory/store.js'
 import { applySummaryTemplate } from './prompt-template.js'
@@ -29,7 +29,7 @@ function formatToolName(name: string): string {
 /**
  * Central message-processing loop.
  *
- * Consumes inbound chat events, executes one Claude turn, and publishes outbound replies.
+ * Consumes inbound chat events, executes one Pi turn, and publishes outbound replies.
  * When a {@link CommandHandler} is provided it intercepts slash commands before they reach the LLM.
  *
  * When a {@link ChannelManager} is attached, tool call updates are sent as editable messages
@@ -45,7 +45,7 @@ export class AgentLoop {
 
   constructor(
     private readonly bus: MessageBus,
-    private readonly config: ClaudePipeConfig,
+    private readonly config: PiPipeConfig,
     private readonly client: ModelClient,
     private readonly logger: Logger
   ) {}
@@ -87,7 +87,7 @@ export class AgentLoop {
     await this.processMessage(inbound)
   }
 
-  /** Stops the loop and closes live Claude sessions. */
+  /** Stops the loop and closes live Pi sessions. */
   stop(): void {
     this.running = false
     this.client.closeAll()

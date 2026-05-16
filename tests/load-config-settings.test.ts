@@ -6,7 +6,7 @@ import { configSchema } from '../src/config/schema.js'
 
 describe('loadConfig from settings file', () => {
   const tmpDir = path.join(import.meta.dirname ?? __dirname, '..', '.test-load-config')
-  const settingsDir = path.join(tmpDir, '.claude-pipe')
+  const settingsDir = path.join(tmpDir, '.pi-pipe')
   const settingsPath = path.join(settingsDir, 'settings.json')
 
   afterEach(() => {

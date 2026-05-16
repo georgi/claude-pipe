@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 
 /**
- * Persisted settings stored in ~/.claude-pipe/settings.json.
+ * Persisted settings stored in ~/.pi-pipe/settings.json.
  */
 export interface PersonalitySettings {
   name: string
@@ -23,7 +23,7 @@ export interface Settings {
 }
 
 function defaultConfigDir(): string {
-  return path.join(os.homedir(), '.claude-pipe')
+  return path.join(os.homedir(), '.pi-pipe')
 }
 
 /** Returns the resolved path to the settings directory. */

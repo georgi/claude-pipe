@@ -1,12 +1,12 @@
-# Claude Pipe Build Spec (v1)
+# Pi Pipe Build Spec (v1)
 
 - Status: Ready for implementation
 - Date: 2026-02-08
-- Source of truth: `/Users/mg/workspace/claude-pipe/PRD.md`
+- Source of truth: `/Users/mg/workspace/pi-pipe/PRD.md`
 
 ## 1. Goals
 
-Build a local TypeScript bot for Telegram and Discord using Claude Code CLI with per-channel session continuity. Inspired by the agent loop patterns from [openclaw/openclaw](https://github.com/openclaw/openclaw).
+Build a local TypeScript bot for Telegram and Discord using the Pi Coding Agent SDK with per-channel session continuity. Inspired by the agent loop patterns from [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
 ## 2. Locked Decisions
 
@@ -14,17 +14,17 @@ Build a local TypeScript bot for Telegram and Discord using Claude Code CLI with
 - Trigger mode: reply to every message.
 - Message type: text-only first.
 - Session scope: per channel/chat (`channel:chat_id`).
-- Persistence: session id map only.
+- Persistence: session-file path map only.
 - Workspace: configurable default path.
-- Tool scope: `read_file`, `write_file`, `edit_file`, `list_dir`, `exec`, `web_fetch`, `message`.
+- Tool scope: Pi SDK built-in tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`).
 - Excluded: `spawn`, cron, heartbeat, media ingestion.
-- Model: `claude-sonnet-4-5`.
+- Model: configurable string (default `claude-sonnet-4-5`); Pi resolves the provider.
 - Runtime: local only.
 
 ## 3. Proposed Repository Layout
 
 ```text
-claude-pipe/
+pi-pipe/
   package.json
   tsconfig.json
   .env.example
@@ -33,12 +33,15 @@ claude-pipe/
     config/
       schema.ts
       load.ts
+      settings.ts
     core/
       types.ts
       bus.ts
       logger.ts
       session-store.ts
-      claude-client.ts
+      pi-client.ts
+      model-client.ts
+      client-factory.ts
       agent-loop.ts
       prompt-template.ts
       retry.ts
@@ -48,6 +51,7 @@ claude-pipe/
       base.ts
       telegram.ts
       discord.ts
+      cli.ts
       manager.ts
   data/
     sessions.json
@@ -59,19 +63,19 @@ claude-pipe/
 2. Adapter emits normalized `InboundMessage` to bus.
 3. Agent loop consumes inbound event.
 4. Agent loop resolves conversation key (`channel:chat_id`).
-5. Session store returns existing Claude session id or none.
-6. Claude client spawns CLI subprocess with `--resume <session_id>` if available.
-7. CLI subprocess executes with `--print --output-format stream-json`.
-8. Agent parses stream-json frames for assistant text, tool calls, and results.
+5. Session store returns existing Pi session-file path or none.
+6. Pi client either reuses a cached `AgentSession`, opens one from disk (`SessionManager.open(filePath)`), or creates a fresh one (`SessionManager.create(workspace)`).
+7. Pi client subscribes to `session.subscribe(...)` and calls `session.prompt(text)`.
+8. Streaming events translate into agent-loop updates (`text_streaming`, `tool_call_started/finished/failed`).
 9. Agent posts final text to outbound bus.
 10. Channel adapter sends response to the same chat.
-11. Agent persists/updates conversation-to-session mapping.
+11. Pi client persists the session-file path on first creation so future restarts can resume.
 
 ## 5. Core Type Contracts
 
 ```ts
 // src/core/types.ts
-export type ChannelName = 'telegram' | 'discord'
+export type ChannelName = 'telegram' | 'discord' | 'cli'
 
 export interface InboundMessage {
   channel: ChannelName
@@ -91,7 +95,7 @@ export interface OutboundMessage {
 }
 
 export interface SessionRecord {
-  sessionId: string
+  sessionFile: string
   updatedAt: string
 }
 
@@ -102,12 +106,13 @@ export type SessionMap = Record<string, SessionRecord>
 
 ```ts
 // src/config/schema.ts
-export interface ClaudePipeConfig {
+export interface PiPipeConfig {
   model: string
   workspace: string
   channels: {
     telegram: { enabled: boolean; token: string; allowFrom: string[] }
     discord: { enabled: boolean; token: string; allowFrom: string[] }
+    cli?: { enabled: boolean; allowFrom: string[] }
   }
   summaryPrompt: {
     enabled: boolean
@@ -126,70 +131,49 @@ export interface ClaudePipeConfig {
 
 Config source order:
 
-1. local config file (project-level)
-2. environment overrides
+1. `~/.pi-pipe/settings.json` (written by the onboarding wizard).
+2. Environment overrides (`PIPIPE_*`).
 
 ## 7. Session Store Spec
 
 - File: JSON object at `sessionStorePath`.
 - Key: `channel:chatId`.
-- Value: `{ sessionId, updatedAt }`.
+- Value: `{ sessionFile, updatedAt }`.
 - Behavior:
   - load once at startup
   - atomic write on update (write temp + rename)
   - no transcript or user content storage
 
-## 8. Claude Client Adapter Spec
+## 8. Pi Client Adapter Spec
 
 Responsibilities:
 
-- Spawn Claude Code CLI subprocess with `--print --output-format stream-json`.
-- Pass `--resume <session_id>` if existing session mapping exists.
-- Parse stdout line-by-line as stream-json frames.
-- Extract session_id from result frames and persist mapping.
-- Emit progress updates for tool call events (started/finished/failed).
-- Return final assistant text response.
+- Maintain one `AgentSession` per `conversationKey` in memory.
+- On first turn: `createAgentSession({ cwd, model, resourceLoader, sessionManager: SessionManager.create(cwd) })` and persist `session.sessionFile`.
+- On cold start with a stored sessionFile: `SessionManager.open(filePath)` before `createAgentSession`.
+- Register a Pi extension (`DefaultResourceLoader.extensionFactories`) that hooks `before_agent_start` and returns `{ systemPrompt }` carrying pi-pipe's communication-style + marker-protocol instructions.
+- Subscribe to `session.subscribe(...)` events and translate them into channel-visible updates.
+- On cancel: `await session.abort()`.
 
-CLI flags used:
+Pi SDK options used:
 
-- `--print`: Output result to stdout
-- `--verbose`: Enable detailed logging
-- `--output-format stream-json`: Emit streaming JSON frames
-- `--permission-mode bypassPermissions`: Full tool access
-- `--dangerously-skip-permissions`: Skip permission prompts
-- `--model <model>`: Specify model to use
-- `--resume <session_id>`: Resume existing session
+- `cwd`: workspace path
+- `agentDir`: `getAgentDir()` (default `~/.pi/agent`)
+- `model`: resolved via `ModelRegistry.find()` / `getModel()` from a config string
+- `resourceLoader`: `DefaultResourceLoader` with all filesystem discovery disabled (`noExtensions`, `noSkills`, `noPromptTemplates`, `noThemes`, `noContextFiles`) plus pi-pipe's instructions extension
+- `sessionManager`: `SessionManager.create(cwd)` or `SessionManager.open(filePath)`
 
 ## 9. Tools
 
-Claude Pipe uses Claude Code CLI's built-in tools. The CLI subprocess provides:
+pi-pipe uses Pi SDK's built-in tools by default — no `customTools` are passed in v1:
 
-**File tools:**
+**File tools:** `read`, `write`, `edit`, `grep`, `find`, `ls`.
 
-- `read_file`: Read file contents
-- `write_file`: Create or overwrite files
-- `edit_file`: Edit existing files with search/replace
-- `list_directory`: List directory contents
+**Execution tools:** `bash`.
 
-**Execution tools:**
+**Web tools:** none in v1 (can be added later via Pi extensions).
 
-- `run_command`: Execute shell commands
-
-**Web tools:**
-
-- `web_fetch`: Fetch and read web content
-- `web_search`: Search the web (if configured)
-
-**Communication:**
-
-- `message`: Send messages back to channels (via ToolContext routing)
-
-The CLI handles tool execution and result formatting. Claude Pipe focuses on:
-
-- Spawning the CLI with proper workspace context
-- Parsing tool call events from stream-json output
-- Forwarding progress updates to channels
-- Persisting session state across turns
+**Communication:** marker protocol parsed out of the model's text response (`[[file:…]]`, `[[keyboard:…]]`, `[[memory:…]]`) in `agent-loop.ts`. Future versions may replace markers with real Pi tools via an extension.
 
 ## 10. Channel Adapter Requirements
 
@@ -207,6 +191,10 @@ The CLI handles tool execution and result formatting. Claude Pipe focuses on:
 - Outbound sends text to same channel id.
 - Optional allow list check.
 
+### CLI
+
+- Stdin/stdout REPL for local testing.
+
 ## 11. Agent Loop Spec
 
 Pseudo-flow:
@@ -214,26 +202,27 @@ Pseudo-flow:
 ```text
 consume inbound
 apply summary prompt template if enabled
-spawn claude CLI subprocess with --resume if session exists
-parse stream-json frames from stdout:
-  - track tool_call_started events for progress
-  - track tool_call_finished events for progress
-  - accumulate assistant text blocks
-  - extract session_id for persistence
+ask PiClient.runTurn(conversationKey, text, ctx)
+  - get-or-create AgentSession (cached / opened-from-file / freshly-created)
+  - subscribe(event):
+      - message_update text_delta → accumulate + emit text_streaming
+      - tool_execution_start → emit tool_call_started
+      - tool_execution_end → emit tool_call_finished | tool_call_failed
+  - await session.prompt(text)
+  - persist sessionFile if new
 publish outbound final text
-persist session mapping
 ```
 
 Controls:
 
-- `maxToolIterations` default 20.
-- If no final text after iterations: send fallback message.
+- `maxToolIterations` default 20 (Pi handles tool looping internally).
+- If no text after the turn: send fallback message.
 
 ## 12. Error Handling
 
 - Channel receive errors: log + continue.
-- Tool failure: return tool error string to model.
-- Claude API failure: send user-friendly failure text.
+- Tool failure: surfaced via `tool_execution_end.isError`; reported to user.
+- Pi prompt rejection (non-abort): surfaced as friendly error text.
 - Session persistence failure: log error, continue current process.
 
 ## 13. Logging/Observability (local)
@@ -243,14 +232,14 @@ Structured logs with:
 - timestamp
 - channel
 - conversation key
-- event type (`inbound`, `tool_call`, `tool_result`, `outbound`, `error`)
+- event type (`inbound`, `pi.tool_call_started`, `pi.tool_call_finished`, `outbound`, `error`)
 - duration metrics per turn
 
 Do not log secrets or full file contents.
 
 ## 14. Security Posture (v1)
 
-- Full permissions are intentionally enabled by product decision.
+- Default Pi tool permissions are intentionally enabled by product decision.
 - Clearly document this in README and `.env.example`.
 
 ## 15. Acceptance Test Matrix
@@ -270,28 +259,28 @@ Do not log secrets or full file contents.
 - Send follow-up: "Now summarize only the backend files"
 - Restart process.
 - Send follow-up reference question.
-- Expect: continuity via resumed Claude session.
+- Expect: continuity via resumed Pi session file.
 
 4. Tool invocation
 
-- Prompt requiring `list_dir` then `read_file`.
+- Prompt requiring `ls` then `read`.
 - Expect: tool calls execute and final answer reflects tool output.
 
 5. Failure handling
 
-- Force failing command via `exec`.
+- Force failing command via `bash`.
 - Expect: graceful error surfaced to model and coherent final response.
 
 ## 16. Implementation Phases
 
 1. Bootstrap project + config + logger + types.
-2. Session store + Claude client wrapper.
+2. Session store + Pi client wrapper.
 3. Bus + agent loop.
-4. Telegram + Discord adapters.
+4. Telegram + Discord + CLI adapters.
 5. End-to-end local validation.
 
 ## 17. Definition of Done
 
 - All acceptance tests above pass locally.
-- PRD in `/Users/mg/workspace/claude-pipe/PRD.md` remains consistent with implementation.
+- PRD in `/Users/mg/workspace/pi-pipe/PRD.md` remains consistent with implementation.
 - Build spec checkpoints are traceable in code modules.

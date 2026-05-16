@@ -1,4 +1,4 @@
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import { MessageBus } from './bus.js'
 import type { Logger } from './types.js'
 
@@ -154,7 +154,7 @@ export class Heartbeat {
  * Creates a heartbeat instance from config.
  */
 export function createHeartbeat(
-  config: ClaudePipeConfig,
+  config: PiPipeConfig,
   bus: MessageBus,
   logger: Logger
 ): Heartbeat {

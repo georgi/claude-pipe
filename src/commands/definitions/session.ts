@@ -2,7 +2,7 @@ import type { CommandDefinition, CommandContext, CommandResult } from '../types.
 
 /**
  * /new  (aliases: /newsession, /new_session, /reset, /reset_session, /session_new)
- * Starts a fresh Claude session for the current chat.
+ * Starts a fresh Pi session for the current chat.
  */
 export function sessionNewCommand(
   startNewSession: (conversationKey: string) => Promise<void>
@@ -10,7 +10,7 @@ export function sessionNewCommand(
   return {
     name: 'session_new',
     category: 'session',
-    description: 'Start a new Claude session for this chat',
+    description: 'Start a new Pi session for this chat',
     usage: '/session_new — clears conversation history and starts fresh',
     aliases: ['new', 'newsession', 'new_session', 'reset', 'reset_session'],
     permission: 'user',
@@ -50,7 +50,7 @@ export function sessionListCommand(
  * Shows info about the current chat's session.
  */
 export function sessionInfoCommand(
-  getSession: (conversationKey: string) => { sessionId: string; updatedAt: string } | undefined
+  getSession: (conversationKey: string) => { sessionFile: string; updatedAt: string } | undefined
 ): CommandDefinition {
   return {
     name: 'session_info',
@@ -66,7 +66,7 @@ export function sessionInfoCommand(
       return {
         content:
           `**Session info:**\n` +
-          `• Session ID: \`${session.sessionId}\`\n` +
+          `• Session file: \`${session.sessionFile}\`\n` +
           `• Last active: ${session.updatedAt}`
       }
     }

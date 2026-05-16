@@ -12,5 +12,5 @@ export {
   stopCommand,
   restartCommand
 } from './utility.js'
-export { claudeAskCommand, claudeModelCommand } from './claude.js'
+export { piAskCommand, piModelCommand } from './pi.js'
 export { configSetCommand, configGetCommand } from './config.js'

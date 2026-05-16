@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentLoop } from '../src/core/agent-loop.js'
 import { MessageBus } from '../src/core/bus.js'
 import { CommandHandler, CommandRegistry, sessionNewCommand } from '../src/commands/index.js'
-import type { ClaudePipeConfig } from '../src/config/schema.js'
+import type { PiPipeConfig } from '../src/config/schema.js'
 
-function makeConfig(): ClaudePipeConfig {
+function makeConfig(): PiPipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',

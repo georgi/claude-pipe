@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ClaudePipeConfig } from '../../config/schema.js'
+import type { PiPipeConfig } from '../../config/schema.js'
 import type { CommandDefinition, CommandResult } from '../types.js'
 import type { CommandRegistry } from '../registry.js'
 
@@ -84,8 +84,8 @@ export function statusCommand(
  * Reloads configuration from disk without restarting.
  */
 export function reloadCommand(
-  config: ClaudePipeConfig,
-  reloadConfig: () => ClaudePipeConfig
+  config: PiPipeConfig,
+  reloadConfig: () => PiPipeConfig
 ): CommandDefinition {
   return {
     name: 'reload',
@@ -136,13 +136,13 @@ export function pingCommand(): CommandDefinition {
 
 /**
  * /stop
- * Cancels the in-progress Claude turn for the current conversation.
+ * Cancels the in-progress Pi turn for the current conversation.
  */
 export function stopCommand(cancelTurn: (conversationKey: string) => void): CommandDefinition {
   return {
     name: 'stop',
     category: 'utility',
-    description: 'Cancel the in-progress Claude turn for this chat',
+    description: 'Cancel the in-progress Pi turn for this chat',
     aliases: ['cancel'],
     permission: 'user',
     async execute(ctx): Promise<CommandResult> {

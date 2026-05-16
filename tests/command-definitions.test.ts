@@ -8,8 +8,8 @@ import {
   helpCommand,
   statusCommand,
   pingCommand,
-  claudeAskCommand,
-  claudeModelCommand,
+  piAskCommand,
+  piModelCommand,
   configSetCommand,
   configGetCommand,
   CommandRegistry
@@ -56,7 +56,7 @@ describe('Session commands', () => {
 
   it('/session_info returns session details', async () => {
     const cmd = sessionInfoCommand(() => ({
-      sessionId: 'sess-abc',
+      sessionFile: '/sessions/sess-abc.jsonl',
       updatedAt: '2025-01-01T00:00:00Z'
     }))
 
@@ -137,32 +137,32 @@ describe('Utility commands', () => {
   })
 })
 
-describe('Claude commands', () => {
-  it('/claude_ask sends prompt and returns reply', async () => {
-    const runTurn = vi.fn(async () => 'Claude says hello')
-    const cmd = claudeAskCommand(runTurn)
+describe('Pi commands', () => {
+  it('/pi_ask sends prompt and returns reply', async () => {
+    const runTurn = vi.fn(async () => 'Pi says hello')
+    const cmd = piAskCommand(runTurn)
 
     const result = await cmd.execute(makeCtx({ rawArgs: 'hello world', args: ['hello', 'world'] }))
-    expect(result.content).toBe('Claude says hello')
+    expect(result.content).toBe('Pi says hello')
     expect(runTurn).toHaveBeenCalledWith('telegram:42', 'hello world', 'telegram', '42')
   })
 
-  it('/claude_ask with no prompt returns usage error', async () => {
-    const cmd = claudeAskCommand(vi.fn())
+  it('/pi_ask with no prompt returns usage error', async () => {
+    const cmd = piAskCommand(vi.fn())
     const result = await cmd.execute(makeCtx())
     expect(result.error).toBe(true)
     expect(result.content).toContain('Usage')
   })
 
-  it('/claude_model with no args shows current model', async () => {
-    const cmd = claudeModelCommand(() => 'claude-sonnet-4-5')
+  it('/pi_model with no args shows current model', async () => {
+    const cmd = piModelCommand(() => 'claude-sonnet-4-5')
     const result = await cmd.execute(makeCtx())
     expect(result.content).toContain('claude-sonnet-4-5')
   })
 
-  it('/claude_model with arg switches model', async () => {
+  it('/pi_model with arg switches model', async () => {
     const setModel = vi.fn()
-    const cmd = claudeModelCommand(() => 'old-model', setModel)
+    const cmd = piModelCommand(() => 'old-model', setModel)
 
     const result = await cmd.execute(makeCtx({ args: ['new-model'], rawArgs: 'new-model' }))
     expect(result.content).toContain('new-model')

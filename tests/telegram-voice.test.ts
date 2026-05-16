@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 import { MessageBus } from '../src/core/bus.js'
-import type { ClaudePipeConfig } from '../src/config/schema.js'
+import type { PiPipeConfig } from '../src/config/schema.js'
 import { TelegramChannel } from '../src/channels/telegram.js'
 
 vi.mock('../src/audio/whisper.js', () => ({
@@ -15,7 +15,7 @@ import { transcribeAudio, downloadToTemp } from '../src/audio/whisper.js'
 const mockTranscribeAudio = transcribeAudio as ReturnType<typeof vi.fn>
 const mockDownloadToTemp = downloadToTemp as ReturnType<typeof vi.fn>
 
-function makeConfig(): ClaudePipeConfig {
+function makeConfig(): PiPipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
@@ -28,7 +28,7 @@ function makeConfig(): ClaudePipeConfig {
     transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
     maxToolIterations: 20
-  } as ClaudePipeConfig
+  } as PiPipeConfig
 }
 
 describe('TelegramChannel voice messages', () => {
@@ -60,7 +60,7 @@ describe('TelegramChannel voice messages', () => {
       return { ok: true, text: async () => '' }
     }) as unknown as typeof fetch
 
-    mockDownloadToTemp.mockResolvedValue('/tmp/claude-pipe-audio/test.oga')
+    mockDownloadToTemp.mockResolvedValue('/tmp/pi-pipe-audio/test.oga')
     mockTranscribeAudio.mockResolvedValue({
       success: true,
       text: 'Hello world this is a test'
@@ -88,7 +88,7 @@ describe('TelegramChannel voice messages', () => {
       'https://api.telegram.org/file/botTEST_TOKEN/voice/file_0.oga',
       '.oga'
     )
-    expect(mockTranscribeAudio).toHaveBeenCalledWith('/tmp/claude-pipe-audio/test.oga')
+    expect(mockTranscribeAudio).toHaveBeenCalledWith('/tmp/pi-pipe-audio/test.oga')
   })
 
   it('provides install instructions when whisper-cpp is not available', async () => {
@@ -106,7 +106,7 @@ describe('TelegramChannel voice messages', () => {
       return { ok: true, text: async () => '' }
     }) as unknown as typeof fetch
 
-    mockDownloadToTemp.mockResolvedValue('/tmp/claude-pipe-audio/test.oga')
+    mockDownloadToTemp.mockResolvedValue('/tmp/pi-pipe-audio/test.oga')
     mockTranscribeAudio.mockResolvedValue({
       success: false,
       reason: 'whisper-cpp binary not found'
@@ -147,7 +147,7 @@ describe('TelegramChannel voice messages', () => {
       return { ok: true, text: async () => '' }
     }) as unknown as typeof fetch
 
-    mockDownloadToTemp.mockResolvedValue('/tmp/claude-pipe-audio/test.mp3')
+    mockDownloadToTemp.mockResolvedValue('/tmp/pi-pipe-audio/test.mp3')
     mockTranscribeAudio.mockResolvedValue({
       success: true,
       text: 'Audio content here'
