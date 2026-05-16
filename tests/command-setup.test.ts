@@ -124,4 +124,57 @@ describe('setupCommands', () => {
     expect(result?.content).toBe('pi reply')
     expect((deps.pi as unknown as { runTurn: ReturnType<typeof vi.fn> }).runTurn).toHaveBeenCalled()
   })
+
+  it('status command reports configured channels and model', async () => {
+    const deps = makeDeps()
+    deps.config.channels.cli = { enabled: true, allowFrom: [] }
+    const { handler } = setupCommands(deps)
+
+    const result = await handler.execute('/status', 'telegram', '42', 'admin1')
+    expect(result?.content).toContain('claude-sonnet-4-5')
+    expect(result?.content).toContain('/tmp/workspace')
+    // Both telegram and discord are enabled in makeDeps; cli was added above
+    expect(result?.content).toContain('telegram')
+    expect(result?.content).toContain('discord')
+    expect(result?.content).toContain('cli')
+  })
+
+  it('config_get with no key shows model + workspace + mutable values', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+
+    const result = await handler.execute('/config_get', 'telegram', '42', 'admin1')
+    expect(result?.content).toContain('model')
+    expect(result?.content).toContain('claude-sonnet-4-5')
+    expect(result?.content).toContain('workspace')
+  })
+
+  it('config_get with a previously set key shows the mutable value', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+
+    await handler.execute(
+      '/config_set summaryPromptEnabled true',
+      'telegram',
+      '42',
+      'admin1'
+    )
+    const result = await handler.execute(
+      '/config_get summaryPromptEnabled',
+      'telegram',
+      '42',
+      'admin1'
+    )
+    expect(result?.content).toContain('true')
+  })
+
+  it('stop command cancels the in-flight turn for the conversation', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+
+    await handler.execute('/stop', 'telegram', '42', 'admin1')
+    expect((deps.pi as unknown as { cancelTurn: ReturnType<typeof vi.fn> }).cancelTurn).toHaveBeenCalledWith(
+      'telegram:42'
+    )
+  })
 })

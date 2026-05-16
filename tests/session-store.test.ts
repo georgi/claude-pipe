@@ -84,6 +84,38 @@ describe('SessionStore', () => {
     expect(Object.keys(raw)).toHaveLength(3)
   })
 
+  it('entries() returns a snapshot independent of subsequent writes', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const path = join(dir, 'sessions.json')
+    const store = new SessionStore(path)
+    await store.init()
+
+    await store.set('k1', '/p/k1.jsonl')
+    const snapshot = store.entries()
+    expect(Object.keys(snapshot)).toEqual(['k1'])
+
+    await store.set('k2', '/p/k2.jsonl')
+    // The snapshot is a shallow copy — must not include the later write
+    expect(Object.keys(snapshot)).toEqual(['k1'])
+  })
+
+  it('clear() on an unknown key is a no-op', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const path = join(dir, 'sessions.json')
+    const store = new SessionStore(path)
+    await store.init()
+
+    await store.clear('nope')
+    expect(store.get('nope')).toBeUndefined()
+  })
+
+  it('reads back an empty map when the file does not exist or is unreadable', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const store = new SessionStore(join(dir, 'never-existed.json'))
+    await store.init()
+    expect(store.entries()).toEqual({})
+  })
+
   it('breaks stale lock and succeeds', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
     const path = join(dir, 'sessions.json')

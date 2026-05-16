@@ -31,6 +31,7 @@
     "@playwright/test": "^1.58.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "playwright": "^1.58.2",

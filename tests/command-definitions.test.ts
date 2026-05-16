@@ -212,4 +212,49 @@ describe('Config commands', () => {
     const result = await cmd.execute(makeCtx({ args: ['bad'], rawArgs: 'bad' }))
     expect(result.error).toBe(true)
   })
+
+  it('/config_get with no key returning a string handles the empty key formatter', async () => {
+    const cmd = configGetCommand(() => 'just-a-string')
+    const result = await cmd.execute(makeCtx())
+    expect(result.error).toBeUndefined()
+    expect(result.content).toContain('just-a-string')
+  })
+
+  it('/config_get with no key returning undefined still surfaces an error', async () => {
+    const cmd = configGetCommand(() => undefined)
+    const result = await cmd.execute(makeCtx())
+    expect(result.error).toBe(true)
+  })
+})
+
+describe('Pi commands edge paths', () => {
+  it('/pi_model with arg but no setter is rejected', async () => {
+    const cmd = piModelCommand(() => 'current-model') // no second arg = no setter
+    const result = await cmd.execute(makeCtx({ args: ['new-model'], rawArgs: 'new-model' }))
+    expect(result.error).toBe(true)
+    expect(result.content).toContain('not supported')
+  })
+})
+
+describe('helpCommand edge paths', () => {
+  it('renders a command with no usage and no aliases', async () => {
+    const { CommandRegistry } = await import('../src/commands/index.js')
+    const { helpCommand } = await import('../src/commands/definitions/utility.js')
+    const registry = new CommandRegistry()
+    registry.register({
+      name: 'bare',
+      category: 'utility',
+      description: 'A bare command',
+      permission: 'user',
+      async execute() {
+        return { content: '' }
+      }
+    })
+    const help = helpCommand(registry)
+    registry.register(help)
+    const result = await help.execute(makeCtx({ args: ['bare'], rawArgs: 'bare' }))
+    expect(result.content).toContain('/bare')
+    expect(result.content).not.toContain('Usage:')
+    expect(result.content).not.toContain('Aliases:')
+  })
 })
