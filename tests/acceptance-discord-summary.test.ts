@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { DiscordChannel } from '../src/channels/discord.js'
-import type { ClaudePipeConfig } from '../src/config/schema.js'
+import type { PiPipeConfig } from '../src/config/schema.js'
 import { AgentLoop } from '../src/core/agent-loop.js'
 import { MessageBus } from '../src/core/bus.js'
 
-function makeConfig(): ClaudePipeConfig {
+function makeConfig(): PiPipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/Users/mg/workspace',

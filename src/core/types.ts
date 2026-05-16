@@ -73,10 +73,10 @@ export interface SentMessage {
 }
 
 /**
- * Persistent mapping record from conversation key to Claude session ID.
+ * Persistent mapping record from conversation key to Pi session file path.
  */
 export interface SessionRecord {
-  sessionId: string
+  sessionFile: string
   updatedAt: string
 }
 

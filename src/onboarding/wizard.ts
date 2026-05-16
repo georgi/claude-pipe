@@ -19,21 +19,19 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 1 – Check Claude CLI availability                             */
+/*  Step 1 – Check API key availability                                */
 /* ------------------------------------------------------------------ */
 
-async function checkClaudeCli(): Promise<void> {
-  const { execFileSync } = await import('node:child_process')
-  try {
-    execFileSync('claude', ['--version'], { stdio: 'pipe' })
-  } catch {
-    console.error(
-      '\n✖  Claude Code CLI not found.\n' +
-        '   Install it first: https://docs.anthropic.com/en/docs/claude-code\n'
-    )
-    process.exit(1)
+function checkApiKey(): void {
+  if (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY) {
+    console.log('✔  API key detected in environment.\n')
+    return
   }
-  console.log('✔  Claude Code CLI detected.\n')
+  console.log(
+    '⚠  No ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.\n' +
+      '   Pi will need one to talk to a model. Set the variable that matches\n' +
+      '   the provider for the model you pick below.\n'
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -100,16 +98,16 @@ async function collectCredentials(
 /*  Step 5 – Choose model                                              */
 /* ------------------------------------------------------------------ */
 
-const CLAUDE_MODEL_PRESETS: Record<string, string> = {
+const PI_MODEL_PRESETS: Record<string, string> = {
   '1': 'claude-haiku-4-5',
   '2': 'claude-sonnet-4-5',
-  '3': 'claude-opus-4-5'
+  '3': 'gpt-5'
 }
 
 function getModelChoiceNumber(model: string): string {
   if (model === 'claude-haiku-4-5') return '1'
   if (model === 'claude-sonnet-4-5') return '2'
-  if (model === 'claude-opus-4-5') return '3'
+  if (model === 'gpt-5') return '3'
   return '4'
 }
 
@@ -117,16 +115,22 @@ async function chooseModel(rl: readline.Interface, currentModel?: string): Promi
   const defaultChoice = currentModel ? getModelChoiceNumber(currentModel) : '2'
   console.log(
     '\nWhich model would you like to use?\n' +
-      '  1) Haiku 4.5\n' +
-      '  2) Sonnet 4.5\n' +
-      '  3) Opus 4.5\n' +
-      '  4) Other (free-form entry)\n'
+      '  1) Claude Haiku 4.5  (needs ANTHROPIC_API_KEY)\n' +
+      '  2) Claude Sonnet 4.5 (needs ANTHROPIC_API_KEY)\n' +
+      '  3) GPT-5             (needs OPENAI_API_KEY)\n' +
+      '  4) Other (free-form entry — supports provider/model-id syntax)\n'
   )
   const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
-  if (choice in CLAUDE_MODEL_PRESETS) return CLAUDE_MODEL_PRESETS[choice]!
+  // An empty answer means "accept the displayed default" — only fall through
+  // to the free-form prompt when the user explicitly picks "4".
+  const effectiveChoice = choice || defaultChoice
+  if (effectiveChoice in PI_MODEL_PRESETS) return PI_MODEL_PRESETS[effectiveChoice]!
 
   const currentLabel = currentModel ? ` [${currentModel}]` : ''
-  const custom = await ask(rl, `Enter model name (e.g. Minimax, GLM-4.7, Kimi)${currentLabel}: `)
+  const custom = await ask(
+    rl,
+    `Enter model name (e.g. kimi-k2, glm-4.6, gemini-2.5-pro)${currentLabel}: `
+  )
   return custom || currentModel || 'claude-sonnet-4-5'
 }
 
@@ -136,7 +140,7 @@ async function chooseModel(rl: readline.Interface, currentModel?: string): Promi
 
 const DEFAULT_AGENTS_MD =
   '# AGENTS.md\n\n' +
-  'This file configures the Claude agent for this workspace.\n\n' +
+  'This file configures the Pi agent for this workspace.\n\n' +
   '## Instructions\n\n' +
   '- Answer concisely and accurately.\n' +
   '- When modifying files, explain what changed.\n'
@@ -196,14 +200,14 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
   const isReconfigure = !!existingSettings
   console.log(
     isReconfigure
-      ? '\n⚙️  Reconfiguring Claude Pipe\n   Press Enter to keep current values.\n'
-      : "\n🚀 Welcome to Claude Pipe!\n   Let's get you set up.\n"
+      ? '\n⚙️  Reconfiguring Pi Pipe\n   Press Enter to keep current values.\n'
+      : "\n🚀 Welcome to Pi Pipe!\n   Let's get you set up.\n"
   )
 
   const rl = createInterface()
   try {
     if (!isReconfigure) {
-      await checkClaudeCli()
+      checkApiKey()
     }
     const channel = await chooseChannel(rl, existingSettings?.channel)
     const token = await collectCredentials(rl, channel, existingSettings?.token)
@@ -223,8 +227,8 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
     writeSettings(settings)
     console.log(
       isReconfigure
-        ? '\n✔  Settings updated. Run claude-pipe to start the bot.\n'
-        : '\n✔  Settings saved. Run claude-pipe again to start the bot.\n'
+        ? '\n✔  Settings updated. Run `npm run dev` (or `npm start` after `npm run build`) to start the bot.\n'
+        : '\n✔  Settings saved. Run `npm run dev` (or `npm start` after `npm run build`) to start the bot.\n'
     )
     return settings
   } finally {

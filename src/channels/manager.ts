@@ -1,4 +1,4 @@
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import type { FileAttachment, Logger, OutboundMessage, SentMessage } from '../core/types.js'
 import type { Channel } from './base.js'
@@ -17,7 +17,7 @@ export class ChannelManager {
   private dispatcherRunning = false
 
   constructor(
-    private readonly config: ClaudePipeConfig,
+    private readonly config: PiPipeConfig,
     private readonly bus: MessageBus,
     private readonly logger: Logger
   ) {

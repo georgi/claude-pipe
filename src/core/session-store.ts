@@ -8,9 +8,9 @@ const LOCK_RETRY_DELAY_MS = 50
 const LOCK_STALE_MS = 10_000
 
 /**
- * File-backed session ID map.
+ * File-backed session file path map.
  *
- * Persists only conversation key -> Claude session ID metadata.
+ * Persists only conversation key -> Pi session file path metadata.
  * Uses a directory-based lockfile to prevent concurrent write corruption
  * across multiple processes.
  */
@@ -46,9 +46,9 @@ export class SessionStore {
   }
 
   /** Upserts conversation mapping and persists to disk atomically. */
-  async set(conversationKey: string, sessionId: string): Promise<void> {
+  async set(conversationKey: string, sessionFile: string): Promise<void> {
     this.map[conversationKey] = {
-      sessionId,
+      sessionFile,
       updatedAt: new Date().toISOString()
     }
     await this.persist()

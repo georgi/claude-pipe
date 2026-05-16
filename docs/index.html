@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>claude-pipe &mdash; Claude Code from your chat apps</title>
+  <title>pi-pipe &mdash; Pi from your chat apps</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
@@ -1025,10 +1025,10 @@
 
 <!-- Hero -->
 <section class="hero">
-  <div class="hero-badge"><span class="dot"></span> claude-pipe v1</div>
-  <h1>Claude Code,<br>from your <span>chat app</span></h1>
+  <div class="hero-badge"><span class="dot"></span> pi-pipe v1</div>
+  <h1>Pi,<br>from your <span>chat app</span></h1>
   <p class="subtitle">
-    Send a Telegram message. Get code written, files edited, emails drafted, meetings scheduled &mdash; all through the same Claude you know and love.
+    Send a Telegram message. Get code written, files edited, emails drafted, meetings scheduled &mdash; all through the Pi Coding Agent SDK.
   </p>
   <div class="hero-actions">
     <a href="https://github.com/georgi/claude-pipe" class="btn btn-primary">View on GitHub</a>
@@ -1041,9 +1041,9 @@
   <div class="tg-phone">
     <div class="tg-header">
       <div class="tg-back">&#x2190;</div>
-      <div class="tg-avatar">CP</div>
+      <div class="tg-avatar">PP</div>
       <div class="tg-header-info">
-        <div class="tg-header-name">claude-pipe</div>
+        <div class="tg-header-name">pi-pipe</div>
         <div class="tg-header-status" id="tgStatus">online</div>
       </div>
       <div class="tg-header-icons">
@@ -1065,7 +1065,7 @@
   <div class="section-label">How it works</div>
   <h2>Simple plumbing, powerful results</h2>
   <p class="section-desc">
-    Your message flows through claude-pipe to a real Claude Code session running on your machine.
+    Your message flows through pi-pipe to a real Pi coding-agent session running on your machine.
   </p>
   <div class="flow">
     <div class="flow-node">
@@ -1076,14 +1076,14 @@
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-node">
       <div class="icon">&#x1F527;</div>
-      <div class="name">claude-pipe</div>
+      <div class="name">pi-pipe</div>
       <div class="desc">Your server</div>
     </div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-node">
       <div class="icon">&#x2728;</div>
-      <div class="name">Claude Code</div>
-      <div class="desc">Agent CLI</div>
+      <div class="name">Pi Agent SDK</div>
+      <div class="desc">AgentSession</div>
     </div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-node">
@@ -1180,8 +1180,8 @@
       <span>&mdash; Owns channel lifecycle and outbound dispatch</span>
     </div>
     <div class="key-file">
-      <code>core/claude-client.ts</code>
-      <span>&mdash; Wraps Agent SDK query(), handles streaming and session persistence</span>
+      <code>core/pi-client.ts</code>
+      <span>&mdash; Wraps the Pi SDK AgentSession (session.prompt + session.subscribe), handles streaming and session persistence</span>
     </div>
     <div class="key-file">
       <code>core/session-store.ts</code>
@@ -1195,7 +1195,7 @@
   <div class="section-label">Integrations</div>
   <h2>Connect to the tools you use</h2>
   <p class="section-desc">
-    Since claude-pipe runs Claude Code under the hood, you get access to the full ecosystem of skills and tools &mdash; including Google services.
+    Since pi-pipe runs the Pi Coding Agent under the hood, you get access to the full ecosystem of skills and tools &mdash; including Google services via Pi extensions.
   </p>
   <div class="integrations-grid">
     <div class="integration" style="--stripe-color:#ea4335;--icon-bg:rgba(234,67,53,0.1)">
@@ -1252,20 +1252,20 @@
 <!-- Comparison -->
 <section class="comparison">
   <div class="comparison-box">
-    <h3>Same Claude, different front door</h3>
+    <h3>Same Pi agent, different front door</h3>
     <p>
-      claude-pipe doesn't limit Claude. It's the full Claude Code experience &mdash; same tools, same skills, same context &mdash; just accessible from your phone instead of a terminal.
+      pi-pipe doesn't limit Pi. It's the full Pi Coding Agent experience &mdash; same tools, same skills, same context &mdash; just accessible from your phone instead of a terminal.
     </p>
     <div class="versus">
       <div class="versus-item">
         <div class="v-icon" style="background:var(--surface-2)">&#x1F4BB;</div>
-        <div class="v-name">Claude Code</div>
+        <div class="v-name">Pi CLI</div>
         <div class="v-label">Terminal on your laptop</div>
       </div>
       <div class="versus-eq">=</div>
       <div class="versus-item">
         <div class="v-icon" style="background:var(--accent-soft)">&#x1F4F1;</div>
-        <div class="v-name">claude-pipe</div>
+        <div class="v-name">pi-pipe</div>
         <div class="v-label">Telegram on your phone</div>
       </div>
     </div>
@@ -1274,7 +1274,7 @@
 
 <!-- Features -->
 <section class="features-section" id="features">
-  <div class="section-label">Why claude-pipe</div>
+  <div class="section-label">Why pi-pipe</div>
   <h2>Built for how you actually work</h2>
   <p class="section-desc">
     A lightweight bridge between your chat apps and a full agent runtime.
@@ -1288,12 +1288,12 @@
     <div class="feature-card">
       <div class="feat-icon">&#x26A1;</div>
       <h3>Streaming responses</h3>
-      <p>See Claude thinking in real-time. Draft messages update live as the agent works through your request.</p>
+      <p>See Pi thinking in real-time. Draft messages update live as the agent works through your request.</p>
     </div>
     <div class="feature-card">
       <div class="feat-icon">&#x1F5C2;&#xFE0F;</div>
       <h3>Workspace aware</h3>
-      <p>Point it at any directory. The agent understands your project structure, reads your CLAUDE.md, and follows your conventions.</p>
+      <p>Point it at any directory. The agent understands your project structure, reads your AGENTS.md, and follows your conventions.</p>
     </div>
     <div class="feature-card">
       <div class="feat-icon">&#x1F680;</div>
@@ -1311,20 +1311,20 @@
   <div class="faq-list">
     <details class="faq-item">
       <summary>
-        What is claude-pipe?
+        What is pi-pipe?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        claude-pipe is a lightweight bridge that connects your chat apps (Telegram, Discord) to a real Claude Code session running on your machine. You send a message from your phone and get the full Claude Code experience &mdash; file editing, shell commands, web search, Google integrations &mdash; without opening a terminal.
+        pi-pipe is a lightweight bridge that connects your chat apps (Telegram, Discord) to a real Pi coding-agent session running on your machine. You send a message from your phone and get the full Pi experience &mdash; file editing, shell commands, web search, Google integrations &mdash; without opening a terminal.
       </div>
     </details>
     <details class="faq-item">
       <summary>
-        Is it the same as Claude Code?
+        Is it the same as the Pi CLI?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        Yes. claude-pipe uses the official Claude Agent SDK under the hood &mdash; the same tools, skills, MCP servers, and context as Claude Code. It's just a different front door: your phone instead of a terminal.
+        Yes. pi-pipe embeds the official Pi Coding Agent SDK (<code>@earendil-works/pi-coding-agent</code>) &mdash; the same tools, skills, and extensions as the Pi CLI. It's just a different front door: your phone instead of a terminal.
       </div>
     </details>
     <details class="faq-item">
@@ -1333,7 +1333,7 @@
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        Node.js 20+, Claude Code installed and logged in, and a bot token for your channel (Telegram or Discord). The interactive setup wizard handles the rest. Your machine needs to stay running since the agent runs locally.
+        Node.js 20.18.1+ (the Pi SDK pulls in <code>undici@7</code>, which needs that minimum), an <code>ANTHROPIC_API_KEY</code> or <code>OPENAI_API_KEY</code> in your environment, and a bot token for your channel (Telegram or Discord). The interactive setup wizard handles the rest. Your machine needs to stay running since the agent runs locally.
       </div>
     </details>
     <details class="faq-item">
@@ -1360,7 +1360,7 @@
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </summary>
       <div class="faq-answer">
-        Any model available in Claude Code: Haiku, Sonnet, Opus, or a custom model string. Set it in settings or switch on the fly with the /model slash command.
+        Any model Pi supports: Claude (Haiku, Sonnet, Opus), GPT-5, Gemini, Kimi, and many more. Set the model in settings or switch on the fly with the /model slash command. Use <code>provider/model-id</code> syntax for explicit provider selection.
       </div>
     </details>
   </div>
@@ -1381,8 +1381,8 @@
       <span class="terminal-title">Terminal</span>
     </div>
     <div class="terminal-body">
-      <div><span class="dollar">$</span> <span class="cmd">git clone</span> <span class="arg">https://github.com/georgi/claude-pipe.git</span></div>
-      <div><span class="dollar">$</span> <span class="cmd">cd</span> <span class="arg">claude-pipe</span></div>
+      <div><span class="dollar">$</span> <span class="cmd">git clone</span> <span class="arg">https://github.com/georgi/claude-pipe.git pi-pipe</span></div>
+      <div><span class="dollar">$</span> <span class="cmd">cd</span> <span class="arg">pi-pipe</span></div>
       <div><span class="dollar">$</span> <span class="cmd">npm run dev</span></div>
     </div>
   </div>
@@ -1395,7 +1395,7 @@
 
 <!-- Footer -->
 <footer>
-  <p>Built by <a href="https://github.com/georgi">Matthias Georgi</a> &middot; Powered by <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></p>
+  <p>Built by <a href="https://github.com/georgi">Matthias Georgi</a> &middot; Powered by <a href="https://pi.dev/docs/latest/sdk">Pi Coding Agent</a></p>
 </footer>
 
 <script>
@@ -1408,7 +1408,7 @@
   function createMsg(type, text, time) {
     const el = document.createElement('div');
     el.className = 'tg-msg ' + (type === 'out' ? 'tg-msg-out' : 'tg-msg-in');
-    const nameHtml = type === 'in' ? '<div class="tg-msg-name">claude-pipe</div>' : '';
+    const nameHtml = type === 'in' ? '<div class="tg-msg-name">pi-pipe</div>' : '';
     const checkHtml = type === 'out' ? '<span class="tg-msg-check">&#x2713;&#x2713;</span>' : '';
     el.innerHTML = nameHtml +
       '<div class="tg-msg-text"></div>' +
@@ -1424,7 +1424,7 @@
     { action: 'status', text: 'typing...' },
     { action: 'wait', ms: 600 },
 
-    // Claude responds - streaming updates in same bubble
+    // Pi responds - streaming updates in same bubble
     { action: 'send', type: 'in', text: 'Checking Google Calendar...', id: 'r1', progress: true },
     { action: 'wait', ms: 1200 },
     { action: 'update', id: 'r1', text: 'You have 2 meetings tomorrow:\n\n10:00 \u2013 Standup (30min)\n14:00 \u2013 Design review with Sarah (1hr)\n\nWant me to add anything to your calendar?', progress: false },
@@ -1437,7 +1437,7 @@
     { action: 'status', text: 'typing...' },
     { action: 'wait', ms: 500 },
 
-    // Claude streams progress updates
+    // Pi streams progress updates
     { action: 'send', type: 'in', text: 'Searching Gmail...', id: 'r2', progress: true },
     { action: 'wait', ms: 1000 },
     { action: 'update', id: 'r2', text: 'Found email: "Q2 design specs"\nDrafting reply...', progress: true },

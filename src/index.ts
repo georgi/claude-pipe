@@ -27,18 +27,20 @@ function isHelpMode(): boolean {
 /** Show help message */
 function showHelp(): void {
   console.log(
-    '\nClaude Pipe - Bot for Telegram and Discord using Claude Code CLI\n\n' +
-      'Usage: claude-pipe [options]\n\n' +
+    '\nPi Pipe - Bot for Telegram and Discord using the Pi Coding Agent SDK\n\n' +
+      'Usage:\n' +
+      '  npm run dev [-- options]   Start the bot in development mode (tsx)\n' +
+      '  npm start [-- options]     Start the compiled build (node dist/index.js)\n\n' +
       'Options:\n' +
       '  --reconfigure, -r  Reconfigure existing settings\n' +
       '  --help, -h         Show this help message\n\n' +
       'Examples:\n' +
-      '  claude-pipe           Start the bot\n' +
-      '  claude-pipe -r        Reconfigure settings\n'
+      '  npm run dev               Start the bot\n' +
+      '  npm run dev -- -r         Reconfigure settings\n'
   )
 }
 
-/** Boots the Claude Pipe runtime and starts channel + agent loops. */
+/** Boots the Pi Pipe runtime and starts channel + agent loops. */
 async function main(): Promise<void> {
   // Handle help mode
   if (isHelpMode()) {
@@ -88,7 +90,7 @@ async function main(): Promise<void> {
   const channels = new ChannelManager(config, bus, logger)
   const heartbeat = createHeartbeat(config, bus, logger)
 
-  const { handler } = setupCommands({ config, claude: modelClient, sessionStore })
+  const { handler } = setupCommands({ config, pi: modelClient, sessionStore })
   agent.setCommandHandler(handler)
   agent.setChannelManager(channels)
   agent.setMemory(memoryStore, dailyLog)
@@ -115,7 +117,7 @@ async function main(): Promise<void> {
   if (config.channels.telegram.enabled && config.channels.telegram.token) {
     const skills = discoverSkills()
     if (skills.length > 0) {
-      const { registry } = setupCommands({ config, claude: modelClient, sessionStore })
+      const { registry } = setupCommands({ config, pi: modelClient, sessionStore })
       const builtinMeta = registry.toMeta()
       const skillCommands = skills.map((s) => ({
         command: s.name.replace(/-/g, '_'),

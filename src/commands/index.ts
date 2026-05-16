@@ -19,8 +19,8 @@ export {
   statusCommand,
   pingCommand,
   reloadCommand,
-  claudeAskCommand,
-  claudeModelCommand,
+  piAskCommand,
+  piModelCommand,
   configSetCommand,
   configGetCommand
 } from './definitions/index.js'

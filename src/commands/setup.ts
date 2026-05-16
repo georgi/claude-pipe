@@ -1,8 +1,9 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import { loadConfig } from '../config/load.js'
 import type { ModelClient } from '../core/model-client.js'
+import { PiClient } from '../core/pi-client.js'
 import type { SessionStore } from '../core/session-store.js'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -21,7 +22,7 @@ import {
   restartCommand,
   hotReloadCommand
 } from './definitions/utility.js'
-import { claudeAskCommand, claudeModelCommand } from './definitions/claude.js'
+import { piAskCommand, piModelCommand } from './definitions/pi.js'
 import { configSetCommand, configGetCommand } from './definitions/config.js'
 import { CommandHandler } from './handler.js'
 import { CommandRegistry } from './registry.js'
@@ -31,8 +32,8 @@ import type { CommandDefinition } from './types.js'
  * Dependencies required by built-in commands.
  */
 export interface CommandDependencies {
-  config: ClaudePipeConfig
-  claude: ModelClient
+  config: PiPipeConfig
+  pi: ModelClient
   sessionStore: SessionStore
 }
 
@@ -56,11 +57,11 @@ export function setupCommands(
   deps: CommandDependencies,
   options: SetupCommandsOptions = {}
 ): { registry: CommandRegistry; handler: CommandHandler } {
-  const { config, claude, sessionStore } = deps
+  const { config, pi, sessionStore } = deps
   const registry = new CommandRegistry()
 
   // --- Session commands ---
-  registry.register(sessionNewCommand((key) => claude.startNewSession(key)))
+  registry.register(sessionNewCommand((key) => pi.startNewSession(key)))
   registry.register(
     sessionListCommand(() => {
       const map = sessionStore.entries()
@@ -73,19 +74,24 @@ export function setupCommands(
     })
   )
   registry.register(sessionInfoCommand((key) => sessionStore.get(key)))
-  registry.register(sessionDeleteCommand((key) => claude.startNewSession(key)))
+  registry.register(sessionDeleteCommand((key) => pi.startNewSession(key)))
 
-  // --- Claude commands ---
+  // --- Pi commands ---
   registry.register(
-    claudeAskCommand(async (conversationKey, prompt, channel, chatId) =>
-      claude.runTurn(conversationKey, prompt, {
+    piAskCommand(async (conversationKey, prompt, channel, chatId) =>
+      pi.runTurn(conversationKey, prompt, {
         workspace: config.workspace,
         channel,
         chatId
       })
     )
   )
-  registry.register(claudeModelCommand(() => config.model))
+  registry.register(
+    piModelCommand(
+      () => config.model,
+      pi instanceof PiClient ? (model) => (pi as PiClient).setModel(model) : undefined
+    )
+  )
 
   // --- Config commands ---
   const mutableConfig: Record<string, string> = {}
@@ -118,7 +124,7 @@ export function setupCommands(
   )
   registry.register(pingCommand())
   registry.register(reloadCommand(config, loadConfig))
-  registry.register(stopCommand((key) => claude.cancelTurn(key)))
+  registry.register(stopCommand((key) => pi.cancelTurn(key)))
   registry.register(restartCommand())
   registry.register(hotReloadCommand(projectRoot))
 

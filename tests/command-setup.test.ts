@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { setupCommands } from '../src/commands/setup.js'
 import type { CommandDependencies } from '../src/commands/setup.js'
 import type { CommandDefinition } from '../src/commands/types.js'
-import type { ClaudePipeConfig } from '../src/config/schema.js'
+import type { PiPipeConfig } from '../src/config/schema.js'
 
 function makeDeps(): CommandDependencies {
-  const config: ClaudePipeConfig = {
+  const config: PiPipeConfig = {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
     channels: {
@@ -18,12 +18,13 @@ function makeDeps(): CommandDependencies {
     transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
     maxToolIterations: 20
-  }
+  } as never
 
-  const claude = {
+  const pi = {
     startNewSession: vi.fn(async () => undefined),
-    runTurn: vi.fn(async () => 'claude reply'),
-    closeAll: vi.fn()
+    runTurn: vi.fn(async () => 'pi reply'),
+    closeAll: vi.fn(),
+    cancelTurn: vi.fn()
   }
 
   const sessionStore = {
@@ -34,7 +35,7 @@ function makeDeps(): CommandDependencies {
     init: vi.fn(async () => undefined)
   }
 
-  return { config, claude: claude as never, sessionStore: sessionStore as never }
+  return { config, pi: pi as never, sessionStore: sessionStore as never }
 }
 
 describe('setupCommands', () => {
@@ -49,8 +50,8 @@ describe('setupCommands', () => {
     expect(names).toContain('session_list')
     expect(names).toContain('session_info')
     expect(names).toContain('session_delete')
-    expect(names).toContain('claude_ask')
-    expect(names).toContain('claude_model')
+    expect(names).toContain('pi_ask')
+    expect(names).toContain('pi_model')
     expect(names).toContain('config_set')
     expect(names).toContain('config_get')
     expect(names).toContain('status')
@@ -115,12 +116,60 @@ describe('setupCommands', () => {
     expect(handler.isCommand('/model')).toBe(true)
   })
 
-  it('claude_ask command invokes claude.runTurn', async () => {
+  it('pi_ask command invokes pi.runTurn', async () => {
     const deps = makeDeps()
     const { handler } = setupCommands(deps)
 
-    const result = await handler.execute('/claude_ask hello world', 'telegram', '42', 'admin1')
-    expect(result?.content).toBe('claude reply')
-    expect((deps.claude as any).runTurn).toHaveBeenCalled()
+    const result = await handler.execute('/pi_ask hello world', 'telegram', '42', 'admin1')
+    expect(result?.content).toBe('pi reply')
+    expect((deps.pi as unknown as { runTurn: ReturnType<typeof vi.fn> }).runTurn).toHaveBeenCalled()
+  })
+
+  it('status command reports configured channels and model', async () => {
+    const deps = makeDeps()
+    deps.config.channels.cli = { enabled: true, allowFrom: [] }
+    const { handler } = setupCommands(deps)
+
+    const result = await handler.execute('/status', 'telegram', '42', 'admin1')
+    expect(result?.content).toContain('claude-sonnet-4-5')
+    expect(result?.content).toContain('/tmp/workspace')
+    // Both telegram and discord are enabled in makeDeps; cli was added above
+    expect(result?.content).toContain('telegram')
+    expect(result?.content).toContain('discord')
+    expect(result?.content).toContain('cli')
+  })
+
+  it('config_get with no key shows model + workspace + mutable values', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+
+    const result = await handler.execute('/config_get', 'telegram', '42', 'admin1')
+    expect(result?.content).toContain('model')
+    expect(result?.content).toContain('claude-sonnet-4-5')
+    expect(result?.content).toContain('workspace')
+  })
+
+  it('config_get with a previously set key shows the mutable value', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+
+    await handler.execute('/config_set summaryPromptEnabled true', 'telegram', '42', 'admin1')
+    const result = await handler.execute(
+      '/config_get summaryPromptEnabled',
+      'telegram',
+      '42',
+      'admin1'
+    )
+    expect(result?.content).toContain('true')
+  })
+
+  it('stop command cancels the in-flight turn for the conversation', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+
+    await handler.execute('/stop', 'telegram', '42', 'admin1')
+    expect(
+      (deps.pi as unknown as { cancelTurn: ReturnType<typeof vi.fn> }).cancelTurn
+    ).toHaveBeenCalledWith('telegram:42')
   })
 })

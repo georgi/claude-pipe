@@ -2,7 +2,7 @@ import { config as loadEnv } from 'dotenv'
 import * as path from 'node:path'
 
 import { getConfigDir, readSettings, settingsExist } from './settings.js'
-import { configSchema, type ClaudePipeConfig } from './schema.js'
+import { configSchema, type PiPipeConfig } from './schema.js'
 
 /** Parses comma-separated allow-list env values. */
 function parseCsv(input: string | undefined): string[] {
@@ -16,16 +16,16 @@ function parseCsv(input: string | undefined): string[] {
 /**
  * Loads runtime configuration.
  *
- * If a `~/.claude-pipe/settings.json` file exists it takes priority.
+ * If a `~/.pi-pipe/settings.json` file exists it takes priority.
  * Otherwise falls back to the legacy `.env` / environment-variable path.
  */
-export function loadConfig(): ClaudePipeConfig {
+export function loadConfig(): PiPipeConfig {
   const defaultSummaryTemplate =
     'Workspace: {{workspace}}\n' +
     'Request: {{request}}\n' +
     'Provide a concise summary with key files and actionable insights.'
 
-  // Load env from ~/.claude-pipe/.env first, then local .env as a legacy fallback.
+  // Load env from ~/.pi-pipe/.env first, then local .env as a legacy fallback.
   loadEnv({ path: path.join(getConfigDir(), '.env') })
   loadEnv()
 
@@ -61,8 +61,8 @@ export function loadConfig(): ClaudePipeConfig {
           allowChannels: discordEnabled ? s.allowChannels : undefined
         },
         cli: {
-          enabled: cliEnabled || process.env.CLAUDEPIPE_CLI_ENABLED === 'true',
-          allowFrom: cliEnabled ? s.allowFrom : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+          enabled: cliEnabled || process.env.PIPIPE_CLI_ENABLED === 'true',
+          allowFrom: cliEnabled ? s.allowFrom : parseCsv(process.env.PIPIPE_CLI_ALLOW_FROM)
         }
       },
       summaryPrompt: {
@@ -76,41 +76,41 @@ export function loadConfig(): ClaudePipeConfig {
   }
 
   return configSchema.parse({
-    model: process.env.CLAUDEPIPE_MODEL ?? '',
-    workspace: process.env.CLAUDEPIPE_WORKSPACE ?? process.cwd(),
+    model: process.env.PIPIPE_MODEL ?? '',
+    workspace: process.env.PIPIPE_WORKSPACE ?? process.cwd(),
     channels: {
       telegram: {
-        enabled: process.env.CLAUDEPIPE_TELEGRAM_ENABLED === 'true',
-        token: process.env.CLAUDEPIPE_TELEGRAM_TOKEN ?? '',
-        allowFrom: parseCsv(process.env.CLAUDEPIPE_TELEGRAM_ALLOW_FROM)
+        enabled: process.env.PIPIPE_TELEGRAM_ENABLED === 'true',
+        token: process.env.PIPIPE_TELEGRAM_TOKEN ?? '',
+        allowFrom: parseCsv(process.env.PIPIPE_TELEGRAM_ALLOW_FROM)
       },
       discord: {
-        enabled: process.env.CLAUDEPIPE_DISCORD_ENABLED === 'true',
-        token: process.env.CLAUDEPIPE_DISCORD_TOKEN ?? '',
-        allowFrom: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_FROM),
-        allowChannels: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS)
+        enabled: process.env.PIPIPE_DISCORD_ENABLED === 'true',
+        token: process.env.PIPIPE_DISCORD_TOKEN ?? '',
+        allowFrom: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_FROM),
+        allowChannels: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_CHANNELS)
       },
       cli: {
-        enabled: process.env.CLAUDEPIPE_CLI_ENABLED === 'true',
-        allowFrom: parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+        enabled: process.env.PIPIPE_CLI_ENABLED === 'true',
+        allowFrom: parseCsv(process.env.PIPIPE_CLI_ALLOW_FROM)
       }
     },
     summaryPrompt: {
-      enabled: process.env.CLAUDEPIPE_SUMMARY_PROMPT_ENABLED !== 'false',
-      template: process.env.CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate
+      enabled: process.env.PIPIPE_SUMMARY_PROMPT_ENABLED !== 'false',
+      template: process.env.PIPIPE_SUMMARY_PROMPT_TEMPLATE ?? defaultSummaryTemplate
     },
     transcriptLog: {
-      enabled: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED === 'true',
-      path: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_PATH ?? `${process.cwd()}/data/transcript.jsonl`,
-      maxBytes: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES
-        ? Number(process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES)
+      enabled: process.env.PIPIPE_TRANSCRIPT_LOG_ENABLED === 'true',
+      path: process.env.PIPIPE_TRANSCRIPT_LOG_PATH ?? `${process.cwd()}/data/transcript.jsonl`,
+      maxBytes: process.env.PIPIPE_TRANSCRIPT_LOG_MAX_BYTES
+        ? Number(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_BYTES)
         : 1_000_000,
-      maxFiles: process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES
-        ? Number(process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES)
+      maxFiles: process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES
+        ? Number(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES)
         : 3
     },
     sessionStorePath:
-      process.env.CLAUDEPIPE_SESSION_STORE_PATH ?? `${process.cwd()}/data/sessions.json`,
-    maxToolIterations: Number(process.env.CLAUDEPIPE_MAX_TOOL_ITERATIONS ?? 20)
+      process.env.PIPIPE_SESSION_STORE_PATH ?? `${process.cwd()}/data/sessions.json`,
+    maxToolIterations: Number(process.env.PIPIPE_MAX_TOOL_ITERATIONS ?? 20)
   })
 }

@@ -10,7 +10,7 @@ import {
 } from 'discord.js'
 
 import type { CommandMeta } from '../commands/types.js'
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
@@ -37,7 +37,7 @@ export class DiscordChannel implements Channel {
   private pendingInteractions = new Map<string, ChatInputCommandInteraction>()
 
   constructor(
-    private readonly config: ClaudePipeConfig,
+    private readonly config: PiPipeConfig,
     private readonly bus: MessageBus,
     private readonly logger: Logger
   ) {}
@@ -400,15 +400,30 @@ export class DiscordChannel implements Channel {
       })
     }
 
-    // Grouped commands as subcommands (e.g. /session new, /claude ask)
+    // Grouped commands as subcommands (e.g. /session new, /pi ask).
+    // The Discord subcommand name must NOT repeat the group prefix, so for a
+    // command named `pi_ask` in group `pi` we expose `ask`, not `pi_ask`.
+    //
+    // Each subcommand exposes a `prompt` string option so users can pass
+    // free-form text (`/pi ask prompt: <text>`) — `onInteraction` reads that
+    // value via `interaction.options.getString('prompt')`.
     for (const [group, cmds] of grouped) {
+      const prefix = `${group}_`
       body.push({
         name: group,
         description: `${group.charAt(0).toUpperCase() + group.slice(1)} commands`,
         options: cmds.map((cmd) => ({
           type: 1, // SUB_COMMAND
-          name: cmd.name,
-          description: cmd.description
+          name: cmd.name.startsWith(prefix) ? cmd.name.slice(prefix.length) : cmd.name,
+          description: cmd.description,
+          options: [
+            {
+              type: 3, // STRING
+              name: 'prompt',
+              description: 'Optional prompt or arguments for the command',
+              required: false
+            }
+          ]
         }))
       })
     }

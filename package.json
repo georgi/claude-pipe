@@ -1,8 +1,8 @@
 {
-  "name": "claude-pipe",
+  "name": "pi-pipe",
   "version": "0.1.0",
   "private": true,
-  "description": "TypeScript bot for Telegram and Discord using Claude Code CLI stream-json subprocesses. Inspired by openclaw/openclaw.",
+  "description": "TypeScript bot for Telegram and Discord powered by the Pi Coding Agent SDK. Inspired by openclaw/openclaw.",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -17,10 +17,11 @@
     "test:run": "vitest run"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.1"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.76",
+    "@earendil-works/pi-ai": "^0.74.0",
+    "@earendil-works/pi-coding-agent": "^0.74.0",
     "better-sqlite3": "^12.8.0",
     "discord.js": "^14.24.2",
     "dotenv": "^16.4.5",
@@ -31,6 +32,7 @@
     "@playwright/test": "^1.58.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "playwright": "^1.58.2",

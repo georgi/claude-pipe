@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentLoop } from '../src/core/agent-loop.js'
 import { MessageBus } from '../src/core/bus.js'
 import { CommandHandler, CommandRegistry, sessionNewCommand } from '../src/commands/index.js'
-import type { ClaudePipeConfig } from '../src/config/schema.js'
+import type { PiPipeConfig } from '../src/config/schema.js'
 
-function makeConfig(): ClaudePipeConfig {
+function makeConfig(): PiPipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
@@ -382,6 +382,324 @@ describe('AgentLoop', () => {
     // Final reply should go through bus since sendDirect returned void (no message to edit)
     const final = await bus.consumeOutbound()
     expect(final.content).toBe('result')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('extracts file/keyboard/memory markers from the response', async () => {
+    const bus = new MessageBus()
+    const pi = {
+      runTurn: vi.fn(async () =>
+        [
+          'Here is the file: [[file:/tmp/report.pdf|monthly report]]',
+          'Pick one: [[keyboard:Yes=yes,No=no]]',
+          '[[memory:user_pref|likes terse replies]]'
+        ].join('\n')
+      ),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const memorySave = vi.fn()
+    const memoryStore = {
+      search: vi.fn(() => []),
+      save: memorySave
+    }
+    const dailyLog = {
+      append: vi.fn(async () => undefined),
+      getToday: vi.fn(async () => '')
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setMemory(memoryStore as never, dailyLog as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'do it',
+      timestamp: new Date().toISOString()
+    })
+
+    const out = await bus.consumeOutbound()
+    expect(out.attachments).toEqual([{ filePath: '/tmp/report.pdf', caption: 'monthly report' }])
+    expect(out.keyboard).toEqual([
+      [
+        { text: 'Yes', callbackData: 'yes' },
+        { text: 'No', callbackData: 'no' }
+      ]
+    ])
+    expect(memorySave).toHaveBeenCalledWith('user_pref', 'likes terse replies')
+    // Markers should be stripped from the visible content
+    expect(out.content).not.toContain('[[file:')
+    expect(out.content).not.toContain('[[keyboard:')
+    expect(out.content).not.toContain('[[memory:')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('prepends memory results and daily log to the model input', async () => {
+    const bus = new MessageBus()
+    const seen: string[] = []
+    const pi = {
+      runTurn: vi.fn(async (_key: string, input: string) => {
+        seen.push(input)
+        return 'ok'
+      }),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const memoryStore = {
+      search: vi.fn(() => [{ key: 'user_lang', content: 'prefers English' }]),
+      save: vi.fn()
+    }
+    const dailyLog = {
+      append: vi.fn(async () => undefined),
+      getToday: vi.fn(async () => '- 10:00 [telegram:42] (user): earlier message')
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setMemory(memoryStore as never, dailyLog as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'what did I say earlier?',
+      timestamp: new Date().toISOString()
+    })
+
+    await bus.consumeOutbound()
+    expect(seen[0]).toContain('Relevant memories')
+    expect(seen[0]).toContain('user_lang')
+    expect(seen[0]).toContain("Today's conversation log")
+    expect(seen[0]).toContain('Current request')
+    expect(seen[0]).toContain('what did I say earlier?')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('returns the bare input when memory has no matches and dailyLog is empty', async () => {
+    const bus = new MessageBus()
+    const seen: string[] = []
+    const pi = {
+      runTurn: vi.fn(async (_key: string, input: string) => {
+        seen.push(input)
+        return 'ok'
+      }),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const memoryStore = { search: vi.fn(() => []), save: vi.fn() }
+    const dailyLog = {
+      append: vi.fn(async () => undefined),
+      getToday: vi.fn(async () => '')
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setMemory(memoryStore as never, dailyLog as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'plain question',
+      timestamp: new Date().toISOString()
+    })
+
+    await bus.consumeOutbound()
+    expect(seen[0]).not.toContain('Relevant memories')
+    expect(seen[0]).not.toContain('Current request')
+    expect(seen[0]).toContain('plain question')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('survives dailyLog.getToday errors without aborting the turn', async () => {
+    const bus = new MessageBus()
+    const pi = {
+      runTurn: vi.fn(async () => 'reply'),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const memoryStore = { search: vi.fn(() => []), save: vi.fn() }
+    const dailyLog = {
+      append: vi.fn(async () => undefined),
+      getToday: vi.fn(async () => {
+        throw new Error('log exploded')
+      })
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setMemory(memoryStore as never, dailyLog as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'go',
+      timestamp: new Date().toISOString()
+    })
+
+    const out = await bus.consumeOutbound()
+    expect(out.content).toBe('reply')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('sends attachments via sendFile after editing the final reply through channel manager', async () => {
+    const bus = new MessageBus()
+    const pi = {
+      runTurn: vi.fn(
+        async (_k: string, _i: string, ctx: { onUpdate?: (e: unknown) => Promise<void> }) => {
+          await ctx.onUpdate?.({
+            kind: 'tool_call_started',
+            conversationKey: 'telegram:42',
+            message: 'Using tool: read',
+            toolName: 'read',
+            toolUseId: 't1'
+          })
+          return 'final text [[file:/tmp/a.png|cap]]'
+        }
+      ),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const sentStatus = { channel: 'telegram' as const, chatId: '42', messageId: '99' }
+    const channelManager = {
+      sendDirect: vi.fn(async () => sentStatus),
+      sendDraftMessage: vi.fn(async () => undefined),
+      editMessage: vi.fn(async () => undefined),
+      sendFile: vi.fn(async () => undefined)
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setChannelManager(channelManager as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'go',
+      timestamp: new Date().toISOString()
+    })
+
+    await new Promise((r) => setTimeout(r, 30))
+
+    // editMessage on the status with the final text
+    expect(channelManager.editMessage).toHaveBeenCalledWith(sentStatus, 'final text')
+    // sendFile invoked for the extracted attachment
+    expect(channelManager.sendFile).toHaveBeenCalledWith('telegram', '42', {
+      filePath: '/tmp/a.png',
+      caption: 'cap'
+    })
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('falls back to bus publish when channel-manager.editMessage throws', async () => {
+    const bus = new MessageBus()
+    const pi = {
+      runTurn: vi.fn(
+        async (_k: string, _i: string, ctx: { onUpdate?: (e: unknown) => Promise<void> }) => {
+          await ctx.onUpdate?.({
+            kind: 'tool_call_started',
+            conversationKey: 'telegram:42',
+            message: 'Using tool: read',
+            toolName: 'read',
+            toolUseId: 't1'
+          })
+          return 'reply text'
+        }
+      ),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const sentStatus = { channel: 'telegram' as const, chatId: '42', messageId: '99' }
+    const channelManager = {
+      sendDirect: vi.fn(async () => sentStatus),
+      sendDraftMessage: vi.fn(async () => undefined),
+      editMessage: vi.fn(async () => {
+        throw new Error('telegram api down')
+      }),
+      sendFile: vi.fn(async () => undefined)
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setChannelManager(channelManager as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'go',
+      timestamp: new Date().toISOString()
+    })
+
+    // editMessage threw, so we fall back to publishing on the bus
+    const out = await bus.consumeOutbound()
+    expect(out.content).toBe('reply text')
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
+  it('survives memory.search exceptions without aborting the turn', async () => {
+    const bus = new MessageBus()
+    const pi = {
+      runTurn: vi.fn(async () => 'reply'),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const memoryStore = {
+      search: vi.fn(() => {
+        throw new Error('memory exploded')
+      }),
+      save: vi.fn()
+    }
+    const dailyLog = {
+      append: vi.fn(async () => undefined),
+      getToday: vi.fn(async () => '')
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), pi as never, logger)
+    loop.setMemory(memoryStore as never, dailyLog as never)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'still go',
+      timestamp: new Date().toISOString()
+    })
+
+    const out = await bus.consumeOutbound()
+    expect(out.content).toBe('reply')
 
     loop.stop()
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])

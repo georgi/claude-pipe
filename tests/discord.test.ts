@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DiscordChannel } from '../src/channels/discord.js'
 import { MessageBus } from '../src/core/bus.js'
-import type { ClaudePipeConfig } from '../src/config/schema.js'
+import type { PiPipeConfig } from '../src/config/schema.js'
 
-function makeConfig(overrides?: { allowChannels?: string[] }): ClaudePipeConfig {
+function makeConfig(overrides?: { allowChannels?: string[] }): PiPipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
@@ -170,6 +170,116 @@ describe('DiscordChannel', () => {
       'https://cdn.discordapp.com/attachments/123/456/screenshot.png'
     )
     expect(inbound.attachments?.[0].mimeType).toBe('image/png')
+  })
+
+  it('send() is a no-op when discord channel is disabled', async () => {
+    const cfg = makeConfig()
+    cfg.channels.discord.enabled = false
+    const channel = new DiscordChannel(cfg, new MessageBus(), logger)
+
+    const send = vi.fn()
+    ;(channel as unknown as { client: unknown }).client = {
+      channels: { fetch: vi.fn(async () => ({ isTextBased: () => true, send })) }
+    }
+
+    await channel.send({ channel: 'discord', chatId: 'c1', content: 'x' })
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('start() is a no-op when discord is disabled', async () => {
+    const cfg = makeConfig()
+    cfg.channels.discord.enabled = false
+    const channel = new DiscordChannel(cfg, new MessageBus(), logger)
+    await channel.start()
+    await channel.stop()
+  })
+
+  it('start() warns when token is missing', async () => {
+    const cfg = makeConfig()
+    cfg.channels.discord.token = ''
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const channel = new DiscordChannel(cfg, new MessageBus(), log)
+    await channel.start()
+    expect(log.warn).toHaveBeenCalledWith('channel.discord.misconfigured', expect.any(Object))
+  })
+
+  it('send() warns when channel is not text-based', async () => {
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const channel = new DiscordChannel(makeConfig(), new MessageBus(), log)
+
+    ;(channel as unknown as { client: unknown }).client = {
+      channels: { fetch: vi.fn(async () => ({ isTextBased: () => false })) }
+    }
+
+    await channel.send({ channel: 'discord', chatId: 'c1', content: 'x' })
+    expect(log.warn).toHaveBeenCalledWith(
+      'channel.discord.send_failed',
+      expect.objectContaining({ reason: expect.any(String) })
+    )
+  })
+
+  it('send() warns when fetched channel is null', async () => {
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const channel = new DiscordChannel(makeConfig(), new MessageBus(), log)
+
+    ;(channel as unknown as { client: unknown }).client = {
+      channels: { fetch: vi.fn(async () => null) }
+    }
+
+    await channel.send({ channel: 'discord', chatId: 'c1', content: 'x' })
+    expect(log.warn).toHaveBeenCalledWith(
+      'channel.discord.send_failed',
+      expect.objectContaining({ reason: 'channel not found' })
+    )
+  })
+
+  it('send() with progress metadata triggers sendTyping', async () => {
+    const channel = new DiscordChannel(makeConfig(), new MessageBus(), logger)
+    const sendTyping = vi.fn(async () => undefined)
+
+    ;(channel as unknown as { client: unknown }).client = {
+      channels: {
+        fetch: vi.fn(async () => ({
+          isTextBased: () => true,
+          send: vi.fn(),
+          sendTyping
+        }))
+      }
+    }
+
+    await channel.send({
+      channel: 'discord',
+      chatId: 'c1',
+      content: '',
+      metadata: { kind: 'progress' }
+    })
+    expect(sendTyping).toHaveBeenCalled()
+  })
+
+  it('drops bot messages without publishing', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+
+    await (channel as unknown as { onMessage: (m: unknown) => Promise<void> }).onMessage({
+      author: { bot: true, id: 'other-bot' },
+      channel: { type: 0 },
+      channelId: 'c1',
+      content: 'echo',
+      id: 'm1',
+      guildId: 'g1'
+    })
+
+    const outcome = await Promise.race([
+      bus.consumeInbound().then(() => 'published'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 20))
+    ])
+    expect(outcome).toBe('timeout')
+  })
+
+  it('sendMessageDraft is a no-op (Discord has no draft API)', async () => {
+    const channel = new DiscordChannel(makeConfig(), new MessageBus(), logger)
+    const result = await channel.sendMessageDraft('c1', 'draft')
+    expect(result).toBeUndefined()
   })
 
   it('processes multiple attachments from Discord message', async () => {
