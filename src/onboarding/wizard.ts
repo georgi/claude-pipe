@@ -121,7 +121,10 @@ async function chooseModel(rl: readline.Interface, currentModel?: string): Promi
       '  4) Other (free-form entry — supports provider/model-id syntax)\n'
   )
   const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
-  if (choice in PI_MODEL_PRESETS) return PI_MODEL_PRESETS[choice]!
+  // An empty answer means "accept the displayed default" — only fall through
+  // to the free-form prompt when the user explicitly picks "4".
+  const effectiveChoice = choice || defaultChoice
+  if (effectiveChoice in PI_MODEL_PRESETS) return PI_MODEL_PRESETS[effectiveChoice]!
 
   const currentLabel = currentModel ? ` [${currentModel}]` : ''
   const custom = await ask(
@@ -224,8 +227,8 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
     writeSettings(settings)
     console.log(
       isReconfigure
-        ? '\n✔  Settings updated. Run pi-pipe to start the bot.\n'
-        : '\n✔  Settings saved. Run pi-pipe again to start the bot.\n'
+        ? '\n✔  Settings updated. Run `npm run dev` (or `npm start` after `npm run build`) to start the bot.\n'
+        : '\n✔  Settings saved. Run `npm run dev` (or `npm start` after `npm run build`) to start the bot.\n'
     )
     return settings
   } finally {

@@ -67,8 +67,13 @@ export function sessionInfoCommand(
         return { content: 'No active session for this chat.' }
       }
       // Show only the basename so the absolute path isn't leaked even to
-      // admins via casual screenshot/copy-paste of bot output.
-      const basename = session.sessionFile.split(/[/\\]/).pop() ?? session.sessionFile
+      // admins via casual screenshot/copy-paste of bot output. Guard against
+      // legacy records that may not carry `sessionFile` (e.g. an older
+      // `sessions.json` from before the rebrand).
+      const sessionFile = session.sessionFile
+      const basename = sessionFile
+        ? (sessionFile.split(/[/\\]/).pop() ?? '') || sessionFile
+        : '(legacy entry — start a new session to upgrade)'
       return {
         content:
           `**Session info:**\n` +

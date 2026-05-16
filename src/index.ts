@@ -28,13 +28,15 @@ function isHelpMode(): boolean {
 function showHelp(): void {
   console.log(
     '\nPi Pipe - Bot for Telegram and Discord using the Pi Coding Agent SDK\n\n' +
-      'Usage: pi-pipe [options]\n\n' +
+      'Usage:\n' +
+      '  npm run dev [-- options]   Start the bot in development mode (tsx)\n' +
+      '  npm start [-- options]     Start the compiled build (node dist/index.js)\n\n' +
       'Options:\n' +
       '  --reconfigure, -r  Reconfigure existing settings\n' +
       '  --help, -h         Show this help message\n\n' +
       'Examples:\n' +
-      '  pi-pipe           Start the bot\n' +
-      '  pi-pipe -r        Reconfigure settings\n'
+      '  npm run dev               Start the bot\n' +
+      '  npm run dev -- -r         Reconfigure settings\n'
   )
 }
 

@@ -160,7 +160,7 @@ Pi SDK options used:
 - `cwd`: workspace path
 - `agentDir`: `getAgentDir()` (default `~/.pi/agent`)
 - `model`: resolved via `ModelRegistry.find()` / `getModel()` from a config string
-- `resourceLoader`: `DefaultResourceLoader` with all filesystem discovery disabled (`noExtensions`, `noSkills`, `noPromptTemplates`, `noThemes`, `noContextFiles`) plus pi-pipe's instructions extension
+- `resourceLoader`: `DefaultResourceLoader` with Pi's normal discovery left enabled — `AGENTS.md`, user-installed extensions in `~/.pi/agent/extensions/`, and skills in `~/.pi/agent/skills/` all load — plus pi-pipe's instructions extension contributed via `extensionFactories`
 - `sessionManager`: `SessionManager.create(cwd)` or `SessionManager.open(filePath)`
 
 ## 9. Tools

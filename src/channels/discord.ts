@@ -403,6 +403,10 @@ export class DiscordChannel implements Channel {
     // Grouped commands as subcommands (e.g. /session new, /pi ask).
     // The Discord subcommand name must NOT repeat the group prefix, so for a
     // command named `pi_ask` in group `pi` we expose `ask`, not `pi_ask`.
+    //
+    // Each subcommand exposes a `prompt` string option so users can pass
+    // free-form text (`/pi ask prompt: <text>`) — `onInteraction` reads that
+    // value via `interaction.options.getString('prompt')`.
     for (const [group, cmds] of grouped) {
       const prefix = `${group}_`
       body.push({
@@ -411,7 +415,15 @@ export class DiscordChannel implements Channel {
         options: cmds.map((cmd) => ({
           type: 1, // SUB_COMMAND
           name: cmd.name.startsWith(prefix) ? cmd.name.slice(prefix.length) : cmd.name,
-          description: cmd.description
+          description: cmd.description,
+          options: [
+            {
+              type: 3, // STRING
+              name: 'prompt',
+              description: 'Optional prompt or arguments for the command',
+              required: false
+            }
+          ]
         }))
       })
     }

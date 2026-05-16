@@ -139,18 +139,22 @@ describe('loadConfig', () => {
       'utf-8'
     )
 
+    const originalCustom = process.env.CUSTOM_KEY
     delete process.env.CUSTOM_KEY
-    vi.resetModules()
-    const { loadConfig } = await import('../src/config/load.js')
-    const cfg = loadConfig()
+    try {
+      vi.resetModules()
+      const { loadConfig } = await import('../src/config/load.js')
+      const cfg = loadConfig()
 
-    expect(cfg.channels.telegram.enabled).toBe(true)
-    expect(cfg.channels.telegram.token).toBe('tg-token-from-settings')
-    expect(cfg.channels.telegram.allowFrom).toEqual(['boss'])
-    expect(cfg.channels.discord.enabled).toBe(false)
-    expect(process.env.CUSTOM_KEY).toBe('hello')
-
-    delete process.env.CUSTOM_KEY
+      expect(cfg.channels.telegram.enabled).toBe(true)
+      expect(cfg.channels.telegram.token).toBe('tg-token-from-settings')
+      expect(cfg.channels.telegram.allowFrom).toEqual(['boss'])
+      expect(cfg.channels.discord.enabled).toBe(false)
+      expect(process.env.CUSTOM_KEY).toBe('hello')
+    } finally {
+      if (originalCustom === undefined) delete process.env.CUSTOM_KEY
+      else process.env.CUSTOM_KEY = originalCustom
+    }
   })
 
   it('does not override existing env vars with settings.env', async () => {
@@ -170,12 +174,17 @@ describe('loadConfig', () => {
       'utf-8'
     )
 
+    const originalAlready = process.env.ALREADY_SET
     process.env.ALREADY_SET = 'from-shell'
-    vi.resetModules()
-    const { loadConfig } = await import('../src/config/load.js')
-    loadConfig()
+    try {
+      vi.resetModules()
+      const { loadConfig } = await import('../src/config/load.js')
+      loadConfig()
 
-    expect(process.env.ALREADY_SET).toBe('from-shell')
-    delete process.env.ALREADY_SET
+      expect(process.env.ALREADY_SET).toBe('from-shell')
+    } finally {
+      if (originalAlready === undefined) delete process.env.ALREADY_SET
+      else process.env.ALREADY_SET = originalAlready
+    }
   })
 })

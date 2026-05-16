@@ -121,6 +121,22 @@ describe('runOnboarding', () => {
     expect(content).toBe('# Custom\n')
   })
 
+  it('pressing Enter at the model prompt selects the displayed default preset', async () => {
+    // No existing settings → defaultChoice is "2" (Sonnet). Pressing Enter
+    // should select that without falling through to the free-form prompt.
+    await runWithAnswers([
+      '3', // CLI channel
+      '', // model — accept default
+      workspace,
+      'Pi',
+      'snappy'
+    ])
+
+    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
+    expect(parsed.model).toBe('claude-sonnet-4-5')
+  })
+
   it('reconfigure flow accepts an unknown current model and keeps it via custom prompt', async () => {
     const existing = {
       channel: 'cli' as const,
@@ -140,13 +156,15 @@ describe('runOnboarding', () => {
     const originalAnthropic = process.env.ANTHROPIC_API_KEY
     process.env.ANTHROPIC_API_KEY = 'sk-fake'
 
-    await runWithAnswers(['3', '1', workspace, 'X', 'snappy'])
+    try {
+      await runWithAnswers(['3', '1', workspace, 'X', 'snappy'])
 
-    const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
-    expect(banners).toContain('API key detected')
-
-    if (originalAnthropic === undefined) delete process.env.ANTHROPIC_API_KEY
-    else process.env.ANTHROPIC_API_KEY = originalAnthropic
+      const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
+      expect(banners).toContain('API key detected')
+    } finally {
+      if (originalAnthropic === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = originalAnthropic
+    }
   })
 
   it('reconfigure flow keeps the existing telegram token when user presses Enter at the prompt', async () => {
@@ -174,13 +192,17 @@ describe('runOnboarding', () => {
     delete process.env.ANTHROPIC_API_KEY
     delete process.env.OPENAI_API_KEY
 
-    await runWithAnswers(['3', '1', workspace, 'X', 'snappy'])
+    try {
+      await runWithAnswers(['3', '1', workspace, 'X', 'snappy'])
 
-    const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
-    expect(banners).toContain('No ANTHROPIC_API_KEY')
-
-    if (originalAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = originalAnthropic
-    if (originalOpenai !== undefined) process.env.OPENAI_API_KEY = originalOpenai
+      const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
+      expect(banners).toContain('No ANTHROPIC_API_KEY')
+    } finally {
+      if (originalAnthropic === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = originalAnthropic
+      if (originalOpenai === undefined) delete process.env.OPENAI_API_KEY
+      else process.env.OPENAI_API_KEY = originalOpenai
+    }
   })
 
   it('runs the telegram credentials flow and stores the bot token', async () => {

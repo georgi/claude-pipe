@@ -16,7 +16,7 @@ Pi remembers previous messages in the conversation, so you can have ongoing back
 
 ## Getting started
 
-You'll need [Node.js](https://nodejs.org/) 20+ and an `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` exported in your environment (the Pi SDK reads them automatically).
+You'll need [Node.js](https://nodejs.org/) 20.18.1+ (required by the Pi SDK's transitive `undici@7` dependency) and an `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` exported in your environment (the Pi SDK reads them automatically).
 
 **1. Clone and install**
 

@@ -175,6 +175,8 @@ function extractErrorText(result: unknown): string {
 export class PiClient implements ModelClient {
   private readonly transcript: TranscriptLogger
   private readonly sessions = new Map<string, AgentSession>()
+  /** Model string used when each cached session was last reconciled. */
+  private readonly sessionModels = new Map<string, string>()
   private readonly eventChain = new Map<string, Promise<void>>()
   private readonly modelRegistry: ModelRegistry
   private readonly agentDir: string
@@ -215,7 +217,26 @@ export class PiClient implements ModelClient {
 
   private async getOrCreateSession(conversationKey: string): Promise<AgentSession> {
     const cached = this.sessions.get(conversationKey)
-    if (cached) return cached
+    if (cached) {
+      // The shared config may have been reloaded with a new model since this
+      // session was created (e.g. via `/reload`). Reconcile the session's
+      // model with the live config before using it so cached conversations
+      // don't keep hitting the old model after a config edit.
+      if (this.sessionModels.get(conversationKey) !== this.config.model) {
+        try {
+          const resolved = resolveModel(this.config.model, this.modelRegistry)
+          await cached.setModel(resolved)
+          this.sessionModels.set(conversationKey, this.config.model)
+        } catch (err) {
+          this.logger.warn('pi.session_model_reconcile_failed', {
+            conversationKey,
+            model: this.config.model,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
+      return cached
+    }
 
     const saved = this.store.get(conversationKey)
     const model = resolveModel(this.config.model, this.modelRegistry)
@@ -239,6 +260,7 @@ export class PiClient implements ModelClient {
     }
 
     this.sessions.set(conversationKey, session)
+    this.sessionModels.set(conversationKey, this.config.model)
     return session
   }
 
@@ -373,6 +395,7 @@ export class PiClient implements ModelClient {
       void session.abort()
     }
     this.sessions.clear()
+    this.sessionModels.clear()
     this.eventChain.clear()
   }
 
@@ -388,6 +411,7 @@ export class PiClient implements ModelClient {
       }
     }
     this.sessions.delete(conversationKey)
+    this.sessionModels.delete(conversationKey)
     this.eventChain.delete(conversationKey)
     await this.store.clear(conversationKey)
   }
@@ -395,14 +419,16 @@ export class PiClient implements ModelClient {
   /**
    * Used by the `/pi_model` command to swap the model on every cached session.
    *
-   * Mutates the shared config object in place so `/pi_model` (no args),
-   * `/status`, and `/reload` continue to see a consistent model value.
+   * Resolves the model first and only mutates the shared config (so `/status`
+   * and `/pi_model` keep observing it) after resolution succeeds, so an
+   * unknown model name leaves the runtime in a consistent state.
    */
   setModel(modelString: string): void {
-    this.config.model = modelString
     const resolved = resolveModel(modelString, this.modelRegistry)
-    for (const session of this.sessions.values()) {
+    this.config.model = modelString
+    for (const [conversationKey, session] of this.sessions) {
       void session.setModel(resolved)
+      this.sessionModels.set(conversationKey, modelString)
     }
   }
 }
