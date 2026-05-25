@@ -179,9 +179,28 @@ export class DiscordChannel implements Channel {
     }
   }
 
-  /** Edits a previously sent Discord message. */
+  /**
+   * Edits a previously sent Discord message.
+   *
+   * Throws if content exceeds {@link DISCORD_MESSAGE_MAX}, since a single
+   * Discord message cannot grow past Discord's per-message length limit.
+   * Callers handling the final agent response catch this and fall back to
+   * chunked sending via the outbound bus; streaming progress callers swallow.
+   */
   async editMessage(sent: SentMessage, newContent: string): Promise<void> {
     if (!this.client || !this.config.channels.discord.enabled) return
+
+    if (newContent.length > DISCORD_MESSAGE_MAX) {
+      const err = new Error(
+        `content length ${newContent.length} exceeds Discord edit limit ${DISCORD_MESSAGE_MAX}`
+      )
+      this.logger.error('channel.discord.edit_failed', {
+        chatId: sent.chatId,
+        messageId: sent.messageId,
+        error: err.message
+      })
+      throw err
+    }
 
     const channel = await this.client.channels.fetch(sent.chatId)
     if (!channel || !channel.isTextBased()) return

@@ -64,6 +64,23 @@ describe('DiscordChannel — additional paths', () => {
     expect(logger.error).toHaveBeenCalledWith('channel.discord.send_failed', expect.any(Object))
   })
 
+  it('editMessage throws and logs when content exceeds the per-message limit', async () => {
+    const logger = log()
+    const channel = new DiscordChannel(makeConfig(), new MessageBus(), logger)
+
+    const fetchChannel = vi.fn()
+    ;(channel as unknown as { client: unknown }).client = {
+      channels: { fetch: fetchChannel }
+    }
+
+    const tooLong = 'A'.repeat(2500) // > DISCORD_MESSAGE_MAX (1800)
+    await expect(
+      channel.editMessage({ channel: 'discord', chatId: 'c1', messageId: 'm1' }, tooLong)
+    ).rejects.toThrow(/exceeds Discord edit limit/)
+    expect(logger.error).toHaveBeenCalledWith('channel.discord.edit_failed', expect.any(Object))
+    expect(fetchChannel).not.toHaveBeenCalled()
+  })
+
   it('editMessage logs error when underlying fetch throws', async () => {
     const logger = log()
     const channel = new DiscordChannel(makeConfig(), new MessageBus(), logger)
