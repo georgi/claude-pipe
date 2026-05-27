@@ -304,6 +304,31 @@ export class DiscordChannel implements Channel {
       content = content.replace(mentionPattern, '').trim() || '[empty message]'
     }
 
+    // Fetch last 30 messages for context when mentioned or in bot thread
+    if ((isMentioned || isBotThread) && message.channel.isTextBased()) {
+      try {
+        const messages = await message.channel.messages.fetch({
+          limit: 30,
+          before: message.id
+        })
+        const history = Array.from(messages.values())
+          .reverse()
+          .map(m => {
+            const author = m.author.username
+            const text = m.content?.trim() || ''
+            return text ? `${author}: ${text}` : null
+          })
+          .filter(Boolean)
+          .join('\n')
+
+        if (history) {
+          content = `[Channel context — last 30 messages]:\n${history}\n\n[Current message]:\n${content}`
+        }
+      } catch {
+        // Silently fail if we can't fetch history
+      }
+    }
+
     // Process attachments from Discord message
     const attachments: InboundMessage['attachments'] = []
     if (message.attachments && message.attachments.size > 0) {
