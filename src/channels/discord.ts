@@ -264,7 +264,11 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    if (!this.isChannelAllowed(message.channelId)) {
+    // Skip channel allowlist for DMs
+    if (
+      message.channel.type !== ChannelType.DM &&
+      !this.isChannelAllowed(message.channelId)
+    ) {
       this.logger.warn('channel.discord.denied_channel', {
         senderId,
         chatId: message.channelId
@@ -364,7 +368,11 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    if (!this.isChannelAllowed(interaction.channelId)) {
+    // Skip channel allowlist for DMs
+    if (
+      interaction.channel?.type !== ChannelType.DM &&
+      !this.isChannelAllowed(interaction.channelId)
+    ) {
       this.logger.warn('channel.discord.denied_channel', {
         senderId,
         chatId: interaction.channelId
