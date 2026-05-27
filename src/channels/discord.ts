@@ -5,6 +5,7 @@ import {
   Partials,
   REST,
   Routes,
+  ThreadChannel,
   type ChatInputCommandInteraction,
   type Message
 } from 'discord.js'
@@ -280,11 +281,15 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    // Only respond when mentioned (unless it's a DM)
-    if (
-      message.channel.type !== ChannelType.DM &&
-      (!this.client?.user || !message.mentions.has(this.client.user))
-    ) {
+    // Only respond when mentioned, in a DM, or in a thread the bot started
+    const isDM = message.channel.type === ChannelType.DM
+    const isMentioned = this.client?.user ? message.mentions.has(this.client.user) : false
+    const isBotThread =
+      message.channel instanceof ThreadChannel &&
+      this.client?.user &&
+      message.channel.ownerId === this.client.user.id
+
+    if (!isDM && !isMentioned && !isBotThread) {
       return
     }
 
