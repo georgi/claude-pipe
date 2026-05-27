@@ -280,6 +280,21 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    // Only respond when mentioned (unless it's a DM)
+    if (
+      message.channel.type !== ChannelType.DM &&
+      (!this.client?.user || !message.mentions.has(this.client.user))
+    ) {
+      return
+    }
+
+    // Strip bot mention from content
+    let content = message.content?.trim() || '[empty message]'
+    if (this.client?.user) {
+      const mentionPattern = new RegExp(`<@!?${this.client.user.id}>\\s*`, 'g')
+      content = content.replace(mentionPattern, '').trim() || '[empty message]'
+    }
+
     // Process attachments from Discord message
     const attachments: InboundMessage['attachments'] = []
     if (message.attachments && message.attachments.size > 0) {
@@ -317,7 +332,7 @@ export class DiscordChannel implements Channel {
       channel: 'discord',
       senderId,
       chatId: message.channelId,
-      content: message.content?.trim() || '[empty message]',
+      content,
       timestamp: new Date().toISOString(),
       ...(attachments.length > 0 ? { attachments } : {}),
       metadata: {

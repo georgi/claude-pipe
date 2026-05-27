@@ -16,6 +16,7 @@ import type { PiPipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { TranscriptLogger } from './transcript-logger.js'
+import { createGuardrailExtension } from './guardrail-extension.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
 
 /** Base system prompt always appended — covers chat-app behavior and attachment protocol. */
@@ -209,7 +210,10 @@ export class PiClient implements ModelClient {
     const loader = new DefaultResourceLoader({
       cwd: this.config.workspace,
       agentDir: this.agentDir,
-      extensionFactories: [createInstructionsExtension(() => buildSystemPrompt(this.config))]
+      extensionFactories: [
+        createInstructionsExtension(() => buildSystemPrompt(this.config)),
+        createGuardrailExtension()
+      ]
     })
     await loader.reload()
     return loader

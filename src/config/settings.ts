@@ -23,7 +23,7 @@ export interface Settings {
 }
 
 function defaultConfigDir(): string {
-  return path.join(os.homedir(), '.pi-pipe')
+  return process.env.PI_PIPE_CONFIG_DIR || path.join(os.homedir(), '.pi-pipe')
 }
 
 /** Returns the resolved path to the settings directory. */
