@@ -28,17 +28,31 @@ function makeConfig(overrides?: { allowChannels?: string[] }): PiPipeConfig {
 describe('DiscordChannel', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 
+  // A guild text channel that satisfies the mention/history-fetch path:
+  // onMessage only publishes when the bot is mentioned (or it's a DM / bot
+  // thread), and when mentioned it fetches recent history (empty here) for
+  // context — so the channel must expose isTextBased() and messages.fetch().
+  function mentionedGuildChannel() {
+    return {
+      type: 0,
+      isTextBased: () => true,
+      messages: { fetch: vi.fn(async () => new Map()) }
+    }
+  }
+
   it('publishes inbound when sender is allowed', async () => {
     const bus = new MessageBus()
     const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as any).client = { user: { id: 'bot' } }
 
     await (channel as any).onMessage({
       author: { bot: false, id: 'u1' },
-      channel: { type: 0 },
+      channel: mentionedGuildChannel(),
       channelId: 'c1',
       content: 'hello',
       id: 'm1',
-      guildId: 'g1'
+      guildId: 'g1',
+      mentions: { has: () => true }
     })
 
     const inbound = await bus.consumeInbound()
@@ -139,6 +153,7 @@ describe('DiscordChannel', () => {
   it('processes image attachment from Discord message', async () => {
     const bus = new MessageBus()
     const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as any).client = { user: { id: 'bot' } }
 
     const mockAttachments = new Map()
     mockAttachments.set('att1', {
@@ -151,11 +166,12 @@ describe('DiscordChannel', () => {
 
     await (channel as any).onMessage({
       author: { bot: false, id: 'u1' },
-      channel: { type: 0 },
+      channel: mentionedGuildChannel(),
       channelId: 'c1',
       content: 'Look at this',
       id: 'm1',
       guildId: 'g1',
+      mentions: { has: () => true },
       attachments: mockAttachments
     })
 
@@ -285,6 +301,7 @@ describe('DiscordChannel', () => {
   it('processes multiple attachments from Discord message', async () => {
     const bus = new MessageBus()
     const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as any).client = { user: { id: 'bot' } }
 
     const mockAttachments = new Map()
     mockAttachments.set('att1', {
@@ -304,11 +321,12 @@ describe('DiscordChannel', () => {
 
     await (channel as any).onMessage({
       author: { bot: false, id: 'u1' },
-      channel: { type: 0 },
+      channel: mentionedGuildChannel(),
       channelId: 'c1',
       content: 'Check these files',
       id: 'm1',
       guildId: 'g1',
+      mentions: { has: () => true },
       attachments: mockAttachments
     })
 

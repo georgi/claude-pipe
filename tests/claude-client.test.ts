@@ -100,6 +100,55 @@ describe('ClaudeClient (Claude Agent SDK)', () => {
     expect(sp.append).toContain('[[memory:')
   })
 
+  it('accumulates multiple text blocks within one assistant message', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+    const store = makeStore()
+
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'assistant',
+          session_id: 'sess-multi',
+          message: {
+            content: [
+              { type: 'text', text: 'Part one. ' },
+              { type: 'text', text: 'Part two.' }
+            ]
+          }
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: '',
+          session_id: 'sess-multi'
+        }
+      ])
+    )
+
+    const updates: Array<{ kind: string; text?: string }> = []
+    const onUpdate = vi.fn(async (e: { kind: string; text?: string }) => {
+      updates.push(e)
+    })
+    const client = new ClaudeClient(makeConfig() as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    const result = await client.runTurn('telegram:1', 'go', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1',
+      onUpdate
+    })
+
+    expect(result).toBe('Part one. Part two.')
+    // The final streaming update carries the cumulative text, not just the last block.
+    const streamed = updates.filter((u) => u.kind === 'text_streaming')
+    expect(streamed.at(-1)?.text).toBe('Part one. Part two.')
+  })
+
   it('passes resume session id when available', async () => {
     const { ClaudeClient } = await import('../src/core/claude-client.js')
     const store = {

@@ -70,7 +70,9 @@ export class ClaudeClient implements ModelClient {
 
       for (const block of content) {
         if (block.type === 'text') {
-          text = block.text
+          // Accumulate so a message with multiple text blocks isn't truncated
+          // to its last block, and streamed updates stay cumulative.
+          text += block.text
           await this.transcript.log(conversationKey, { type: 'assistant_text', text })
           await this.publishUpdate(context, {
             kind: 'text_streaming',

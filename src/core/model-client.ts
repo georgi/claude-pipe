@@ -18,8 +18,11 @@ export interface ModelClient {
   /** Forgets the conversation's session so the next turn starts fresh. */
   startNewSession(conversationKey: string): Promise<void>
   /**
-   * Switches the active model for this client. Implementations validate the
-   * model string and throw on an unknown model, leaving prior state intact.
+   * Switches the active model for subsequent turns. Validation is
+   * implementation-dependent: the Pi harness resolves the model against its
+   * registry and throws on an unknown model (leaving prior state intact),
+   * while the Claude harness accepts any string and defers errors to the next
+   * `query()` call (the SDK rejects unknown models at request time).
    */
   setModel(modelString: string): void
 }
