@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import type { PiPipeConfig } from '../config/schema.js'
 import { loadConfig } from '../config/load.js'
 import type { ModelClient } from '../core/model-client.js'
-import { PiClient } from '../core/pi-client.js'
 import type { SessionStore } from '../core/session-store.js'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -89,7 +88,7 @@ export function setupCommands(
   registry.register(
     piModelCommand(
       () => config.model,
-      pi instanceof PiClient ? (model) => (pi as PiClient).setModel(model) : undefined
+      (model) => pi.setModel(model)
     )
   )
 

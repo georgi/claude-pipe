@@ -1,3 +1,4 @@
+import type { SessionRecord } from '../../core/types.js'
 import type { CommandDefinition, CommandContext, CommandResult } from '../types.js'
 
 /**
@@ -50,7 +51,7 @@ export function sessionListCommand(
  * Shows info about the current chat's session.
  */
 export function sessionInfoCommand(
-  getSession: (conversationKey: string) => { sessionFile: string; updatedAt: string } | undefined
+  getSession: (conversationKey: string) => SessionRecord | undefined
 ): CommandDefinition {
   return {
     name: 'session_info',
@@ -67,18 +68,21 @@ export function sessionInfoCommand(
         return { content: 'No active session for this chat.' }
       }
       // Show only the basename so the absolute path isn't leaked even to
-      // admins via casual screenshot/copy-paste of bot output. Guard against
-      // legacy records that may not carry `sessionFile` (e.g. an older
-      // `sessions.json` from before the rebrand).
-      const sessionFile = session.sessionFile
-      const basename = sessionFile
-        ? (sessionFile.split(/[/\\]/).pop() ?? '') || sessionFile
-        : '(legacy entry — start a new session to upgrade)'
+      // admins via casual screenshot/copy-paste of bot output. The reference
+      // shape depends on the active harness: Pi persists a `sessionFile` path,
+      // Claude persists an opaque `sessionId`. Guard against legacy records
+      // that carry neither.
+      let ref: string
+      if (session.sessionFile) {
+        const file = session.sessionFile
+        ref = `Session file: \`${(file.split(/[/\\]/).pop() ?? '') || file}\``
+      } else if (session.sessionId) {
+        ref = `Session id: \`${session.sessionId}\``
+      } else {
+        ref = 'Session: (legacy entry — start a new session to upgrade)'
+      }
       return {
-        content:
-          `**Session info:**\n` +
-          `• Session file: \`${basename}\`\n` +
-          `• Last active: ${session.updatedAt}`
+        content: `**Session info:**\n` + `• ${ref}\n` + `• Last active: ${session.updatedAt}`
       }
     }
   }

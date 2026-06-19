@@ -13,6 +13,11 @@ function parseCsv(input: string | undefined): string[] {
     .filter(Boolean)
 }
 
+/** Normalizes a harness string, falling back to 'pi' for unknown/missing values. */
+function parseHarness(input: string | undefined): 'pi' | 'claude' {
+  return input === 'claude' ? 'claude' : 'pi'
+}
+
 /**
  * Loads runtime configuration.
  *
@@ -46,6 +51,7 @@ export function loadConfig(): PiPipeConfig {
     const cliEnabled = s.channel === 'cli'
 
     return configSchema.parse({
+      harness: parseHarness(process.env.PIPIPE_HARNESS ?? s.harness),
       model: s.model,
       workspace: s.workspace,
       channels: {
@@ -76,6 +82,7 @@ export function loadConfig(): PiPipeConfig {
   }
 
   return configSchema.parse({
+    harness: parseHarness(process.env.PIPIPE_HARNESS),
     model: process.env.PIPIPE_MODEL ?? '',
     workspace: process.env.PIPIPE_WORKSPACE ?? process.cwd(),
     channels: {

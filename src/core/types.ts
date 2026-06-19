@@ -73,10 +73,25 @@ export interface SentMessage {
 }
 
 /**
- * Persistent mapping record from conversation key to Pi session file path.
+ * Harness-agnostic reference to a persisted conversation session.
+ *
+ * Each harness resumes conversations differently, so the store keeps whatever
+ * the active harness needs:
+ * - Pi persists a session-file path (`sessionFile`) opened via `SessionManager`.
+ * - Claude persists an opaque `sessionId` passed back via `query({ resume })`.
+ *
+ * Both fields are optional; a record typically carries exactly one.
  */
-export interface SessionRecord {
-  sessionFile: string
+export interface SessionRef {
+  sessionFile?: string
+  sessionId?: string
+}
+
+/**
+ * Persistent mapping record from conversation key to a harness session
+ * reference, plus bookkeeping metadata.
+ */
+export interface SessionRecord extends SessionRef {
   updatedAt: string
 }
 

@@ -1,16 +1,17 @@
 import { mkdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-import type { SessionMap, SessionRecord } from './types.js'
+import type { SessionMap, SessionRecord, SessionRef } from './types.js'
 
 const LOCK_RETRIES = 10
 const LOCK_RETRY_DELAY_MS = 50
 const LOCK_STALE_MS = 10_000
 
 /**
- * File-backed session file path map.
+ * File-backed conversation session map.
  *
- * Persists only conversation key -> Pi session file path metadata.
+ * Persists only conversation key -> harness session reference metadata
+ * (a {@link SessionRef}: a Pi session-file path or a Claude session id).
  * Uses a directory-based lockfile to prevent concurrent write corruption
  * across multiple processes.
  */
@@ -46,9 +47,9 @@ export class SessionStore {
   }
 
   /** Upserts conversation mapping and persists to disk atomically. */
-  async set(conversationKey: string, sessionFile: string): Promise<void> {
+  async set(conversationKey: string, ref: SessionRef): Promise<void> {
     this.map[conversationKey] = {
-      sessionFile,
+      ...ref,
       updatedAt: new Date().toISOString()
     }
     await this.persist()

@@ -13,7 +13,7 @@ describe('SessionStore', () => {
 
     const store = new SessionStore(path)
     await store.init()
-    await store.set('telegram:123', '/sessions/sess-abc.jsonl')
+    await store.set('telegram:123', { sessionFile: '/sessions/sess-abc.jsonl' })
 
     const raw = JSON.parse(await readFile(path, 'utf-8')) as Record<string, { sessionFile: string }>
     expect(raw['telegram:123']?.sessionFile).toBe('/sessions/sess-abc.jsonl')
@@ -29,7 +29,7 @@ describe('SessionStore', () => {
 
     const store = new SessionStore(path)
     await store.init()
-    await store.set('telegram:123', '/sessions/sess-abc.jsonl')
+    await store.set('telegram:123', { sessionFile: '/sessions/sess-abc.jsonl' })
     await store.clear('telegram:123')
 
     expect(store.get('telegram:123')).toBeUndefined()
@@ -45,7 +45,7 @@ describe('SessionStore', () => {
 
     const store = new SessionStore(path)
     await store.init()
-    await store.set('telegram:456', '/sessions/sess-xyz.jsonl')
+    await store.set('telegram:456', { sessionFile: '/sessions/sess-xyz.jsonl' })
 
     // Lock directory should not exist after write completes
     await expect(access(lockPath)).rejects.toThrow()
@@ -60,9 +60,9 @@ describe('SessionStore', () => {
 
     // Fire multiple concurrent writes
     await Promise.all([
-      store.set('a:1', '/sessions/sess-1.jsonl'),
-      store.set('a:2', '/sessions/sess-2.jsonl'),
-      store.set('a:3', '/sessions/sess-3.jsonl')
+      store.set('a:1', { sessionFile: '/sessions/sess-1.jsonl' }),
+      store.set('a:2', { sessionFile: '/sessions/sess-2.jsonl' }),
+      store.set('a:3', { sessionFile: '/sessions/sess-3.jsonl' })
     ])
 
     // All entries should be present
@@ -81,11 +81,11 @@ describe('SessionStore', () => {
     const store = new SessionStore(path)
     await store.init()
 
-    await store.set('k1', '/p/k1.jsonl')
+    await store.set('k1', { sessionFile: '/p/k1.jsonl' })
     const snapshot = store.entries()
     expect(Object.keys(snapshot)).toEqual(['k1'])
 
-    await store.set('k2', '/p/k2.jsonl')
+    await store.set('k2', { sessionFile: '/p/k2.jsonl' })
     // The snapshot is a shallow copy — must not include the later write
     expect(Object.keys(snapshot)).toEqual(['k1'])
   })
@@ -122,7 +122,7 @@ describe('SessionStore', () => {
     await store.init()
 
     // Should succeed despite stale lock
-    await store.set('telegram:789', '/sessions/sess-stale.jsonl')
+    await store.set('telegram:789', { sessionFile: '/sessions/sess-stale.jsonl' })
     expect(store.get('telegram:789')?.sessionFile).toBe('/sessions/sess-stale.jsonl')
   })
 })

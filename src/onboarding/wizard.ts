@@ -95,7 +95,26 @@ async function collectCredentials(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 5 – Choose model                                              */
+/*  Step 5 – Choose agent harness                                      */
+/* ------------------------------------------------------------------ */
+
+async function chooseHarness(
+  rl: readline.Interface,
+  current?: 'pi' | 'claude'
+): Promise<'pi' | 'claude'> {
+  const defaultChoice = current === 'claude' ? '2' : '1'
+  console.log(
+    '\nWhich agent harness should drive your assistant?\n' +
+      '  1) Pi Coding Agent SDK   (multi-provider: Claude, GPT, Gemini, …)\n' +
+      '  2) Claude Agent SDK      (Anthropic models only; needs ANTHROPIC_API_KEY)\n'
+  )
+  const choice = await ask(rl, `Enter 1 or 2 [${defaultChoice}]: `)
+  const effective = choice || defaultChoice
+  return effective === '2' ? 'claude' : 'pi'
+}
+
+/* ------------------------------------------------------------------ */
+/*  Step 6 – Choose model                                              */
 /* ------------------------------------------------------------------ */
 
 const PI_MODEL_PRESETS: Record<string, string> = {
@@ -211,6 +230,7 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
     }
     const channel = await chooseChannel(rl, existingSettings?.channel)
     const token = await collectCredentials(rl, channel, existingSettings?.token)
+    const harness = await chooseHarness(rl, existingSettings?.harness)
     const model = await chooseModel(rl, existingSettings?.model)
     const workspace = await chooseWorkspace(rl, existingSettings?.workspace)
     const personality = await choosePersonality(rl, existingSettings?.personality)
@@ -219,6 +239,7 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
       channel,
       token,
       allowFrom: existingSettings?.allowFrom ?? [],
+      harness,
       model,
       workspace,
       personality
