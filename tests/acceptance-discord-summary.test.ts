@@ -36,15 +36,23 @@ describe('acceptance: discord summary flow', () => {
 
     const send = vi.fn(async () => undefined)
     const fetch = vi.fn(async () => ({ isTextBased: () => true, send }))
-    ;(discord as any).client = { channels: { fetch } }
+    // The bot must be mentioned for onMessage to publish; `user` identifies the
+    // bot for mention detection, and the inbound channel exposes the history
+    // fetch used to build context (empty here).
+    ;(discord as any).client = { user: { id: 'bot' }, channels: { fetch } }
 
     await (discord as any).onMessage({
       author: { bot: false, id: 'u1' },
-      channel: { type: 0 },
+      channel: {
+        type: 0,
+        isTextBased: () => true,
+        messages: { fetch: vi.fn(async () => new Map()) }
+      },
       channelId: 'chan-1',
       content: 'summarize files in workspace',
       id: 'msg-1',
-      guildId: 'guild-1'
+      guildId: 'guild-1',
+      mentions: { has: () => true }
     })
 
     await (agent as any).processOnce()

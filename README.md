@@ -1,6 +1,6 @@
 # pi-pipe
 
-Pi Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It connects directly to the [Pi Coding Agent SDK](https://pi.dev/docs/latest/sdk).
+Pi Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It runs on a configurable **agent harness** — either the [Pi Coding Agent SDK](https://pi.dev/docs/latest/sdk) (multi-provider; default) or the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic models). Both expose the same chat behavior, so you can switch with one setting.
 
 Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
@@ -36,9 +36,10 @@ First run starts the interactive setup wizard:
 
 1. **Choose platform** — select Telegram, Discord, or CLI (local terminal)
 2. **Enter bot token** — required for Telegram/Discord, skipped in CLI mode
-3. **Select model** — preset list (Claude, GPT-5, …) or free-form entry (supports `provider/model-id`)
-4. **Set workspace** — directory Pi can access (defaults to current directory)
-5. **Set personality** — give your assistant a name and description
+3. **Choose agent harness** — Pi Coding Agent SDK (multi-provider) or Claude Agent SDK (Anthropic only)
+4. **Select model** — preset list (Claude, GPT-5, …) or free-form entry (supports `provider/model-id`)
+5. **Set workspace** — directory the agent can access (defaults to current directory)
+6. **Set personality** — give your assistant a name and description
 
 Settings are saved to `~/.pi-pipe/settings.json`.
 
@@ -144,6 +145,7 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
   "channel": "telegram",
   "token": "your-bot-token",
   "allowFrom": ["user-id-1", "user-id-2"],
+  "harness": "pi",
   "model": "claude-sonnet-4-5",
   "workspace": "/path/to/your/workspace",
   "personality": {
@@ -159,18 +161,21 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 | `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
 | `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                            |
 | `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels)                                                       |
-| `model`         | Pi model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id` for explicit provider)                    |
-| `workspace`     | Root directory Pi can access                                                                                                  |
+| `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default) or `claude` (Claude Agent SDK, Anthropic only)             |
+| `model`         | Model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id`; non-Anthropic ids require the `pi` harness) |
+| `workspace`     | Root directory the agent can access                                                                                           |
 | `personality`   | Optional: give your assistant a `name` and `traits` description                                                               |
 | `env`           | Optional: environment variables to inject at startup                                                                          |
 
 ### Authentication
 
-Pi reads provider credentials from the environment:
+The active harness reads provider credentials from the environment:
 
-- `ANTHROPIC_API_KEY` — required for Claude models
-- `OPENAI_API_KEY` — required for GPT / OpenAI models
-- Other providers: see the [Pi providers docs](https://pi.dev/docs/latest/providers)
+- `ANTHROPIC_API_KEY` — required for Claude models (and for the entire `claude` harness)
+- `OPENAI_API_KEY` — required for GPT / OpenAI models (Pi harness)
+- Other providers (Pi harness): see the [Pi providers docs](https://pi.dev/docs/latest/providers)
+
+The `claude` harness only supports Anthropic models; use the `pi` harness for any other provider.
 
 Set them in your shell profile or in `~/.pi-pipe/.env`.
 
@@ -180,6 +185,7 @@ For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the 
 
 | Variable                          | What it does                                                               |
 | --------------------------------- | -------------------------------------------------------------------------- |
+| `PIPIPE_HARNESS`                  | Agent harness: `pi` (default) or `claude` (overrides the settings value)   |
 | `PIPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)     |
 | `PIPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                      |
 | `PIPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                            |

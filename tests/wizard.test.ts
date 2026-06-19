@@ -65,6 +65,7 @@ describe('runOnboarding', () => {
   it('completes the CLI flow and writes settings.json', async () => {
     await runWithAnswers([
       '3', // CLI channel
+      '1', // harness — Pi
       '1', // Claude Haiku 4.5 preset
       workspace, // workspace path
       'TestBot', // personality name
@@ -74,6 +75,7 @@ describe('runOnboarding', () => {
     const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.channel).toBe('cli')
+    expect(parsed.harness).toBe('pi')
     expect(parsed.model).toBe('claude-haiku-4-5')
     expect(parsed.workspace).toBe(workspace)
     expect(parsed.personality.name).toBe('TestBot')
@@ -100,8 +102,11 @@ describe('runOnboarding', () => {
 
     // For gpt-5 (preset '3'), pressing Enter passes '' which falls through to
     // the free-form custom-model prompt — so we need an extra Enter for that.
-    // 1 channel + 1 model preset + 1 custom-model fallback + 1 workspace + 2 personality = 6
-    const updated = (await runWithAnswers(['', '', '', '', '', ''], existing)) as typeof existing
+    // 1 channel + 1 harness + 1 model preset + 1 custom-model fallback + 1 workspace + 2 personality = 7
+    const updated = (await runWithAnswers(
+      ['', '', '', '', '', '', ''],
+      existing
+    )) as typeof existing
 
     expect(updated.channel).toBe('cli')
     expect(updated.model).toBe('gpt-5')
@@ -115,7 +120,7 @@ describe('runOnboarding', () => {
     const fsp = await import('node:fs/promises')
     await fsp.writeFile(join(workspace, 'AGENTS.md'), '# Custom\n', 'utf-8')
 
-    await runWithAnswers(['3', '2', workspace, 'Bot', 'serious'])
+    await runWithAnswers(['3', '1', '2', workspace, 'Bot', 'serious'])
 
     const content = await readFile(join(workspace, 'AGENTS.md'), 'utf-8')
     expect(content).toBe('# Custom\n')
@@ -126,6 +131,7 @@ describe('runOnboarding', () => {
     // should select that without falling through to the free-form prompt.
     await runWithAnswers([
       '3', // CLI channel
+      '1', // harness — Pi
       '', // model — accept default
       workspace,
       'Pi',
@@ -147,8 +153,11 @@ describe('runOnboarding', () => {
       personality: { name: 'X', traits: 'y' }
     }
 
-    // 1 channel + 1 model preset + 1 custom-model name + 1 workspace + 2 personality = 6
-    const updated = (await runWithAnswers(['', '', '', '', '', ''], existing)) as typeof existing
+    // 1 channel + 1 harness + 1 model preset + 1 custom-model name + 1 workspace + 2 personality = 7
+    const updated = (await runWithAnswers(
+      ['', '', '', '', '', '', ''],
+      existing
+    )) as typeof existing
     expect(updated.model).toBe('something-unknown')
   })
 
@@ -157,7 +166,7 @@ describe('runOnboarding', () => {
     process.env.ANTHROPIC_API_KEY = 'sk-fake'
 
     try {
-      await runWithAnswers(['3', '1', workspace, 'X', 'snappy'])
+      await runWithAnswers(['3', '1', '1', workspace, 'X', 'snappy'])
 
       const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
       expect(banners).toContain('API key detected')
@@ -177,10 +186,10 @@ describe('runOnboarding', () => {
       personality: { name: 'X', traits: 'y' }
     }
 
-    // 1 channel + 1 token + 1 model preset + 1 model custom fallback +
-    // 1 workspace + 2 personality = 7 prompts
+    // 1 channel + 1 token + 1 harness + 1 model preset + 1 model custom fallback +
+    // 1 workspace + 2 personality = 8 prompts
     const updated = (await runWithAnswers(
-      ['', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', ''],
       existing
     )) as typeof existing
     expect(updated.token).toBe('existing-token-9876')
@@ -193,7 +202,7 @@ describe('runOnboarding', () => {
     delete process.env.OPENAI_API_KEY
 
     try {
-      await runWithAnswers(['3', '1', workspace, 'X', 'snappy'])
+      await runWithAnswers(['3', '1', '1', workspace, 'X', 'snappy'])
 
       const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
       expect(banners).toContain('No ANTHROPIC_API_KEY')
@@ -209,6 +218,7 @@ describe('runOnboarding', () => {
     await runWithAnswers([
       '1', // telegram
       'tg-bot-token-xyz',
+      '1', // harness — Pi
       '1', // model preset
       workspace,
       'Pi',
@@ -225,7 +235,8 @@ describe('runOnboarding', () => {
     await runWithAnswers([
       '2', // discord
       'dc-bot-token-xyz',
-      '1',
+      '1', // harness — Pi
+      '1', // model preset
       workspace,
       'Pi',
       'brief'
@@ -240,6 +251,7 @@ describe('runOnboarding', () => {
   it('accepts a custom free-form model name (option 4)', async () => {
     await runWithAnswers([
       '3', // CLI channel
+      '1', // harness — Pi
       '4', // Other (free-form)
       'kimi-k2', // custom model name
       workspace,
@@ -250,5 +262,20 @@ describe('runOnboarding', () => {
     const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.model).toBe('kimi-k2')
+  })
+
+  it('records the Claude harness when selected', async () => {
+    await runWithAnswers([
+      '3', // CLI channel
+      '2', // harness — Claude
+      '2', // model preset (Sonnet)
+      workspace,
+      'X',
+      'snappy'
+    ])
+
+    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
+    expect(parsed.harness).toBe('claude')
   })
 })

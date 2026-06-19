@@ -142,7 +142,9 @@ describe('PiClient (Pi SDK)', () => {
     expect(result).toBe('hello from pi')
     expect(sessionManagerCreateMock).toHaveBeenCalledWith('/tmp/workspace')
     expect(sessionManagerOpenMock).not.toHaveBeenCalled()
-    expect(store.set).toHaveBeenCalledWith('telegram:1', '/sessions/sess-new.jsonl')
+    expect(store.set).toHaveBeenCalledWith('telegram:1', {
+      sessionFile: '/sessions/sess-new.jsonl'
+    })
     expect(session.prompt).toHaveBeenCalledWith('hello')
   })
 
@@ -381,7 +383,9 @@ describe('PiClient (Pi SDK)', () => {
     })
 
     expect(lastLoaderOptions?.extensionFactories).toBeDefined()
-    expect(lastLoaderOptions!.extensionFactories!).toHaveLength(1)
+    // Two factories are registered: the instructions extension (index 0) and
+    // the guardrail extension (index 1).
+    expect(lastLoaderOptions!.extensionFactories!).toHaveLength(2)
 
     const factory = lastLoaderOptions!.extensionFactories![0]!
     const captured: Array<{ event: string; handler: (e: unknown) => unknown }> = []

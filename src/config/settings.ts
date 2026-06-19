@@ -16,6 +16,8 @@ export interface Settings {
   allowFrom: string[]
   // Optional allowlist of Discord channel IDs. Empty/missing means allow all channels.
   allowChannels?: string[]
+  // Which agent harness drives conversations. Defaults to 'pi' when omitted.
+  harness?: 'pi' | 'claude'
   model: string
   workspace: string
   personality?: PersonalitySettings

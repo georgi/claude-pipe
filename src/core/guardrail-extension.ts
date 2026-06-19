@@ -6,7 +6,7 @@ const BLOCKED_TOOLS = new Set([
   'write',
   'mcp__shell__execute',
   'mcp__filesystem__write',
-  'mcp__filesystem__edit',
+  'mcp__filesystem__edit'
 ])
 
 const BLOCKED_PREFIXES = ['spawn_', 'exec_']
@@ -22,7 +22,7 @@ const SENSITIVE_PATHS = [
   '/etc/passwd',
   '/var/lib/task-orchestrator',
   '/home/claude/webhook',
-  '/home/claude/webhook/secret',
+  '/home/claude/webhook/secret'
 ]
 
 function isBlocked(toolName: string): boolean {
@@ -55,9 +55,10 @@ export function createGuardrailExtension() {
       if (isBlocked(toolName)) {
         return {
           block: true,
-          content: `Tool "${toolName}" is not available in this public sandbox. ` +
+          content:
+            `Tool "${toolName}" is not available in this public sandbox. ` +
             'I can read files (except sensitive areas), search the web, and use safe MCP tools.',
-          isError: true,
+          isError: true
         }
       }
 
@@ -68,7 +69,7 @@ export function createGuardrailExtension() {
           return {
             block: true,
             content: `Cannot read "${path}" — this path is restricted in the public sandbox.`,
-            isError: true,
+            isError: true
           }
         }
       }
@@ -81,7 +82,7 @@ export function createGuardrailExtension() {
           return {
             block: true,
             content: `Cannot access "${path}" — this path is restricted in the public sandbox.`,
-            isError: true,
+            isError: true
           }
         }
       }

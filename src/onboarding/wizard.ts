@@ -95,7 +95,26 @@ async function collectCredentials(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 5 – Choose model                                              */
+/*  Step 5 – Choose agent harness                                      */
+/* ------------------------------------------------------------------ */
+
+async function chooseHarness(
+  rl: readline.Interface,
+  current?: 'pi' | 'claude'
+): Promise<'pi' | 'claude'> {
+  const defaultChoice = current === 'claude' ? '2' : '1'
+  console.log(
+    '\nWhich agent harness should drive your assistant?\n' +
+      '  1) Pi Coding Agent SDK   (multi-provider: Claude, GPT, Gemini, …)\n' +
+      '  2) Claude Agent SDK      (Anthropic models only; needs ANTHROPIC_API_KEY)\n'
+  )
+  const choice = await ask(rl, `Enter 1 or 2 [${defaultChoice}]: `)
+  const effective = choice || defaultChoice
+  return effective === '2' ? 'claude' : 'pi'
+}
+
+/* ------------------------------------------------------------------ */
+/*  Step 6 – Choose model                                              */
 /* ------------------------------------------------------------------ */
 
 const PI_MODEL_PRESETS: Record<string, string> = {
@@ -104,15 +123,45 @@ const PI_MODEL_PRESETS: Record<string, string> = {
   '3': 'gpt-5'
 }
 
-function getModelChoiceNumber(model: string): string {
+// The Claude harness passes the model straight into the Claude Agent SDK, which
+// only accepts Anthropic models — so its preset list omits non-Anthropic
+// options and the free-form prompt is scoped to Anthropic model ids.
+const CLAUDE_MODEL_PRESETS: Record<string, string> = {
+  '1': 'claude-haiku-4-5',
+  '2': 'claude-sonnet-4-5'
+}
+
+function getModelChoiceNumber(model: string, harness: 'pi' | 'claude'): string {
   if (model === 'claude-haiku-4-5') return '1'
   if (model === 'claude-sonnet-4-5') return '2'
+  if (harness === 'claude') return '3'
   if (model === 'gpt-5') return '3'
   return '4'
 }
 
-async function chooseModel(rl: readline.Interface, currentModel?: string): Promise<string> {
-  const defaultChoice = currentModel ? getModelChoiceNumber(currentModel) : '2'
+async function chooseModel(
+  rl: readline.Interface,
+  harness: 'pi' | 'claude',
+  currentModel?: string
+): Promise<string> {
+  const defaultChoice = currentModel ? getModelChoiceNumber(currentModel, harness) : '2'
+
+  if (harness === 'claude') {
+    console.log(
+      '\nWhich Claude model would you like to use? (the Claude harness is Anthropic-only)\n' +
+        '  1) Claude Haiku 4.5  (needs ANTHROPIC_API_KEY)\n' +
+        '  2) Claude Sonnet 4.5 (needs ANTHROPIC_API_KEY)\n' +
+        '  3) Other (free-form Anthropic model id, e.g. claude-opus-4-1)\n'
+    )
+    const choice = await ask(rl, `Enter 1–3 [${defaultChoice}]: `)
+    const effectiveChoice = choice || defaultChoice
+    if (effectiveChoice in CLAUDE_MODEL_PRESETS) return CLAUDE_MODEL_PRESETS[effectiveChoice]!
+
+    const currentLabel = currentModel ? ` [${currentModel}]` : ''
+    const custom = await ask(rl, `Enter Anthropic model id (e.g. claude-opus-4-1)${currentLabel}: `)
+    return custom || currentModel || 'claude-sonnet-4-5'
+  }
+
   console.log(
     '\nWhich model would you like to use?\n' +
       '  1) Claude Haiku 4.5  (needs ANTHROPIC_API_KEY)\n' +
@@ -211,7 +260,8 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
     }
     const channel = await chooseChannel(rl, existingSettings?.channel)
     const token = await collectCredentials(rl, channel, existingSettings?.token)
-    const model = await chooseModel(rl, existingSettings?.model)
+    const harness = await chooseHarness(rl, existingSettings?.harness)
+    const model = await chooseModel(rl, harness, existingSettings?.model)
     const workspace = await chooseWorkspace(rl, existingSettings?.workspace)
     const personality = await choosePersonality(rl, existingSettings?.personality)
 
@@ -219,6 +269,7 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
       channel,
       token,
       allowFrom: existingSettings?.allowFrom ?? [],
+      harness,
       model,
       workspace,
       personality

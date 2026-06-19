@@ -20,6 +20,12 @@ const cliChannelSchema = z.object({
  * Runtime configuration schema for Pi Pipe.
  */
 export const configSchema = z.object({
+  /**
+   * Which agent harness drives conversations:
+   * - `pi`     — the Pi Coding Agent SDK (multi-provider; default).
+   * - `claude` — the Claude Agent SDK (Anthropic models only).
+   */
+  harness: z.enum(['pi', 'claude']).default('pi'),
   model: z.string(),
   workspace: z.string(),
   channels: z.object({
