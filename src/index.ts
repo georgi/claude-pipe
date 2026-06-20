@@ -1,3 +1,5 @@
+import * as path from 'node:path'
+
 import { TelegramChannel } from './channels/telegram.js'
 import { ChannelManager } from './channels/manager.js'
 import { setupCommands } from './commands/index.js'
@@ -75,10 +77,19 @@ async function main(): Promise<void> {
   const sessionStore = new SessionStore(config.sessionStorePath)
   await sessionStore.init()
 
-  const dataDir = `${config.workspace}/data`
-  const memoryStore = new MemoryStore(`${dataDir}/memory.db`)
-  memoryStore.init()
-  const dailyLog = new DailyLog(`${dataDir}/daily-logs`)
+  // Persistent memory is optional. Paths from the config are resolved relative
+  // to the workspace when not absolute so a portable settings file still lands
+  // its data under the active workspace.
+  const resolveWorkspacePath = (p: string): string =>
+    path.isAbsolute(p) ? p : path.join(config.workspace, p)
+
+  let memoryStore: MemoryStore | null = null
+  let dailyLog: DailyLog | null = null
+  if (config.memory.enabled) {
+    memoryStore = new MemoryStore(resolveWorkspacePath(config.memory.dbPath))
+    memoryStore.init()
+    dailyLog = new DailyLog(resolveWorkspacePath(config.memory.dailyLogPath))
+  }
 
   logger.info('startup.config', {
     workspace: config.workspace,
@@ -90,17 +101,19 @@ async function main(): Promise<void> {
   const channels = new ChannelManager(config, bus, logger)
   const heartbeat = createHeartbeat(config, bus, logger)
 
-  const { handler } = setupCommands({ config, pi: modelClient, sessionStore })
+  const { handler, registry } = setupCommands({ config, pi: modelClient, sessionStore })
   agent.setCommandHandler(handler)
   agent.setChannelManager(channels)
-  agent.setMemory(memoryStore, dailyLog)
+  if (memoryStore && dailyLog) {
+    agent.setMemory(memoryStore, dailyLog)
+  }
 
   let shuttingDown = false
   const shutdown = (signal: string): void => {
     if (shuttingDown) return
     shuttingDown = true
     logger.info('shutdown.signal', { signal })
-    memoryStore.close()
+    memoryStore?.close()
     heartbeat.stop()
     agent.stop()
     // Force exit after 2 s in case channel pollers are slow to stop
@@ -117,7 +130,6 @@ async function main(): Promise<void> {
   if (config.channels.telegram.enabled && config.channels.telegram.token) {
     const skills = discoverSkills()
     if (skills.length > 0) {
-      const { registry } = setupCommands({ config, pi: modelClient, sessionStore })
       const builtinMeta = registry.toMeta()
       const skillCommands = skills.map((s) => ({
         command: s.name.replace(/-/g, '_'),
@@ -145,8 +157,10 @@ async function main(): Promise<void> {
     }
   }
 
-  await agent.start()
+  // Start the heartbeat before the agent's blocking consume loop — `agent.start()`
+  // never returns while running, so anything after it would be dead code.
   heartbeat.start()
+  await agent.start()
 }
 
 main().catch((error: unknown) => {
