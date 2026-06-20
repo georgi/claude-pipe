@@ -2,11 +2,16 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 
 import type { PiPipeConfig } from '../config/schema.js'
+import { getConfigDir } from '../config/settings.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
+import { Guardrail } from './guardrail.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
+
+/** Filesystem-mutating / command-execution tools blocked in sandbox mode. */
+const SANDBOX_DISALLOWED_TOOLS = ['Bash', 'Edit', 'MultiEdit', 'Write', 'NotebookEdit']
 
 function summarizeToolResult(content: unknown): string {
   if (typeof content === 'string') {
@@ -32,6 +37,7 @@ function summarizeToolResult(content: unknown): string {
 export class ClaudeClient implements ModelClient {
   private readonly transcript: TranscriptLogger
   private readonly abortControllers = new Map<string, AbortController>()
+  private readonly guardrail = new Guardrail({ extraSensitivePaths: [getConfigDir()] })
 
   constructor(
     private config: PiPipeConfig,
@@ -166,8 +172,23 @@ export class ClaudeClient implements ModelClient {
             preset: 'claude_code',
             append: buildSystemPrompt(this.config)
           },
-          permissionMode: 'bypassPermissions',
-          allowDangerouslySkipPermissions: true,
+          // Sandbox mode enforces the shared guardrail (block mutating tools +
+          // sensitive reads) via canUseTool; otherwise grant full access so the
+          // assistant can edit files and run commands as documented.
+          ...(this.config.sandbox
+            ? {
+                disallowedTools: SANDBOX_DISALLOWED_TOOLS,
+                canUseTool: async (toolName: string, input: Record<string, unknown>) => {
+                  const decision = this.guardrail.evaluate(toolName, input)
+                  return decision.blocked
+                    ? {
+                        behavior: 'deny' as const,
+                        message: decision.reason ?? 'Blocked in sandbox mode.'
+                      }
+                    : { behavior: 'allow' as const, updatedInput: input }
+                }
+              }
+            : { permissionMode: 'bypassPermissions', allowDangerouslySkipPermissions: true }),
           cwd: this.config.workspace,
           abortController: abort
         }

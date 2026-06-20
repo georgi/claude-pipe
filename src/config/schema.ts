@@ -26,6 +26,13 @@ export const configSchema = z.object({
    * - `claude` — the Claude Agent SDK (Anthropic models only).
    */
   harness: z.enum(['pi', 'claude']).default('pi'),
+  /**
+   * When true, run the agent in a locked-down sandbox: filesystem-mutating and
+   * command-execution tools are blocked and sensitive paths are unreadable,
+   * across both the Pi and Claude harnesses. Defaults to false (full tool
+   * access) to match the personal-assistant model described in the README.
+   */
+  sandbox: z.boolean().default(false),
   model: z.string(),
   workspace: z.string(),
   channels: z.object({
@@ -73,6 +80,21 @@ export const configSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
   sessionStorePath: z.string(),
   maxToolIterations: z.number().int().positive().default(20),
+  /**
+   * Per-sender inbound rate limit. Guards against a single user (or a stuck
+   * client) flooding the agent with turns. Defaults on with a generous window.
+   */
+  rateLimit: z
+    .object({
+      enabled: z.boolean().default(true),
+      maxMessages: z.number().int().positive().default(15),
+      windowMs: z.number().int().positive().default(10_000)
+    })
+    .default({
+      enabled: true,
+      maxMessages: 15,
+      windowMs: 10_000
+    }),
   heartbeat: z
     .object({
       enabled: z.boolean().default(true),

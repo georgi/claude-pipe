@@ -13,10 +13,12 @@ import { getModel } from '@earendil-works/pi-ai'
 import type { Model } from '@earendil-works/pi-ai'
 
 import type { PiPipeConfig } from '../config/schema.js'
+import { getConfigDir } from '../config/settings.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
+import { Guardrail } from './guardrail.js'
 import { createGuardrailExtension } from './guardrail-extension.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
 
@@ -127,6 +129,7 @@ export class PiClient implements ModelClient {
   private readonly eventChain = new Map<string, Promise<void>>()
   private readonly modelRegistry: ModelRegistry
   private readonly agentDir: string
+  private readonly guardrail = new Guardrail({ extraSensitivePaths: [getConfigDir()] })
 
   constructor(
     private config: PiPipeConfig,
@@ -153,13 +156,16 @@ export class PiClient implements ModelClient {
     // extensions from ~/.pi/agent/extensions/, and skills from
     // ~/.pi/agent/skills/. Our instructions extension is appended via
     // `extensionFactories` and runs alongside whatever the user has configured.
+    const extensionFactories = [createInstructionsExtension(() => buildSystemPrompt(this.config))]
+    // The guardrail (blocks bash/edit/write + sensitive reads) only applies in
+    // sandbox mode; a normal deployment keeps Pi's full default tool set.
+    if (this.config.sandbox) {
+      extensionFactories.push(createGuardrailExtension(this.guardrail))
+    }
     const loader = new DefaultResourceLoader({
       cwd: this.config.workspace,
       agentDir: this.agentDir,
-      extensionFactories: [
-        createInstructionsExtension(() => buildSystemPrompt(this.config)),
-        createGuardrailExtension()
-      ]
+      extensionFactories
     })
     await loader.reload()
     return loader

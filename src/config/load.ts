@@ -18,6 +18,19 @@ function parseHarness(input: string | undefined): 'pi' | 'claude' {
   return input === 'claude' ? 'claude' : 'pi'
 }
 
+/** Parses a boolean env value, returning `fallback` when unset. */
+function parseBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback
+  return value === 'true' || value === '1'
+}
+
+/** Parses a positive integer env value, returning `fallback` on missing/invalid input. */
+function parseIntOr(value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
 /**
  * Loads runtime configuration.
  *
@@ -52,6 +65,7 @@ export function loadConfig(): PiPipeConfig {
 
     return configSchema.parse({
       harness: parseHarness(process.env.PIPIPE_HARNESS ?? s.harness),
+      sandbox: parseBool(process.env.PIPIPE_SANDBOX, s.sandbox ?? false),
       model: s.model,
       workspace: s.workspace,
       channels: {
@@ -83,6 +97,7 @@ export function loadConfig(): PiPipeConfig {
 
   return configSchema.parse({
     harness: parseHarness(process.env.PIPIPE_HARNESS),
+    sandbox: parseBool(process.env.PIPIPE_SANDBOX, false),
     model: process.env.PIPIPE_MODEL ?? '',
     workspace: process.env.PIPIPE_WORKSPACE ?? process.cwd(),
     channels: {
@@ -109,15 +124,11 @@ export function loadConfig(): PiPipeConfig {
     transcriptLog: {
       enabled: process.env.PIPIPE_TRANSCRIPT_LOG_ENABLED === 'true',
       path: process.env.PIPIPE_TRANSCRIPT_LOG_PATH ?? `${process.cwd()}/data/transcript.jsonl`,
-      maxBytes: process.env.PIPIPE_TRANSCRIPT_LOG_MAX_BYTES
-        ? Number(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_BYTES)
-        : 1_000_000,
-      maxFiles: process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES
-        ? Number(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES)
-        : 3
+      maxBytes: parseIntOr(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_BYTES, 1_000_000),
+      maxFiles: parseIntOr(process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES, 3)
     },
     sessionStorePath:
       process.env.PIPIPE_SESSION_STORE_PATH ?? `${process.cwd()}/data/sessions.json`,
-    maxToolIterations: Number(process.env.PIPIPE_MAX_TOOL_ITERATIONS ?? 20)
+    maxToolIterations: parseIntOr(process.env.PIPIPE_MAX_TOOL_ITERATIONS, 20)
   })
 }

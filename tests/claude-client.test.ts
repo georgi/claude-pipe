@@ -100,6 +100,52 @@ describe('ClaudeClient (Claude Agent SDK)', () => {
     expect(sp.append).toContain('[[memory:')
   })
 
+  it('enforces the guardrail in sandbox mode instead of bypassing permissions', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+    const store = makeStore()
+
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'ok',
+          session_id: 'sess-sandbox'
+        }
+      ])
+    )
+
+    const client = new ClaudeClient({ ...makeConfig(), sandbox: true } as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    await client.runTurn('telegram:1', 'hi', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1'
+    })
+
+    const [callArgs] = queryMock.mock.calls[0] as [{ options: Record<string, unknown> }]
+    // Sandbox mode must not bypass permissions.
+    expect(callArgs.options.permissionMode).toBeUndefined()
+    expect(callArgs.options.allowDangerouslySkipPermissions).toBeUndefined()
+    expect(callArgs.options.disallowedTools).toContain('Bash')
+    expect(callArgs.options.disallowedTools).toContain('Write')
+
+    // The canUseTool callback denies sensitive reads and allows benign ones.
+    const canUseTool = callArgs.options.canUseTool as (
+      name: string,
+      input: Record<string, unknown>
+    ) => Promise<{ behavior: string; message?: string }>
+    const denied = await canUseTool('Read', { file_path: '/etc/passwd' })
+    expect(denied.behavior).toBe('deny')
+    const allowed = await canUseTool('Read', { file_path: '/tmp/workspace/notes.md' })
+    expect(allowed.behavior).toBe('allow')
+  })
+
   it('accumulates multiple text blocks within one assistant message', async () => {
     const { ClaudeClient } = await import('../src/core/claude-client.js')
     const store = makeStore()
