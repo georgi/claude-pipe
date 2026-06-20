@@ -16,7 +16,16 @@ export default defineConfig({
         // not unit tests. It would require booting every subsystem.
         'src/index.ts'
       ],
-      reporter: ['text', 'html']
+      reporter: ['text', 'html'],
+      // Guardrails against coverage regressions. Set a little below current
+      // levels (~92% stmts / ~85% branch) so normal churn doesn't trip CI but
+      // a meaningful drop does.
+      thresholds: {
+        statements: 88,
+        branches: 80,
+        functions: 92,
+        lines: 88
+      }
     }
   }
 })

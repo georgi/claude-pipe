@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+  # Run on every pull request, regardless of base branch, so stacked PRs are
+  # also validated (not only those targeting main).
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -14,8 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [20]
+        node-version: [20, 22]
 
     steps:
       - uses: actions/checkout@v4
@@ -38,5 +40,11 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-      - name: Test
-        run: npm run test:run
+      - name: Test (with coverage thresholds)
+        run: npm run test:run -- --coverage
+
+      # Informational: surfaces dependency advisories without failing the build,
+      # since the remaining ones are transitive (discord.js -> undici/ws) and
+      # need a major upgrade to clear.
+      - name: Audit (non-blocking)
+        run: npm audit --audit-level=high || true
