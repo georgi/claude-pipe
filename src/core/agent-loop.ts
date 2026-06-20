@@ -1,3 +1,5 @@
+import * as path from 'node:path'
+
 import type { CommandHandler } from '../commands/handler.js'
 import type { ChannelManager } from '../channels/manager.js'
 import type { PiPipeConfig } from '../config/schema.js'
@@ -5,6 +7,7 @@ import type { DailyLog } from '../memory/daily-log.js'
 import type { MemoryStore } from '../memory/store.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
+import { RateLimiter } from './rate-limiter.js'
 import type { ModelClient } from './model-client.js'
 import type {
   AgentTurnUpdate,
@@ -26,6 +29,9 @@ function formatToolName(name: string): string {
   return bare.replace(/_/g, ' ')
 }
 
+/** Upper bound on a single inbound message passed to the model (DoS guard). */
+const MAX_INPUT_CHARS = 32_000
+
 /**
  * Central message-processing loop.
  *
@@ -42,13 +48,17 @@ export class AgentLoop {
   private channelManager: ChannelManager | null = null
   private memoryStore: MemoryStore | null = null
   private dailyLog: DailyLog | null = null
+  private readonly rateLimiter: RateLimiter | null
 
   constructor(
     private readonly bus: MessageBus,
     private readonly config: PiPipeConfig,
     private readonly client: ModelClient,
     private readonly logger: Logger
-  ) {}
+  ) {
+    const rl = this.config.rateLimit
+    this.rateLimiter = rl?.enabled ? new RateLimiter(rl.maxMessages, rl.windowMs) : null
+  }
 
   /** Attaches a command handler for slash-command interception. */
   setCommandHandler(handler: CommandHandler): void {
@@ -99,6 +109,24 @@ export class AgentLoop {
       conversationKey,
       senderId: inbound.senderId
     })
+
+    if (this.rateLimiter && !this.rateLimiter.allow(inbound.senderId)) {
+      this.logger.warn('agent.rate_limited', { conversationKey, senderId: inbound.senderId })
+      await this.bus.publishOutbound({
+        channel: inbound.channel,
+        chatId: inbound.chatId,
+        content: '⏳ You are sending messages too quickly. Please wait a moment and try again.'
+      })
+      return
+    }
+
+    if (inbound.content.length > MAX_INPUT_CHARS) {
+      this.logger.warn('agent.input_truncated', {
+        conversationKey,
+        originalLength: inbound.content.length
+      })
+      inbound = { ...inbound, content: inbound.content.slice(0, MAX_INPUT_CHARS) }
+    }
 
     if (this.commandHandler) {
       const result = await this.commandHandler.execute(
@@ -226,9 +254,14 @@ export class AgentLoop {
     let processed = rawContent.replace(
       /\[\[file:([^|\]]+?)(?:\|([^\]]*))?\]\]/g,
       (_match, filePath: string, caption?: string) => {
+        const trimmedPath = filePath.trim()
+        if (!this.isAttachmentPathAllowed(trimmedPath)) {
+          this.logger.warn('agent.attachment_blocked', { conversationKey, filePath: trimmedPath })
+          return ''
+        }
         const trimmedCaption = caption?.trim()
         attachments.push({
-          filePath: filePath.trim(),
+          filePath: trimmedPath,
           ...(trimmedCaption ? { caption: trimmedCaption } : {})
         })
         return ''
@@ -310,6 +343,19 @@ export class AgentLoop {
     }
 
     this.logger.info('agent.outbound', { conversationKey })
+  }
+
+  /**
+   * In sandbox mode, restricts outbound `[[file:…]]` attachments to the
+   * workspace tree so the model can't be coaxed into exfiltrating arbitrary
+   * files. Outside sandbox mode the operator already trusts the agent with full
+   * file access, so any path is allowed.
+   */
+  private isAttachmentPathAllowed(filePath: string): boolean {
+    if (!this.config.sandbox) return true
+    const root = path.resolve(this.config.workspace)
+    const resolved = path.resolve(this.config.workspace, filePath)
+    return resolved === root || resolved.startsWith(root + path.sep)
   }
 
   /**

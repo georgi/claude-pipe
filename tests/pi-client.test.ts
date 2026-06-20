@@ -368,6 +368,7 @@ describe('PiClient (Pi SDK)', () => {
 
     const config = {
       ...makeConfig(),
+      sandbox: true,
       personality: { name: 'Piper', traits: 'friendly and concise' }
     }
     const client = new PiClient(config as never, store as never, {
@@ -383,8 +384,8 @@ describe('PiClient (Pi SDK)', () => {
     })
 
     expect(lastLoaderOptions?.extensionFactories).toBeDefined()
-    // Two factories are registered: the instructions extension (index 0) and
-    // the guardrail extension (index 1).
+    // In sandbox mode two factories are registered: the instructions extension
+    // (index 0) and the guardrail extension (index 1).
     expect(lastLoaderOptions!.extensionFactories!).toHaveLength(2)
 
     const factory = lastLoaderOptions!.extensionFactories![0]!
@@ -406,6 +407,34 @@ describe('PiClient (Pi SDK)', () => {
     expect(out.systemPrompt).toContain('[[file:')
     expect(out.systemPrompt).toContain('[[keyboard:')
     expect(out.systemPrompt).toContain('[[memory:')
+  })
+
+  it('does not register the guardrail extension outside sandbox mode', async () => {
+    const { PiClient } = await import('../src/core/pi-client.js')
+
+    const store = {
+      get: vi.fn(() => undefined),
+      set: vi.fn(async () => undefined),
+      clear: vi.fn(async () => undefined)
+    }
+
+    const session = makeFakeSession([])
+    createAgentSessionMock.mockResolvedValue({ session })
+
+    const client = new PiClient(makeConfig() as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    await client.runTurn('telegram:1', 'hi', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1'
+    })
+
+    // Only the instructions extension is registered when sandbox is off.
+    expect(lastLoaderOptions!.extensionFactories!).toHaveLength(1)
   })
 
   it('returns only the BASE_SYSTEM_PROMPT when no personality is configured', async () => {

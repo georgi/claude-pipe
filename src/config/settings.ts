@@ -18,6 +18,9 @@ export interface Settings {
   allowChannels?: string[]
   // Which agent harness drives conversations. Defaults to 'pi' when omitted.
   harness?: 'pi' | 'claude'
+  // When true, lock the agent into a restricted sandbox (no bash/edit/write,
+  // no sensitive-path reads). Defaults to false when omitted.
+  sandbox?: boolean
   model: string
   workspace: string
   personality?: PersonalitySettings

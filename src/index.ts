@@ -93,8 +93,26 @@ async function main(): Promise<void> {
 
   logger.info('startup.config', {
     workspace: config.workspace,
-    model: config.model
+    model: config.model,
+    sandbox: config.sandbox
   })
+
+  // Warn loudly when a network-facing channel is wide open: an empty allowFrom
+  // means anyone who finds the bot can drive its tools.
+  const warnOpenAllowlist = (name: string, enabled: boolean, allowFrom: string[]): void => {
+    if (enabled && allowFrom.length === 0) {
+      logger.warn('security.open_allowlist', {
+        channel: name,
+        message: `${name} is enabled with an empty allowFrom list — every sender is allowed.`
+      })
+    }
+  }
+  warnOpenAllowlist(
+    'telegram',
+    config.channels.telegram.enabled,
+    config.channels.telegram.allowFrom
+  )
+  warnOpenAllowlist('discord', config.channels.discord.enabled, config.channels.discord.allowFrom)
 
   const modelClient = createModelClient(config, sessionStore, logger)
   const agent = new AgentLoop(bus, config, modelClient, logger)
@@ -162,6 +180,23 @@ async function main(): Promise<void> {
   heartbeat.start()
   await agent.start()
 }
+
+// Last-resort handlers so a stray throw/rejection from a channel callback or
+// fire-and-forget task is logged through the structured logger instead of
+// crashing silently. An uncaught exception leaves the process in an unknown
+// state, so we exit; a stray rejection is logged but tolerated.
+process.on('uncaughtException', (error: Error) => {
+  logger.error('fatal.uncaught_exception', {
+    error: error.message,
+    ...(error.stack ? { stack: error.stack } : {})
+  })
+  process.exit(1)
+})
+process.on('unhandledRejection', (reason: unknown) => {
+  logger.error('fatal.unhandled_rejection', {
+    error: reason instanceof Error ? reason.message : String(reason)
+  })
+})
 
 main().catch((error: unknown) => {
   logger.error('fatal', {

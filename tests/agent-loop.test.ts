@@ -61,6 +61,48 @@ describe('AgentLoop', () => {
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
   })
 
+  it('rate-limits a sender that exceeds the configured message limit', async () => {
+    const bus = new MessageBus()
+    const claude = {
+      runTurn: vi.fn(async () => 'assistant reply'),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const config = {
+      ...makeConfig(),
+      rateLimit: { enabled: true, maxMessages: 1, windowMs: 60_000 }
+    }
+
+    const loop = new AgentLoop(bus, config as never, claude as never, logger)
+    const run = loop.start()
+
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'flooder',
+      chatId: '42',
+      content: 'first',
+      timestamp: new Date().toISOString()
+    })
+    const first = await bus.consumeOutbound()
+    expect(first.content).toBe('assistant reply')
+
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'flooder',
+      chatId: '42',
+      content: 'second',
+      timestamp: new Date().toISOString()
+    })
+    const second = await bus.consumeOutbound()
+    expect(second.content).toContain('too quickly')
+    // The blocked turn never reaches the model.
+    expect(claude.runTurn).toHaveBeenCalledTimes(1)
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
   it('starts a new session when receiving /new command', async () => {
     const bus = new MessageBus()
     const claude = {
