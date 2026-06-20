@@ -91,6 +91,8 @@ type TelegramUpdate = {
 const TELEGRAM_MESSAGE_MAX = 3800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
+/** Client-side abort for getUpdates long polling (server holds ~25s). */
+const GETUPDATES_TIMEOUT_MS = 30_000
 const PID_FILE = join(tmpdir(), 'pi-pipe-telegram.pid')
 
 /** Telegram Bot API chat actions for typing indicators. */
@@ -201,41 +203,27 @@ export class TelegramChannel implements Channel {
               payload.reply_markup = this.buildInlineKeyboard(message.keyboard)
             }
 
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify(payload)
-            })
+            const { response, usedFallback } = await this.postTelegram(
+              url,
+              payload,
+              'telegram send'
+            )
 
-            if (!response.ok) {
-              const body = await response.text()
-              // Retry without parse_mode if Markdown parsing fails
-              if (body.includes("can't parse entities")) {
-                delete payload.parse_mode
-                const fallback = await fetch(url, {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify(payload)
-                })
-                if (!fallback.ok) {
-                  const fbBody = await fallback.text()
-                  throw new Error(`telegram send failed (${fallback.status}): ${fbBody}`)
+            // The fallback path already succeeded; we don't parse its body for an
+            // id (keeping behavior consistent — a Markdown-stripped resend is
+            // best-effort and not tracked for edits).
+            if (!usedFallback) {
+              try {
+                const json = (await response.json()) as {
+                  ok: boolean
+                  result?: { message_id?: number }
                 }
-                return fallback
+                if (json.ok && json.result?.message_id != null) {
+                  lastMessageId = String(json.result.message_id)
+                }
+              } catch {
+                // Message sent successfully but couldn't parse response for message ID
               }
-              throw new Error(`telegram send failed (${response.status}): ${body}`)
-            }
-
-            try {
-              const json = (await response.json()) as {
-                ok: boolean
-                result?: { message_id?: number }
-              }
-              if (json.ok && json.result?.message_id != null) {
-                lastMessageId = String(json.result.message_id)
-              }
-            } catch {
-              // Message sent successfully but couldn't parse response for message ID
             }
           },
           {
@@ -343,6 +331,42 @@ export class TelegramChannel implements Channel {
     }
   }
 
+  /**
+   * POSTs a JSON payload to a Telegram Bot API method. When the request fails
+   * with a Markdown "can't parse entities" error, it retries once without
+   * `parse_mode`. Both the initial and fallback responses are checked, so a
+   * silent send failure can't slip through. Throws on any non-recoverable
+   * failure; returns the final response plus whether the fallback path was used
+   * (callers skip message-id parsing on the fallback path).
+   */
+  private async postTelegram(
+    url: string,
+    payload: Record<string, unknown>,
+    errorLabel: string
+  ): Promise<{ response: Response; usedFallback: boolean }> {
+    const post = (): Promise<Response> =>
+      fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+    const response = await post()
+    if (response.ok) return { response, usedFallback: false }
+
+    const body = await response.text()
+    if ('parse_mode' in payload && body.includes("can't parse entities")) {
+      delete payload.parse_mode
+      const fallback = await post()
+      if (!fallback.ok) {
+        const fbBody = await fallback.text()
+        throw new Error(`${errorLabel} failed (${fallback.status}): ${fbBody}`)
+      }
+      return { response: fallback, usedFallback: true }
+    }
+    throw new Error(`${errorLabel} failed (${response.status}): ${body}`)
+  }
+
   /** Sends or updates a streaming draft message using Telegram's sendMessageDraft API. */
   async sendMessageDraft(chatId: string, text: string): Promise<SentMessage | void> {
     if (!this.config.channels.telegram.enabled) return
@@ -358,25 +382,7 @@ export class TelegramChannel implements Channel {
         parse_mode: 'Markdown'
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        const body = await response.text()
-        if (body.includes("can't parse entities")) {
-          delete payload.parse_mode
-          await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-          return
-        }
-        throw new Error(`telegram sendMessageDraft failed (${response.status}): ${body}`)
-      }
+      await this.postTelegram(url, payload, 'telegram sendMessageDraft')
     } catch (error) {
       this.logger.error('channel.telegram.draft_failed', {
         chatId,
@@ -402,30 +408,7 @@ export class TelegramChannel implements Channel {
             parse_mode: 'Markdown'
           }
 
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-
-          if (!response.ok) {
-            const body = await response.text()
-            // Retry without parse_mode if Markdown parsing fails
-            if (body.includes("can't parse entities")) {
-              delete payload.parse_mode
-              const fallback = await fetch(url, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(payload)
-              })
-              if (!fallback.ok) {
-                const fbBody = await fallback.text()
-                throw new Error(`telegram editMessageText failed (${fallback.status}): ${fbBody}`)
-              }
-              return
-            }
-            throw new Error(`telegram editMessageText failed (${response.status}): ${body}`)
-          }
+          await this.postTelegram(url, payload, 'telegram editMessageText')
         },
         {
           attempts: SEND_RETRY_ATTEMPTS,
@@ -510,7 +493,9 @@ export class TelegramChannel implements Channel {
     url.searchParams.set('offset', String(this.nextOffset))
     url.searchParams.set('allowed_updates', JSON.stringify(['message', 'callback_query']))
 
-    const response = await fetch(url)
+    // Long polling holds the connection ~25s server-side; abort a little past
+    // that so a hung socket can't wedge the poll loop indefinitely.
+    const response = await fetch(url, { signal: AbortSignal.timeout(GETUPDATES_TIMEOUT_MS) })
     if (!response.ok) {
       const err = new Error(`Telegram getUpdates failed: ${response.status}`)
       ;(err as NodeJS.ErrnoException).code = String(response.status)
