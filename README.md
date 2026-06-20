@@ -155,17 +155,18 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 }
 ```
 
-| Setting         | What it does                                                                                                                  |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                              |
-| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
-| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                            |
-| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels)                                                       |
-| `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default) or `claude` (Claude Agent SDK, Anthropic only)             |
-| `model`         | Model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id`; non-Anthropic ids require the `pi` harness) |
-| `workspace`     | Root directory the agent can access                                                                                           |
-| `personality`   | Optional: give your assistant a `name` and `traits` description                                                               |
-| `env`           | Optional: environment variables to inject at startup                                                                          |
+| Setting         | What it does                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                                                       |
+| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications)                          |
+| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                                                     |
+| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels)                                                                                |
+| `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default) or `claude` (Claude Agent SDK, Anthropic only)                                      |
+| `sandbox`       | When `true`, lock the agent into a restricted sandbox (no shell/edit/write, no sensitive-path reads) on both harnesses. Default `false` (full access). |
+| `model`         | Model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id`; non-Anthropic ids require the `pi` harness)                          |
+| `workspace`     | Root directory the agent can access                                                                                                                    |
+| `personality`   | Optional: give your assistant a `name` and `traits` description                                                                                        |
+| `env`           | Optional: environment variables to inject at startup                                                                                                   |
 
 ### Authentication
 
@@ -186,6 +187,7 @@ For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the 
 | Variable                          | What it does                                                               |
 | --------------------------------- | -------------------------------------------------------------------------- |
 | `PIPIPE_HARNESS`                  | Agent harness: `pi` (default) or `claude` (overrides the settings value)   |
+| `PIPIPE_SANDBOX`                  | `true`/`false` — restrict tools to a read-only sandbox (default `false`)   |
 | `PIPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)     |
 | `PIPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                      |
 | `PIPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                            |
@@ -200,7 +202,20 @@ For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the 
 
 ### Permissions
 
-Pi runs with its default tool set (read, bash, edit, write, …) — it can read/write files and run shell commands in the workspace. Make sure your workspace is a directory you're comfortable giving full access to.
+By default the agent runs with full tool access (read, bash, edit, write, …) on
+both harnesses — it can read/write files and run shell commands in the workspace.
+Make sure your workspace is a directory you're comfortable giving full access to.
+
+**Sandbox mode.** Set `sandbox: true` in `settings.json` (or `PIPIPE_SANDBOX=true`)
+to lock the agent down: shell execution and file edits/writes are blocked, and
+reads of sensitive paths (`~/.ssh`, `~/.env`, `~/.aws`, `/etc/passwd`, the
+`pi-pipe` config dir, …) are denied. This applies to **both** the Pi and Claude
+harnesses, and is recommended for any public or shared deployment.
+
+**Access control.** `allowFrom` restricts who can talk to the bot. An empty
+`allowFrom` allows everyone — the bot logs a warning at startup when a
+network-facing channel runs wide open. Inbound messages are also rate-limited
+per sender (see `rateLimit`).
 
 ## Development
 
@@ -225,4 +240,4 @@ npm run test:run # run tests once
 ## Current limitations
 
 - Runs locally, not designed for server deployment
-- No scheduled or background tasks
+- Conversations are processed one at a time (a long-running turn blocks others)

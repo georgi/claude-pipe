@@ -146,6 +146,52 @@ describe('ClaudeClient (Claude Agent SDK)', () => {
     expect(allowed.behavior).toBe('allow')
   })
 
+  it('reports a failed tool result when content contains an API error', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+    const store = makeStore()
+
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'assistant',
+          session_id: 's',
+          message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash' }] }
+        },
+        {
+          type: 'user',
+          message: {
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'API Error: boom' }]
+          }
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'recovered',
+          session_id: 's'
+        }
+      ])
+    )
+
+    const onUpdate = vi.fn(async () => undefined)
+    const client = new ClaudeClient(makeConfig() as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    await client.runTurn('telegram:1', 'hi', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1',
+      onUpdate
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'tool_call_failed', toolName: 'Bash' })
+    )
+  })
+
   it('accumulates multiple text blocks within one assistant message', async () => {
     const { ClaudeClient } = await import('../src/core/claude-client.js')
     const store = makeStore()
