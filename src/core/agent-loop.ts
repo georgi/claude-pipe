@@ -7,16 +7,10 @@ import type { DailyLog } from '../memory/daily-log.js'
 import type { MemoryStore } from '../memory/store.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
+import { parseMarkers } from './markers.js'
 import { RateLimiter } from './rate-limiter.js'
 import type { ModelClient } from './model-client.js'
-import type {
-  AgentTurnUpdate,
-  FileAttachment,
-  InlineKeyboard,
-  InboundMessage,
-  Logger,
-  SentMessage
-} from './types.js'
+import type { AgentTurnUpdate, InboundMessage, Logger, SentMessage } from './types.js'
 
 /**
  * Converts a raw tool name into a human-readable label safe for Telegram Markdown.
@@ -249,58 +243,27 @@ export class AgentLoop {
       onUpdate: publishProgress
     })
 
-    // Extract file attachment markers from the response: [[file:/path/to/file.ext]] or [[file:/path|caption]]
-    const attachments: FileAttachment[] = []
-    let processed = rawContent.replace(
-      /\[\[file:([^|\]]+?)(?:\|([^\]]*))?\]\]/g,
-      (_match, filePath: string, caption?: string) => {
-        const trimmedPath = filePath.trim()
-        if (!this.isAttachmentPathAllowed(trimmedPath)) {
-          this.logger.warn('agent.attachment_blocked', { conversationKey, filePath: trimmedPath })
-          return ''
-        }
-        const trimmedCaption = caption?.trim()
-        attachments.push({
-          filePath: trimmedPath,
-          ...(trimmedCaption ? { caption: trimmedCaption } : {})
-        })
-        return ''
-      }
-    )
-
-    // Extract inline keyboard markers: [[keyboard:Label1=data1,Label2=data2|Label3=data3,Label4=data4]]
-    // Pipe separates rows, comma separates buttons within a row
-    let keyboard: InlineKeyboard | undefined
-    processed = processed.replace(/\[\[keyboard:([^\]]+)\]\]/g, (_match, spec: string) => {
-      const rows = spec.split('|').map((row: string) =>
-        row.split(',').map((btn: string) => {
-          const parts = btn.split('=')
-          const text = parts[0] ?? ''
-          const callbackData = parts.length > 1 ? parts.slice(1).join('=') : text.trim()
-          return { text: text.trim(), callbackData: callbackData.trim() }
-        })
-      )
-      keyboard = rows
-      return ''
+    // Parse [[file:…]] / [[keyboard:…]] / [[memory:…]] markers out of the response.
+    const {
+      text: content,
+      attachments,
+      keyboard,
+      memories
+    } = parseMarkers(rawContent, {
+      allowAttachment: (filePath) => this.isAttachmentPathAllowed(filePath),
+      onAttachmentBlocked: (filePath) =>
+        this.logger.warn('agent.attachment_blocked', { conversationKey, filePath })
     })
 
-    // Extract memory save markers: [[memory:key_name|content to remember]]
-    processed = processed.replace(
-      /\[\[memory:([^|]+)\|([^\]]+)\]\]/g,
-      (_match, key: string, value: string) => {
-        if (this.memoryStore) {
-          try {
-            this.memoryStore.save(key.trim(), value.trim())
-            this.logger.info('memory.saved', { key: key.trim() })
-          } catch (err: unknown) {
-            this.logger.warn('memory.save_failed', { key: key.trim(), error: String(err) })
-          }
-        }
-        return ''
+    for (const { key, value } of memories) {
+      if (!this.memoryStore) continue
+      try {
+        this.memoryStore.save(key, value)
+        this.logger.info('memory.saved', { key })
+      } catch (err: unknown) {
+        this.logger.warn('memory.save_failed', { key, error: String(err) })
       }
-    )
-
-    const content = processed.trim()
+    }
 
     if (attachments.length > 0) {
       this.logger.info('agent.attachments', {
