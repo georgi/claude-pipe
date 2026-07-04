@@ -62,6 +62,56 @@ describe('DiscordChannel', () => {
     expect(inbound.content).toBe('hello')
   })
 
+  it('opens a thread and routes the reply there when mentioned in a guild channel', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as any).client = { user: { id: 'bot' } }
+
+    const startThread = vi.fn(async () => ({ id: 'thread-1' }))
+
+    await (channel as any).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: mentionedGuildChannel(),
+      channelId: 'c1',
+      content: '<@bot> summarise this',
+      id: 'm1',
+      guildId: 'g1',
+      mentions: { has: () => true },
+      startThread
+    })
+
+    expect(startThread).toHaveBeenCalledWith(
+      expect.objectContaining({ name: expect.any(String) })
+    )
+    const inbound = await bus.consumeInbound()
+    // Reply must be routed to the newly created thread, not the parent channel.
+    expect(inbound.chatId).toBe('thread-1')
+  })
+
+  it('falls back to the parent channel when thread creation fails', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as any).client = { user: { id: 'bot' } }
+
+    const startThread = vi.fn(async () => {
+      throw new Error('missing permissions')
+    })
+
+    await (channel as any).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: mentionedGuildChannel(),
+      channelId: 'c1',
+      content: 'hello',
+      id: 'm1',
+      guildId: 'g1',
+      mentions: { has: () => true },
+      startThread
+    })
+
+    const inbound = await bus.consumeInbound()
+    expect(inbound.chatId).toBe('c1')
+  })
+
   it('drops inbound when sender is not allowed', async () => {
     const bus = new MessageBus()
     const channel = new DiscordChannel(makeConfig(), bus, logger)

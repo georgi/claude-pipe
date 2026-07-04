@@ -294,6 +294,17 @@ export class DiscordChannel implements Channel {
       return
     }
 
+    // When mentioned in a regular guild text channel, open a dedicated thread
+    // and route the reply there. The bot owns the created thread, so any
+    // follow-up messages in it are picked up automatically via `isBotThread`.
+    let replyChatId = message.channelId
+    if (isMentioned && message.channel.type === ChannelType.GuildText) {
+      const thread = await this.openThread(message)
+      if (thread) {
+        replyChatId = thread.id
+      }
+    }
+
     // Strip bot mention from content
     let content = message.content?.trim() || '[empty message]'
     if (this.client?.user) {
@@ -362,7 +373,7 @@ export class DiscordChannel implements Channel {
     const inbound: InboundMessage = {
       channel: 'discord',
       senderId,
-      chatId: message.channelId,
+      chatId: replyChatId,
       content,
       timestamp: new Date().toISOString(),
       ...(attachments.length > 0 ? { attachments } : {}),
@@ -373,6 +384,39 @@ export class DiscordChannel implements Channel {
     }
 
     await this.bus.publishInbound(inbound)
+  }
+
+  /**
+   * Opens a thread from a message so the bot's reply lives in its own
+   * conversation. Returns the created thread, or `undefined` if creation
+   * failed (e.g. missing permissions), in which case the caller falls back
+   * to replying in the parent channel.
+   */
+  private async openThread(message: Message): Promise<ThreadChannel | undefined> {
+    if (typeof message.startThread !== 'function') return undefined
+
+    // Derive a thread name from the message, stripped of bot mentions and
+    // capped to Discord's 100-char thread-name limit.
+    const name =
+      (message.content ?? '')
+        .replace(/<@!?\d+>/g, '')
+        .trim()
+        .slice(0, 90) || 'Conversation'
+
+    try {
+      const thread = await message.startThread({ name, autoArchiveDuration: 60 })
+      this.logger.info('channel.discord.thread_created', {
+        threadId: thread.id,
+        parentId: message.channelId
+      })
+      return thread
+    } catch (error) {
+      this.logger.error('channel.discord.thread_failed', {
+        chatId: message.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return undefined
+    }
   }
 
   /**
