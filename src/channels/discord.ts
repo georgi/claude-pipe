@@ -46,6 +46,12 @@ export class DiscordChannel implements Channel {
    * hands us a partial thread object without a resolvable `ownerId`.
    */
   private readonly ownThreadIds = new Set<string>()
+  /**
+   * Conversations that already received a channel-history context block.
+   * Each thread maps to a persistent agent session, so surrounding history is
+   * sent once when the conversation starts — never re-sent on follow-ups.
+   */
+  private readonly seededChatIds = new Set<string>()
 
   constructor(
     private readonly config: PiPipeConfig,
@@ -323,28 +329,31 @@ export class DiscordChannel implements Channel {
     // Kept before channel context is prepended, so thread names stay readable.
     const userText = content
 
-    // Fetch last 30 messages for context when mentioned or in bot thread
-    if ((isMentioned || isBotThread) && message.channel.isTextBased()) {
-      try {
-        const messages = await message.channel.messages.fetch({
-          limit: 30,
-          before: message.id
-        })
-        const history = Array.from(messages.values())
-          .reverse()
-          .map((m) => {
-            const author = m.author.username
-            const text = m.content?.trim() || ''
-            return text ? `${author}: ${text}` : null
-          })
-          .filter(Boolean)
-          .join('\n')
+    // Give every new conversation its own thread, so each thread maps to its
+    // own agent session (the conversation key is `discord:<chatId>`).
+    let chatId = message.channelId
+    let openedNewThread = false
+    if (!isDM && !isThread && this.threadsEnabled) {
+      const hadThread = message.hasThread && !!message.thread
+      const threadId = await this.openThread(message, this.buildThreadName(userText))
+      if (threadId) {
+        chatId = threadId
+        openedNewThread = !hadThread
+      }
+    }
 
-        if (history) {
-          content = `[Channel context — last 30 messages]:\n${history}\n\n[Current message]:\n${content}`
-        }
-      } catch {
-        // Silently fail if we can't fetch history
+    // Seed channel history once, only when a thread conversation starts:
+    // either a fresh thread opened off a mention (context = the surrounding
+    // parent-channel messages) or the first mention in an existing thread the
+    // bot does not own (context = the thread so far). Follow-ups in bot
+    // threads never re-send history — the agent session already has it.
+    const startsForeignThreadConversation =
+      isThread && isMentioned && !isBotThread && !this.seededChatIds.has(chatId)
+    if ((openedNewThread || startsForeignThreadConversation) && message.channel.isTextBased()) {
+      this.seededChatIds.add(chatId)
+      const history = await this.fetchHistoryContext(message)
+      if (history) {
+        content = `[Channel context — recent messages]:\n${history}\n\n[Current message]:\n${content}`
       }
     }
 
@@ -379,14 +388,6 @@ export class DiscordChannel implements Channel {
           size: attachment.size
         })
       }
-    }
-
-    // Give every new conversation its own thread, so each thread maps to its
-    // own agent session (the conversation key is `discord:<channelId>`).
-    let chatId = message.channelId
-    if (!isDM && !isThread && this.threadsEnabled) {
-      const threadId = await this.openThread(message, this.buildThreadName(userText))
-      if (threadId) chatId = threadId
     }
 
     const inbound: InboundMessage = {
@@ -492,6 +493,33 @@ export class DiscordChannel implements Channel {
       return parentId ?? undefined
     }
     return undefined
+  }
+
+  /**
+   * Fetches the messages preceding the triggering one and formats them as a
+   * one-shot context block. The bot's own messages are excluded — they came
+   * out of an agent session and would only duplicate what a session already
+   * knows. Returns an empty string when there is no usable history.
+   */
+  private async fetchHistoryContext(message: Message): Promise<string> {
+    try {
+      const messages = await message.channel.messages.fetch({
+        limit: 30,
+        before: message.id
+      })
+      return Array.from(messages.values())
+        .reverse()
+        .filter((m) => m.author.id !== this.client?.user?.id)
+        .map((m) => {
+          const text = m.content?.trim() || ''
+          return text ? `${m.author.username}: ${text}` : null
+        })
+        .filter(Boolean)
+        .join('\n')
+    } catch {
+      // Missing history is not fatal — the current message still goes through.
+      return ''
+    }
   }
 
   /** Derives a readable thread name from the first line of the user's message. */

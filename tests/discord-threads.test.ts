@@ -256,6 +256,117 @@ describe('DiscordChannel session threads', () => {
     await bus.consumeInbound()
   })
 
+  it('seeds parent-channel history once when opening a new thread, excluding bot messages', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as unknown as { client: unknown }).client = { user: { id: 'bot' } }
+
+    // Discord returns history newest-first; onMessage reverses it.
+    const history = new Map([
+      ['h2', { author: { id: 'u2', username: 'bob' }, content: 'second' }],
+      ['hbot', { author: { id: 'bot', username: 'pipe' }, content: 'bot reply' }],
+      ['h1', { author: { id: 'u1', username: 'alice' }, content: 'first' }]
+    ])
+    const fetch = vi.fn(async () => history)
+
+    await (channel as unknown as OnMessage).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: { type: GUILD_TEXT, isTextBased: () => true, messages: { fetch } },
+      channelId: 'c1',
+      content: '<@bot> summarise this',
+      id: 'm1',
+      guildId: 'g1',
+      mentions: { has: () => true },
+      startThread: vi.fn(async () => ({ id: 'thread-ctx' }))
+    })
+
+    const inbound = await bus.consumeInbound()
+    expect(fetch).toHaveBeenCalledWith({ limit: 30, before: 'm1' })
+    expect(inbound.content).toContain('alice: first')
+    expect(inbound.content).toContain('bob: second')
+    expect(inbound.content).not.toContain('bot reply')
+    expect(inbound.content).toContain('[Current message]:\nsummarise this')
+  })
+
+  it('does not re-send history for follow-ups in its own thread', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as unknown as { client: unknown }).client = { user: { id: 'bot' } }
+
+    await (channel as unknown as OnMessage).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: guildChannel(),
+      channelId: 'c1',
+      content: '<@bot> start',
+      id: 'm1',
+      guildId: 'g1',
+      mentions: { has: () => true },
+      startThread: vi.fn(async () => ({ id: 'thread-1' }))
+    })
+    await bus.consumeInbound()
+
+    const threadFetch = vi.fn(async () => new Map())
+    await (channel as unknown as OnMessage).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: {
+        type: PUBLIC_THREAD,
+        parentId: 'c1',
+        isTextBased: () => true,
+        messages: { fetch: threadFetch }
+      },
+      channelId: 'thread-1',
+      content: 'follow-up',
+      id: 'm2',
+      guildId: 'g1',
+      mentions: { has: () => false }
+    })
+
+    const inbound = await bus.consumeInbound()
+    expect(threadFetch).not.toHaveBeenCalled()
+    expect(inbound.content).toBe('follow-up')
+  })
+
+  it('seeds a foreign thread only on the first mention', async () => {
+    const bus = new MessageBus()
+    const channel = new DiscordChannel(makeConfig(), bus, logger)
+    ;(channel as unknown as { client: unknown }).client = { user: { id: 'bot' } }
+
+    const fetch = vi.fn(
+      async () => new Map([['h1', { author: { id: 'u2', username: 'carol' }, content: 'earlier' }]])
+    )
+    const foreignThread = {
+      type: PUBLIC_THREAD,
+      parentId: 'c1',
+      isTextBased: () => true,
+      messages: { fetch }
+    }
+
+    await (channel as unknown as OnMessage).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: foreignThread,
+      channelId: 'thread-foreign',
+      content: '<@bot> first ping',
+      id: 'm1',
+      guildId: 'g1',
+      mentions: { has: () => true }
+    })
+    const first = await bus.consumeInbound()
+    expect(first.content).toContain('carol: earlier')
+
+    await (channel as unknown as OnMessage).onMessage({
+      author: { bot: false, id: 'u1' },
+      channel: foreignThread,
+      channelId: 'thread-foreign',
+      content: '<@bot> second ping',
+      id: 'm2',
+      guildId: 'g1',
+      mentions: { has: () => true }
+    })
+    const second = await bus.consumeInbound()
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(second.content).toBe('second ping')
+  })
+
   it('opens a thread for slash commands and points the reply at it', async () => {
     const bus = new MessageBus()
     const channel = new DiscordChannel(makeConfig(), bus, logger)
