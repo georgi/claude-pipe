@@ -8,7 +8,15 @@ const channelSchema = z.object({
 
 const discordChannelSchema = channelSchema.extend({
   // Optional allowlist of Discord channel IDs. Empty/omitted means allow all channels.
-  allowChannels: z.array(z.string()).optional()
+  // Thread messages are matched against the thread's parent channel too.
+  allowChannels: z.array(z.string()).optional(),
+  // Automatically open a Discord thread per conversation so every session gets
+  // its own thread (and therefore its own agent session). Defaults to enabled.
+  useThreads: z.boolean().optional(),
+  // Discord only accepts these four auto-archive durations (minutes).
+  threadAutoArchiveMinutes: z
+    .union([z.literal(60), z.literal(1440), z.literal(4320), z.literal(10080)])
+    .optional()
 })
 
 const cliChannelSchema = z.object({

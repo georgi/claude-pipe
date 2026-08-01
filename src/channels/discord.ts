@@ -27,6 +27,10 @@ import { isSenderAllowed, type Channel } from './base.js'
 const DISCORD_MESSAGE_MAX = 1800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
+/** Discord caps thread names at 100 characters. */
+const THREAD_NAME_MAX = 90
+/** One day — one of Discord's four allowed auto-archive durations. */
+const DEFAULT_THREAD_AUTO_ARCHIVE_MINUTES = 1440
 
 /**
  * Discord adapter using discord.js gateway client + channel send API.
@@ -36,6 +40,12 @@ export class DiscordChannel implements Channel {
   private client: Client | null = null
   /** Pending deferred interactions keyed by chatId, so send() can resolve them. */
   private pendingInteractions = new Map<string, ChatInputCommandInteraction>()
+  /**
+   * Threads this process opened for a session. Used so the bot keeps replying
+   * to every message in them without needing a mention, even when the gateway
+   * hands us a partial thread object without a resolvable `ownerId`.
+   */
+  private readonly ownThreadIds = new Set<string>()
 
   constructor(
     private readonly config: PiPipeConfig,
@@ -264,8 +274,12 @@ export class DiscordChannel implements Channel {
       return
     }
 
-    // Skip channel allowlist for DMs
-    if (message.channel.type !== ChannelType.DM && !this.isChannelAllowed(message.channelId)) {
+    // Skip channel allowlist for DMs. Thread messages are allowed when either
+    // the thread itself or its parent channel is on the allowlist.
+    if (
+      message.channel.type !== ChannelType.DM &&
+      !this.isChannelAllowed(message.channelId, this.parentChannelId(message.channel))
+    ) {
       this.logger.warn('channel.discord.denied_channel', {
         senderId,
         chatId: message.channelId
@@ -284,11 +298,16 @@ export class DiscordChannel implements Channel {
 
     // Only respond when mentioned, in a DM, or in a thread the bot started
     const isDM = message.channel.type === ChannelType.DM
+    const isThread =
+      message.channel.type === ChannelType.PublicThread ||
+      message.channel.type === ChannelType.PrivateThread
     const isMentioned = this.client?.user ? message.mentions.has(this.client.user) : false
     const isBotThread =
-      message.channel instanceof ThreadChannel &&
-      this.client?.user &&
-      message.channel.ownerId === this.client.user.id
+      isThread &&
+      (this.ownThreadIds.has(message.channelId) ||
+        (message.channel instanceof ThreadChannel &&
+          !!this.client?.user &&
+          message.channel.ownerId === this.client.user.id))
 
     if (!isDM && !isMentioned && !isBotThread) {
       return
@@ -300,6 +319,9 @@ export class DiscordChannel implements Channel {
       const mentionPattern = new RegExp(`<@!?${this.client.user.id}>\\s*`, 'g')
       content = content.replace(mentionPattern, '').trim() || '[empty message]'
     }
+
+    // Kept before channel context is prepended, so thread names stay readable.
+    const userText = content
 
     // Fetch last 30 messages for context when mentioned or in bot thread
     if ((isMentioned || isBotThread) && message.channel.isTextBased()) {
@@ -359,16 +381,25 @@ export class DiscordChannel implements Channel {
       }
     }
 
+    // Give every new conversation its own thread, so each thread maps to its
+    // own agent session (the conversation key is `discord:<channelId>`).
+    let chatId = message.channelId
+    if (!isDM && !isThread && this.threadsEnabled) {
+      const threadId = await this.openThread(message, this.buildThreadName(userText))
+      if (threadId) chatId = threadId
+    }
+
     const inbound: InboundMessage = {
       channel: 'discord',
       senderId,
-      chatId: message.channelId,
+      chatId,
       content,
       timestamp: new Date().toISOString(),
       ...(attachments.length > 0 ? { attachments } : {}),
       metadata: {
         messageId: message.id,
-        guildId: message.guildId ?? undefined
+        guildId: message.guildId ?? undefined,
+        ...(chatId !== message.channelId ? { parentChannelId: message.channelId } : {})
       }
     }
 
@@ -393,7 +424,7 @@ export class DiscordChannel implements Channel {
     // Skip channel allowlist for DMs
     if (
       interaction.channel?.type !== ChannelType.DM &&
-      !this.isChannelAllowed(interaction.channelId)
+      !this.isChannelAllowed(interaction.channelId, this.parentChannelId(interaction.channel))
     ) {
       this.logger.warn('channel.discord.denied_channel', {
         senderId,
@@ -412,26 +443,143 @@ export class DiscordChannel implements Channel {
     const content = promptOption ? `${commandName} ${promptOption}` : commandName
 
     await interaction.deferReply()
-    this.pendingInteractions.set(interaction.channelId, interaction)
+
+    // Slash commands invoked in a regular text channel also get their own
+    // thread; the deferred reply becomes the thread starter message.
+    let chatId = interaction.channelId
+    if (interaction.channel?.type === ChannelType.GuildText && this.threadsEnabled) {
+      const threadId = await this.openInteractionThread(interaction, this.buildThreadName(content))
+      if (threadId) chatId = threadId
+    }
+
+    // Only resolve the deferred reply in place when the answer stays in this
+    // channel — otherwise the response is delivered to the new thread.
+    if (chatId === interaction.channelId) {
+      this.pendingInteractions.set(interaction.channelId, interaction)
+    }
 
     const inbound: InboundMessage = {
       channel: 'discord',
       senderId,
-      chatId: interaction.channelId,
+      chatId,
       content,
       timestamp: new Date().toISOString(),
       metadata: {
         interactionId: interaction.id,
-        guildId: interaction.guildId ?? undefined
+        guildId: interaction.guildId ?? undefined,
+        ...(chatId !== interaction.channelId ? { parentChannelId: interaction.channelId } : {})
       }
     }
 
     await this.bus.publishInbound(inbound)
   }
 
-  private isChannelAllowed(chatId: string): boolean {
+  /** True unless threads are explicitly disabled in config. */
+  private get threadsEnabled(): boolean {
+    return this.config.channels.discord.useThreads !== false
+  }
+
+  private get threadAutoArchiveMinutes(): number {
+    return (
+      this.config.channels.discord.threadAutoArchiveMinutes ?? DEFAULT_THREAD_AUTO_ARCHIVE_MINUTES
+    )
+  }
+
+  /** Reads the parent channel id of a thread, when the channel exposes one. */
+  private parentChannelId(channel: unknown): string | undefined {
+    if (channel && typeof channel === 'object' && 'parentId' in channel) {
+      const parentId = (channel as { parentId?: string | null }).parentId
+      return parentId ?? undefined
+    }
+    return undefined
+  }
+
+  /** Derives a readable thread name from the first line of the user's message. */
+  private buildThreadName(content: string): string {
+    const cleaned = content
+      .replace(/<@!?\d+>/g, '')
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+      ?.replace(/\s+/g, ' ')
+
+    if (!cleaned) return 'New session'
+    return cleaned.length > THREAD_NAME_MAX ? `${cleaned.slice(0, THREAD_NAME_MAX - 1)}…` : cleaned
+  }
+
+  /**
+   * Opens (or reuses) a thread anchored on the triggering message.
+   *
+   * Returns the thread id, or null when the thread could not be created —
+   * e.g. missing "Create Public Threads" permission — so the caller can fall
+   * back to replying in the parent channel.
+   */
+  private async openThread(message: Message, name: string): Promise<string | null> {
+    try {
+      if (message.hasThread && message.thread) {
+        this.ownThreadIds.add(message.thread.id)
+        return message.thread.id
+      }
+      if (typeof message.startThread !== 'function') return null
+
+      const thread = await message.startThread({
+        name,
+        autoArchiveDuration: this.threadAutoArchiveMinutes
+      })
+      this.ownThreadIds.add(thread.id)
+      this.logger.info('channel.discord.thread_created', {
+        threadId: thread.id,
+        parentId: message.channelId,
+        name
+      })
+      return thread.id
+    } catch (error) {
+      this.logger.warn('channel.discord.thread_create_failed', {
+        chatId: message.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  /**
+   * Opens a thread anchored on a slash command's deferred reply and points the
+   * user at it. Returns null when the thread could not be created.
+   */
+  private async openInteractionThread(
+    interaction: ChatInputCommandInteraction,
+    name: string
+  ): Promise<string | null> {
+    try {
+      if (typeof interaction.fetchReply !== 'function') return null
+      const reply = await interaction.fetchReply()
+      if (!reply || typeof reply.startThread !== 'function') return null
+
+      const thread = await reply.startThread({
+        name,
+        autoArchiveDuration: this.threadAutoArchiveMinutes
+      })
+      this.ownThreadIds.add(thread.id)
+      await interaction.editReply({ content: `🧵 Continuing in <#${thread.id}>` })
+      this.logger.info('channel.discord.thread_created', {
+        threadId: thread.id,
+        parentId: interaction.channelId,
+        name
+      })
+      return thread.id
+    } catch (error) {
+      this.logger.warn('channel.discord.thread_create_failed', {
+        chatId: interaction.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  private isChannelAllowed(chatId: string, parentId?: string): boolean {
     const allowChannels = this.config.channels.discord.allowChannels ?? []
-    return allowChannels.length === 0 || allowChannels.includes(chatId)
+    if (allowChannels.length === 0) return true
+    return allowChannels.includes(chatId) || (parentId != null && allowChannels.includes(parentId))
   }
 
   /**
