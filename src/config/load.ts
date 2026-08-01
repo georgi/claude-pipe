@@ -13,6 +13,12 @@ function parseCsv(input: string | undefined): string[] {
     .filter(Boolean)
 }
 
+/** Parses an optional boolean env value, leaving it unset when absent. */
+function parseOptionalBool(input: string | undefined): boolean | undefined {
+  if (input === undefined || input === '') return undefined
+  return input === 'true'
+}
+
 /** Normalizes a harness string, falling back to 'pi' for unknown/missing values. */
 function parseHarness(input: string | undefined): 'pi' | 'claude' {
   return input === 'claude' ? 'claude' : 'pi'
@@ -64,7 +70,10 @@ export function loadConfig(): PiPipeConfig {
           enabled: discordEnabled,
           token: discordEnabled ? s.token : '',
           allowFrom: discordEnabled ? s.allowFrom : [],
-          allowChannels: discordEnabled ? s.allowChannels : undefined
+          allowChannels: discordEnabled ? s.allowChannels : undefined,
+          useThreads: discordEnabled
+            ? parseOptionalBool(process.env.PIPIPE_DISCORD_USE_THREADS)
+            : undefined
         },
         cli: {
           enabled: cliEnabled || process.env.PIPIPE_CLI_ENABLED === 'true',
@@ -95,7 +104,8 @@ export function loadConfig(): PiPipeConfig {
         enabled: process.env.PIPIPE_DISCORD_ENABLED === 'true',
         token: process.env.PIPIPE_DISCORD_TOKEN ?? '',
         allowFrom: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_FROM),
-        allowChannels: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_CHANNELS)
+        allowChannels: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_CHANNELS),
+        useThreads: parseOptionalBool(process.env.PIPIPE_DISCORD_USE_THREADS)
       },
       cli: {
         enabled: process.env.PIPIPE_CLI_ENABLED === 'true',
