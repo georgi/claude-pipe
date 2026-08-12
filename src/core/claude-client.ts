@@ -6,6 +6,7 @@ import type { ModelClient } from './model-client.js'
 import { SessionStore } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
+import { summarizeToolInput } from './tool-format.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
 
 function summarizeToolResult(content: unknown): string {
@@ -59,7 +60,8 @@ export class ClaudeClient implements ModelClient {
     message: SDKMessage,
     conversationKey: string,
     context: ToolContext,
-    toolNamesByCallId: Map<string, string>
+    toolNamesByCallId: Map<string, string>,
+    toolDetailsByCallId: Map<string, string>
   ): Promise<{ text: string }> {
     let text = ''
 
@@ -82,17 +84,21 @@ export class ClaudeClient implements ModelClient {
           })
         } else if (block.type === 'tool_use') {
           if (block.id) toolNamesByCallId.set(block.id, block.name)
+          const detail = summarizeToolInput(block.name, block.input)
+          if (block.id && detail) toolDetailsByCallId.set(block.id, detail)
           this.logger.info('claude.tool_call_started', {
             conversationKey,
             toolName: block.name,
-            toolUseId: block.id
+            toolUseId: block.id,
+            toolDetail: detail
           })
           await this.publishUpdate(context, {
             kind: 'tool_call_started',
             conversationKey,
             message: `Using tool: ${block.name}`,
             toolName: block.name,
-            ...(block.id ? { toolUseId: block.id } : {})
+            ...(block.id ? { toolUseId: block.id } : {}),
+            ...(detail ? { toolDetail: detail } : {})
           })
         }
       }
@@ -115,6 +121,7 @@ export class ClaudeClient implements ModelClient {
           }
           const toolUseId = toolResult.tool_use_id
           const toolName = toolUseId ? toolNamesByCallId.get(toolUseId) : undefined
+          const toolDetail = toolUseId ? toolDetailsByCallId.get(toolUseId) : undefined
           const summary = summarizeToolResult(toolResult.content)
           const failed = summary.includes('error')
 
@@ -131,7 +138,8 @@ export class ClaudeClient implements ModelClient {
               ? `Tool failed${toolName ? `: ${toolName}` : ''}`
               : `Tool completed${toolName ? `: ${toolName}` : ''}`,
             ...(toolName ? { toolName } : {}),
-            ...(toolUseId ? { toolUseId } : {})
+            ...(toolUseId ? { toolUseId } : {}),
+            ...(toolDetail ? { toolDetail } : {})
           })
         }
       }
@@ -154,6 +162,7 @@ export class ClaudeClient implements ModelClient {
 
     let responseText = ''
     const toolNamesByCallId = new Map<string, string>()
+    const toolDetailsByCallId = new Map<string, string>()
 
     try {
       for await (const message of query({
@@ -176,7 +185,8 @@ export class ClaudeClient implements ModelClient {
           message,
           conversationKey,
           context,
-          toolNamesByCallId
+          toolNamesByCallId,
+          toolDetailsByCallId
         )
         if (text) responseText = text
 

@@ -18,6 +18,7 @@ import { SessionStore } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import { createGuardrailExtension } from './guardrail-extension.js'
+import { summarizeToolInput } from './tool-format.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
 
 /**
@@ -235,6 +236,7 @@ export class PiClient implements ModelClient {
 
     let responseText = ''
     let lastErrorText = ''
+    const toolDetailsByCallId = new Map<string, string>()
 
     const handler = (event: AgentSessionEvent): void => {
       if (event.type === 'message_update') {
@@ -255,14 +257,22 @@ export class PiClient implements ModelClient {
       if (event.type === 'tool_execution_start') {
         const toolName = event.toolName
         const toolUseId = event.toolCallId
-        this.logger.info('pi.tool_call_started', { conversationKey, toolName, toolUseId })
+        const toolDetail = summarizeToolInput(toolName, event.args)
+        if (toolDetail) toolDetailsByCallId.set(toolUseId, toolDetail)
+        this.logger.info('pi.tool_call_started', {
+          conversationKey,
+          toolName,
+          toolUseId,
+          toolDetail
+        })
         this.schedule(conversationKey, async () => {
           await this.publishUpdate(context, {
             kind: 'tool_call_started',
             conversationKey,
             message: `Using tool: ${toolName}`,
             toolName,
-            toolUseId
+            toolUseId,
+            ...(toolDetail ? { toolDetail } : {})
           })
         })
         return
@@ -270,6 +280,7 @@ export class PiClient implements ModelClient {
       if (event.type === 'tool_execution_end') {
         const toolName = event.toolName
         const toolUseId = event.toolCallId
+        const toolDetail = toolDetailsByCallId.get(toolUseId)
         const failed = event.isError === true
         if (failed) {
           lastErrorText = extractErrorText(event.result) || lastErrorText
@@ -283,7 +294,8 @@ export class PiClient implements ModelClient {
             conversationKey,
             message: failed ? `Tool failed: ${toolName}` : `Tool completed: ${toolName}`,
             toolName,
-            toolUseId
+            toolUseId,
+            ...(toolDetail ? { toolDetail } : {})
           })
         })
         return

@@ -121,6 +121,8 @@ export interface AgentTurnUpdate {
   message: string
   toolName?: string
   toolUseId?: string
+  /** Short human-readable summary of the tool's arguments (e.g. the shell command). */
+  toolDetail?: string
   /** Partial accumulated response text, present when kind is 'text_streaming'. */
   text?: string
 }
