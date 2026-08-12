@@ -227,6 +227,87 @@ describe('AgentLoop', () => {
     await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
   })
 
+  it('replaces the previous tool call with the next one and shows argument detail', async () => {
+    const bus = new MessageBus()
+    const claude = {
+      runTurn: vi.fn(async (_conversationKey: string, _input: string, context: any) => {
+        await context.onUpdate({
+          kind: 'tool_call_started',
+          conversationKey: 'telegram:42',
+          message: 'Using tool: Bash',
+          toolName: 'Bash',
+          toolUseId: 'tool-1',
+          toolDetail: 'npm test'
+        })
+        await context.onUpdate({
+          kind: 'tool_call_finished',
+          conversationKey: 'telegram:42',
+          message: 'Tool completed: Bash',
+          toolName: 'Bash',
+          toolUseId: 'tool-1',
+          toolDetail: 'npm test'
+        })
+        await context.onUpdate({
+          kind: 'tool_call_started',
+          conversationKey: 'telegram:42',
+          message: 'Using tool: Read',
+          toolName: 'Read',
+          toolUseId: 'tool-2',
+          toolDetail: 'core/agent-loop.ts'
+        })
+        await context.onUpdate({
+          kind: 'tool_call_failed',
+          conversationKey: 'telegram:42',
+          message: 'Tool failed: Read',
+          toolName: 'Read',
+          toolUseId: 'tool-2',
+          toolDetail: 'core/agent-loop.ts'
+        })
+        return 'final answer'
+      }),
+      startNewSession: vi.fn(async () => undefined),
+      closeAll: vi.fn()
+    }
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const sentMessage = { channel: 'telegram' as const, chatId: '42', messageId: '99' }
+    const channelManager = {
+      sendDirect: vi.fn(async () => sentMessage),
+      editMessage: vi.fn(async () => undefined)
+    }
+
+    const loop = new AgentLoop(bus, makeConfig(), claude as never, logger)
+    loop.setChannelManager(channelManager as any)
+
+    const run = loop.start()
+    await bus.publishInbound({
+      channel: 'telegram',
+      senderId: 'u1',
+      chatId: '42',
+      content: 'hello',
+      timestamp: new Date().toISOString()
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    // Only one status message is ever sent; later calls replace its content
+    expect(channelManager.sendDirect).toHaveBeenCalledTimes(1)
+    expect(channelManager.sendDirect).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '🔧 Bash: npm test' })
+    )
+
+    const edits = channelManager.editMessage.mock.calls.map((call: any[]) => call[1])
+    expect(edits).toEqual([
+      '✅ Bash: npm test',
+      '🔧 Read: core/agent-loop.ts',
+      '❌ Read: core/agent-loop.ts',
+      'final answer'
+    ])
+
+    loop.stop()
+    await Promise.race([run, new Promise((resolve) => setTimeout(resolve, 25))])
+  })
+
   it('sends streaming text updates as draft messages and finalises with editMessage', async () => {
     const bus = new MessageBus()
     const claude = {
