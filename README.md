@@ -162,10 +162,16 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 | `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                            |
 | `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels); thread messages match their parent channel too       |
 | `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default) or `claude` (Claude Agent SDK, Anthropic only)             |
-| `model`         | Model name (e.g. `claude-sonnet-4-5`, `gpt-5`, `kimi-k2`, or `provider/model-id`; non-Anthropic ids require the `pi` harness) |
+| `model`         | Model name (e.g. `claude-opus-5`, `gpt-5`, `kimi-k2`, or `provider/model-id`; non-Anthropic ids require the `pi` harness)     |
 | `workspace`     | Root directory the agent can access                                                                                           |
 | `personality`   | Optional: give your assistant a `name` and `traits` description                                                               |
 | `env`           | Optional: environment variables to inject at startup                                                                          |
+
+> **Picking a harness for newer Claude models.** The `pi` harness resolves `model`
+> against the Pi SDK's bundled model registry and throws `Unknown model` on ids it
+> doesn't recognise, so it trails Anthropic releases. The `claude` harness hands the
+> id straight to the Claude Agent SDK without validating it, so the newest models
+> (e.g. `claude-opus-5`) work there as soon as they ship.
 
 ### Authentication
 
