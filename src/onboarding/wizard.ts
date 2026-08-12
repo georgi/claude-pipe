@@ -117,6 +117,9 @@ async function chooseHarness(
 /*  Step 6 – Choose model                                              */
 /* ------------------------------------------------------------------ */
 
+// The pi harness resolves ids against the Pi SDK's bundled model registry and
+// throws on anything it doesn't know, so these presets deliberately stay on
+// releases the registry has caught up with.
 const PI_MODEL_PRESETS: Record<string, string> = {
   '1': 'claude-haiku-4-5',
   '2': 'claude-sonnet-4-5',
@@ -125,18 +128,22 @@ const PI_MODEL_PRESETS: Record<string, string> = {
 
 // The Claude harness passes the model straight into the Claude Agent SDK, which
 // only accepts Anthropic models — so its preset list omits non-Anthropic
-// options and the free-form prompt is scoped to Anthropic model ids.
+// options and the free-form prompt is scoped to Anthropic model ids. The SDK
+// takes the id verbatim rather than validating it, so newer releases than the
+// pi registry knows about are selectable here.
 const CLAUDE_MODEL_PRESETS: Record<string, string> = {
   '1': 'claude-haiku-4-5',
-  '2': 'claude-sonnet-4-5'
+  '2': 'claude-sonnet-5',
+  '3': 'claude-opus-5'
 }
 
+/** Menu entry for "Other (free-form)" — the last option in both model menus. */
+const OTHER_MODEL_CHOICE = '4'
+
 function getModelChoiceNumber(model: string, harness: 'pi' | 'claude'): string {
-  if (model === 'claude-haiku-4-5') return '1'
-  if (model === 'claude-sonnet-4-5') return '2'
-  if (harness === 'claude') return '3'
-  if (model === 'gpt-5') return '3'
-  return '4'
+  const presets = harness === 'claude' ? CLAUDE_MODEL_PRESETS : PI_MODEL_PRESETS
+  const preset = Object.entries(presets).find(([, id]) => id === model)
+  return preset ? preset[0] : OTHER_MODEL_CHOICE
 }
 
 async function chooseModel(
@@ -150,16 +157,17 @@ async function chooseModel(
     console.log(
       '\nWhich Claude model would you like to use? (the Claude harness is Anthropic-only)\n' +
         '  1) Claude Haiku 4.5  (needs ANTHROPIC_API_KEY)\n' +
-        '  2) Claude Sonnet 4.5 (needs ANTHROPIC_API_KEY)\n' +
-        '  3) Other (free-form Anthropic model id, e.g. claude-opus-4-1)\n'
+        '  2) Claude Sonnet 5   (needs ANTHROPIC_API_KEY)\n' +
+        '  3) Claude Opus 5     (needs ANTHROPIC_API_KEY)\n' +
+        '  4) Other (free-form Anthropic model id, e.g. claude-fable-5)\n'
     )
-    const choice = await ask(rl, `Enter 1–3 [${defaultChoice}]: `)
+    const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
     const effectiveChoice = choice || defaultChoice
     if (effectiveChoice in CLAUDE_MODEL_PRESETS) return CLAUDE_MODEL_PRESETS[effectiveChoice]!
 
     const currentLabel = currentModel ? ` [${currentModel}]` : ''
-    const custom = await ask(rl, `Enter Anthropic model id (e.g. claude-opus-4-1)${currentLabel}: `)
-    return custom || currentModel || 'claude-sonnet-4-5'
+    const custom = await ask(rl, `Enter Anthropic model id (e.g. claude-fable-5)${currentLabel}: `)
+    return custom || currentModel || 'claude-sonnet-5'
   }
 
   console.log(
