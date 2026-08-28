@@ -18,6 +18,19 @@ function summarizeToolResult(content: unknown): string {
 }
 
 /**
+ * How a single `query()` stream ended.
+ *
+ * `stale_session` is the only outcome the caller can act on: the stored
+ * `resume` id no longer resolves to a session on disk, so the turn is worth
+ * retrying from scratch.
+ */
+type QueryOutcome =
+  | { status: 'success'; text: string }
+  | { status: 'cancelled'; text: string }
+  | { status: 'failed'; text: string }
+  | { status: 'stale_session' }
+
+/**
  * Runs Claude via the official Claude Agent SDK, one `query()` call per turn.
  *
  * This is the Claude counterpart to {@link PiClient}: both satisfy the same
@@ -148,18 +161,17 @@ export class ClaudeClient implements ModelClient {
     return { text }
   }
 
-  async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
-    const savedSession = this.store.get(conversationKey)
-    const abort = new AbortController()
-    this.abortControllers.set(conversationKey, abort)
-
-    await this.publishUpdate(context, {
-      kind: 'turn_started',
-      conversationKey,
-      message: 'Working on it...'
-    })
-    await this.transcript.log(conversationKey, { type: 'user', text: userText })
-
+  /**
+   * Runs one `query()` stream to completion and reports how it ended, so
+   * {@link runTurn} can decide whether a retry is worth it.
+   */
+  private async runQuery(
+    conversationKey: string,
+    userText: string,
+    context: ToolContext,
+    resumeSessionId: string | undefined,
+    abort: AbortController
+  ): Promise<QueryOutcome> {
     let responseText = ''
     const toolNamesByCallId = new Map<string, string>()
     const toolDetailsByCallId = new Map<string, string>()
@@ -168,7 +180,7 @@ export class ClaudeClient implements ModelClient {
       for await (const message of query({
         prompt: userText,
         options: {
-          ...(savedSession?.sessionId ? { resume: savedSession.sessionId } : {}),
+          ...(resumeSessionId ? { resume: resumeSessionId } : {}),
           model: this.config.model,
           systemPrompt: {
             type: 'preset',
@@ -191,53 +203,108 @@ export class ClaudeClient implements ModelClient {
         if (text) responseText = text
 
         if (message.type === 'result') {
-          await this.store.set(conversationKey, { sessionId: message.session_id })
+          // A failed result with zero turns means the CLI never got as far as
+          // running the conversation, so `session_id` names a session that was
+          // never written to disk — usually the very `resume` id we passed
+          // back. Persisting it would poison every later turn with the same
+          // failure, so keep the mapping we already have.
+          const sessionExists = !message.is_error || message.num_turns > 0
+          if (sessionExists) {
+            await this.store.set(conversationKey, { sessionId: message.session_id })
+          }
 
           if (message.is_error) {
-            this.logger.error('claude.turn_failed', { conversationKey, subtype: message.subtype })
-            await this.publishUpdate(context, {
-              kind: 'turn_finished',
+            this.logger.error('claude.turn_failed', {
               conversationKey,
-              message: 'Turn failed'
+              subtype: message.subtype,
+              ...('errors' in message && message.errors.length ? { errors: message.errors } : {})
             })
-            return 'Sorry, I hit an error while processing that request.'
+            if (resumeSessionId && !sessionExists) return { status: 'stale_session' }
+            return {
+              status: 'failed',
+              text: responseText || 'Sorry, I hit an error while processing that request.'
+            }
           }
 
           this.logger.info('claude.turn_finished', { conversationKey })
-          await this.publishUpdate(context, {
-            kind: 'turn_finished',
-            conversationKey,
-            message: 'Turn finished'
-          })
-
           const finalText = 'result' in message ? message.result : ''
-          return (
-            responseText || finalText || 'I completed processing but have no response to return.'
-          )
+          return {
+            status: 'success',
+            text:
+              responseText || finalText || 'I completed processing but have no response to return.'
+          }
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (/abort/i.test(msg)) {
-        await this.publishUpdate(context, {
-          kind: 'turn_finished',
-          conversationKey,
-          message: 'Turn cancelled'
-        })
-        return responseText || 'Cancelled.'
-      }
+      if (/abort/i.test(msg)) return { status: 'cancelled', text: responseText || 'Cancelled.' }
       this.logger.error('claude.turn_failed', { conversationKey, error: msg })
+      return {
+        status: 'failed',
+        text: responseText || `Sorry, I hit an error: ${msg.slice(0, 200)}`
+      }
+    }
+
+    // Stream ended without a result message.
+    return {
+      status: 'success',
+      text: responseText || 'I completed processing but have no response to return.'
+    }
+  }
+
+  async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
+    const savedSession = this.store.get(conversationKey)
+    const abort = new AbortController()
+    this.abortControllers.set(conversationKey, abort)
+
+    await this.publishUpdate(context, {
+      kind: 'turn_started',
+      conversationKey,
+      message: 'Working on it...'
+    })
+    await this.transcript.log(conversationKey, { type: 'user', text: userText })
+
+    try {
+      let outcome = await this.runQuery(
+        conversationKey,
+        userText,
+        context,
+        savedSession?.sessionId,
+        abort
+      )
+
+      // The stored session id no longer resolves (the transcript was pruned,
+      // or the workspace/home moved). Drop it and start a fresh session rather
+      // than failing this turn — and every turn after it — forever.
+      if (outcome.status === 'stale_session') {
+        this.logger.warn('claude.session_stale', {
+          conversationKey,
+          sessionId: savedSession?.sessionId
+        })
+        await this.store.clear(conversationKey)
+        outcome = await this.runQuery(conversationKey, userText, context, undefined, abort)
+        if (outcome.status === 'stale_session') {
+          outcome = {
+            status: 'failed',
+            text: 'Sorry, I hit an error while processing that request.'
+          }
+        }
+      }
+
       await this.publishUpdate(context, {
         kind: 'turn_finished',
         conversationKey,
-        message: 'Turn failed'
+        message:
+          outcome.status === 'success'
+            ? 'Turn finished'
+            : outcome.status === 'cancelled'
+              ? 'Turn cancelled'
+              : 'Turn failed'
       })
-      return responseText || `Sorry, I hit an error: ${msg.slice(0, 200)}`
+      return outcome.text
     } finally {
       this.abortControllers.delete(conversationKey)
     }
-
-    return responseText || 'I completed processing but have no response to return.'
   }
 
   cancelTurn(conversationKey: string): void {

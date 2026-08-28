@@ -383,4 +383,89 @@ describe('ClaudeClient (Claude Agent SDK)', () => {
     expect(() => client.cancelTurn('telegram:1')).not.toThrow()
     expect(() => client.closeAll()).not.toThrow()
   })
+
+  it('retries with a fresh session when the resumed session no longer exists', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+    const store = makeStore()
+    store.get.mockReturnValue({ sessionId: 'sess-gone', updatedAt: 'now' } as never)
+
+    queryMock
+      .mockReturnValueOnce(
+        makeQueryGen([
+          {
+            type: 'result',
+            subtype: 'error_during_execution',
+            is_error: true,
+            num_turns: 0,
+            session_id: 'sess-gone',
+            errors: ['No conversation found with session ID: sess-gone']
+          }
+        ])
+      )
+      .mockReturnValueOnce(
+        makeQueryGen([
+          {
+            type: 'result',
+            subtype: 'success',
+            is_error: false,
+            num_turns: 1,
+            result: 'hi there',
+            session_id: 'sess-fresh'
+          }
+        ])
+      )
+
+    const client = new ClaudeClient(makeConfig() as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    const result = await client.runTurn('telegram:1', 'hi', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1'
+    })
+
+    expect(result).toBe('hi there')
+    // The dead id is dropped, never re-persisted, and the retry starts clean.
+    expect(store.clear).toHaveBeenCalledWith('telegram:1')
+    expect(store.set).toHaveBeenCalledTimes(1)
+    expect(store.set).toHaveBeenCalledWith('telegram:1', { sessionId: 'sess-fresh' })
+    expect(queryMock.mock.calls[0][0].options.resume).toBe('sess-gone')
+    expect(queryMock.mock.calls[1][0].options.resume).toBeUndefined()
+  })
+
+  it('does not persist a session id from a failed turn that never started', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+    const store = makeStore()
+
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          num_turns: 0,
+          session_id: 'sess-never-written',
+          errors: ['boom']
+        }
+      ])
+    )
+
+    const client = new ClaudeClient(makeConfig() as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    const result = await client.runTurn('telegram:1', 'hi', {
+      workspace: '/tmp/workspace',
+      channel: 'telegram',
+      chatId: '1'
+    })
+
+    expect(result).toContain('error')
+    expect(store.set).not.toHaveBeenCalled()
+  })
 })
