@@ -20,8 +20,10 @@ function parseOptionalBool(input: string | undefined): boolean | undefined {
 }
 
 /** Normalizes a harness string, falling back to 'pi' for unknown/missing values. */
-function parseHarness(input: string | undefined): 'pi' | 'claude' {
-  return input === 'claude' ? 'claude' : 'pi'
+function parseHarness(input: string | undefined): 'pi' | 'claude' | 'codex' {
+  if (input === 'claude') return 'claude'
+  if (input === 'codex') return 'codex'
+  return 'pi'
 }
 
 /**

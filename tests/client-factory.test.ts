@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createModelClient } from '../src/core/client-factory.js'
 import { PiClient } from '../src/core/pi-client.js'
 import { ClaudeClient } from '../src/core/claude-client.js'
+import { CodexClient } from '../src/core/codex-client.js'
 import type { PiPipeConfig } from '../src/config/schema.js'
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
@@ -24,7 +25,14 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn()
 }))
 
-function makeConfig(harness: 'pi' | 'claude'): PiPipeConfig {
+vi.mock('@openai/codex-sdk', () => ({
+  Codex: class {
+    startThread = vi.fn()
+    resumeThread = vi.fn()
+  }
+}))
+
+function makeConfig(harness: 'pi' | 'claude' | 'codex'): PiPipeConfig {
   return {
     harness,
     model: 'claude-sonnet-4-5',
@@ -50,6 +58,11 @@ describe('createModelClient', () => {
   it('returns a ClaudeClient when harness is "claude"', () => {
     const client = createModelClient(makeConfig('claude'), store, logger)
     expect(client).toBeInstanceOf(ClaudeClient)
+  })
+
+  it('returns a CodexClient when harness is "codex"', () => {
+    const client = createModelClient(makeConfig('codex'), store, logger)
+    expect(client).toBeInstanceOf(CodexClient)
   })
 
   it('defaults to PiClient when harness is unset', () => {

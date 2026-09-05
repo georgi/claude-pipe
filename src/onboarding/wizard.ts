@@ -98,19 +98,26 @@ async function collectCredentials(
 /*  Step 5 – Choose agent harness                                      */
 /* ------------------------------------------------------------------ */
 
-async function chooseHarness(
-  rl: readline.Interface,
-  current?: 'pi' | 'claude'
-): Promise<'pi' | 'claude'> {
-  const defaultChoice = current === 'claude' ? '2' : '1'
+type Harness = 'pi' | 'claude' | 'codex'
+
+const HARNESS_BY_CHOICE: Record<string, Harness> = {
+  '1': 'pi',
+  '2': 'claude',
+  '3': 'codex'
+}
+
+async function chooseHarness(rl: readline.Interface, current?: Harness): Promise<Harness> {
+  const defaultChoice =
+    Object.entries(HARNESS_BY_CHOICE).find(([, id]) => id === current)?.[0] ?? '1'
   console.log(
     '\nWhich agent harness should drive your assistant?\n' +
       '  1) Pi Coding Agent SDK   (multi-provider: Claude, GPT, Gemini, …)\n' +
-      '  2) Claude Agent SDK      (Anthropic models only; needs ANTHROPIC_API_KEY)\n'
+      '  2) Claude Agent SDK      (Anthropic models only; needs ANTHROPIC_API_KEY)\n' +
+      '  3) OpenAI Codex SDK      (OpenAI models only; needs the codex CLI signed in)\n'
   )
-  const choice = await ask(rl, `Enter 1 or 2 [${defaultChoice}]: `)
+  const choice = await ask(rl, `Enter 1–3 [${defaultChoice}]: `)
   const effective = choice || defaultChoice
-  return effective === '2' ? 'claude' : 'pi'
+  return HARNESS_BY_CHOICE[effective] ?? 'pi'
 }
 
 /* ------------------------------------------------------------------ */
@@ -137,21 +144,53 @@ const CLAUDE_MODEL_PRESETS: Record<string, string> = {
   '3': 'claude-opus-5'
 }
 
+// The Codex harness passes the model straight to the `codex` CLI, which only
+// serves OpenAI models. Like the Claude harness it takes the id verbatim, so
+// newer releases than any bundled registry knows about are selectable here.
+const CODEX_MODEL_PRESETS: Record<string, string> = {
+  '1': 'gpt-5.1-codex-mini',
+  '2': 'gpt-5.1-codex',
+  '3': 'gpt-5.1-codex-max'
+}
+
 /** Menu entry for "Other (free-form)" — the last option in both model menus. */
 const OTHER_MODEL_CHOICE = '4'
 
-function getModelChoiceNumber(model: string, harness: 'pi' | 'claude'): string {
-  const presets = harness === 'claude' ? CLAUDE_MODEL_PRESETS : PI_MODEL_PRESETS
+const MODEL_PRESETS_BY_HARNESS: Record<Harness, Record<string, string>> = {
+  pi: PI_MODEL_PRESETS,
+  claude: CLAUDE_MODEL_PRESETS,
+  codex: CODEX_MODEL_PRESETS
+}
+
+function getModelChoiceNumber(model: string, harness: Harness): string {
+  const presets = MODEL_PRESETS_BY_HARNESS[harness]
   const preset = Object.entries(presets).find(([, id]) => id === model)
   return preset ? preset[0] : OTHER_MODEL_CHOICE
 }
 
 async function chooseModel(
   rl: readline.Interface,
-  harness: 'pi' | 'claude',
+  harness: Harness,
   currentModel?: string
 ): Promise<string> {
   const defaultChoice = currentModel ? getModelChoiceNumber(currentModel, harness) : '2'
+
+  if (harness === 'codex') {
+    console.log(
+      '\nWhich Codex model would you like to use? (the Codex harness is OpenAI-only)\n' +
+        '  1) GPT-5.1 Codex Mini (fastest, cheapest)\n' +
+        '  2) GPT-5.1 Codex      (balanced)\n' +
+        '  3) GPT-5.1 Codex Max  (most capable)\n' +
+        '  4) Other (free-form OpenAI model id, e.g. gpt-5.1)\n'
+    )
+    const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
+    const effectiveChoice = choice || defaultChoice
+    if (effectiveChoice in CODEX_MODEL_PRESETS) return CODEX_MODEL_PRESETS[effectiveChoice]!
+
+    const currentLabel = currentModel ? ` [${currentModel}]` : ''
+    const custom = await ask(rl, `Enter OpenAI model id (e.g. gpt-5.1)${currentLabel}: `)
+    return custom || currentModel || 'gpt-5.1-codex'
+  }
 
   if (harness === 'claude') {
     console.log(

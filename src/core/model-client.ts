@@ -3,7 +3,7 @@ import type { ToolContext } from './types.js'
 /**
  * Shared LLM runtime contract used by the agent loop and slash commands.
  *
- * Every agent harness (Pi, Claude, …) implements this interface, so the rest
+ * Every agent harness (Pi, Claude, Codex, …) implements this interface, so the rest
  * of the app — the agent loop, command handlers, channels — is agnostic to
  * which SDK is actually driving the conversation. Selection happens once, in
  * {@link createModelClient}, based on `config.harness`.
@@ -21,8 +21,8 @@ export interface ModelClient {
    * Switches the active model for subsequent turns. Validation is
    * implementation-dependent: the Pi harness resolves the model against its
    * registry and throws on an unknown model (leaving prior state intact),
-   * while the Claude harness accepts any string and defers errors to the next
-   * `query()` call (the SDK rejects unknown models at request time).
+   * while the Claude and Codex harnesses accept any string and defer errors to
+   * the next request (their SDKs reject unknown models at request time).
    */
   setModel(modelString: string): void
 }

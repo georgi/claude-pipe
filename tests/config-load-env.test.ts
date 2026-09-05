@@ -17,6 +17,7 @@ import { homedir } from 'node:os'
 const mockedHomedir = homedir as unknown as ReturnType<typeof vi.fn>
 
 const ENV_KEYS = [
+  'PIPIPE_HARNESS',
   'PIPIPE_MODEL',
   'PIPIPE_WORKSPACE',
   'PIPIPE_TELEGRAM_ENABLED',
@@ -100,6 +101,34 @@ describe('loadConfig', () => {
     expect(cfg.channels.discord.enabled).toBe(true)
     expect(cfg.channels.discord.token).toBe('dc-tok')
     expect(cfg.channels.discord.allowChannels).toEqual(['chan-a', 'chan-b'])
+  })
+
+  it('selects the codex harness and applies its defaults', async () => {
+    process.env.PIPIPE_HARNESS = 'codex'
+    process.env.PIPIPE_MODEL = 'gpt-5.1-codex'
+    process.env.PIPIPE_WORKSPACE = '/tmp/x'
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    const cfg = loadConfig()
+
+    expect(cfg.harness).toBe('codex')
+    expect(cfg.codex).toEqual({
+      sandboxMode: 'danger-full-access',
+      approvalPolicy: 'never',
+      webSearch: true,
+      skipGitRepoCheck: true
+    })
+  })
+
+  it('falls back to the pi harness for an unrecognised PIPIPE_HARNESS', async () => {
+    process.env.PIPIPE_HARNESS = 'gemini'
+    process.env.PIPIPE_MODEL = 'gpt-5'
+    process.env.PIPIPE_WORKSPACE = '/tmp/x'
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    expect(loadConfig().harness).toBe('pi')
   })
 
   it('honours transcript-log env vars', async () => {
