@@ -17,6 +17,7 @@ import { homedir } from 'node:os'
 const mockedHomedir = homedir as unknown as ReturnType<typeof vi.fn>
 
 const ENV_KEYS = [
+  'PIPIPE_HARNESS',
   'PIPIPE_MODEL',
   'PIPIPE_WORKSPACE',
   'PIPIPE_TELEGRAM_ENABLED',
@@ -102,6 +103,34 @@ describe('loadConfig', () => {
     expect(cfg.channels.discord.allowChannels).toEqual(['chan-a', 'chan-b'])
   })
 
+  it('selects the codex harness and applies its defaults', async () => {
+    process.env.PIPIPE_HARNESS = 'codex'
+    process.env.PIPIPE_MODEL = 'gpt-5.1-codex'
+    process.env.PIPIPE_WORKSPACE = '/tmp/x'
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    const cfg = loadConfig()
+
+    expect(cfg.harness).toBe('codex')
+    expect(cfg.codex).toEqual({
+      sandboxMode: 'danger-full-access',
+      approvalPolicy: 'never',
+      webSearch: true,
+      skipGitRepoCheck: true
+    })
+  })
+
+  it('falls back to the pi harness for an unrecognised PIPIPE_HARNESS', async () => {
+    process.env.PIPIPE_HARNESS = 'gemini'
+    process.env.PIPIPE_MODEL = 'gpt-5'
+    process.env.PIPIPE_WORKSPACE = '/tmp/x'
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    expect(loadConfig().harness).toBe('pi')
+  })
+
   it('honours transcript-log env vars', async () => {
     process.env.PIPIPE_MODEL = 'claude-sonnet-4-5'
     process.env.PIPIPE_WORKSPACE = '/tmp/x'
@@ -118,6 +147,72 @@ describe('loadConfig', () => {
     expect(cfg.transcriptLog.path).toBe('/tmp/transcripts.jsonl')
     expect(cfg.transcriptLog.maxBytes).toBe(500)
     expect(cfg.transcriptLog.maxFiles).toBe(4)
+  })
+
+  it('forwards an explicit codex block from settings.json', async () => {
+    const settingsDir = join(fakeHome, '.pi-pipe')
+    const fsp = await import('node:fs/promises')
+    await fsp.mkdir(settingsDir, { recursive: true })
+    await fsp.writeFile(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({
+        channel: 'cli',
+        token: '',
+        allowFrom: [],
+        harness: 'codex',
+        model: 'gpt-5.1-codex',
+        workspace: fakeHome,
+        codex: {
+          sandboxMode: 'workspace-write',
+          webSearch: false,
+          reasoningEffort: 'high'
+        }
+      }),
+      'utf-8'
+    )
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    const cfg = loadConfig()
+
+    expect(cfg.harness).toBe('codex')
+    // The values the settings file set must survive, not be replaced by the
+    // schema defaults (danger-full-access / web search on / no effort).
+    expect(cfg.codex.sandboxMode).toBe('workspace-write')
+    expect(cfg.codex.webSearch).toBe(false)
+    expect(cfg.codex.reasoningEffort).toBe('high')
+    // Fields the file left out still fall back to their defaults.
+    expect(cfg.codex.approvalPolicy).toBe('never')
+    expect(cfg.codex.skipGitRepoCheck).toBe(true)
+  })
+
+  it('applies codex defaults when settings.json omits the block', async () => {
+    const settingsDir = join(fakeHome, '.pi-pipe')
+    const fsp = await import('node:fs/promises')
+    await fsp.mkdir(settingsDir, { recursive: true })
+    await fsp.writeFile(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({
+        channel: 'cli',
+        token: '',
+        allowFrom: [],
+        harness: 'codex',
+        model: 'gpt-5.1-codex',
+        workspace: fakeHome
+      }),
+      'utf-8'
+    )
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    const cfg = loadConfig()
+
+    expect(cfg.codex).toEqual({
+      sandboxMode: 'danger-full-access',
+      approvalPolicy: 'never',
+      webSearch: true,
+      skipGitRepoCheck: true
+    })
   })
 
   it('loads from ~/.pi-pipe/settings.json when present', async () => {

@@ -1,7 +1,7 @@
 import type { PiPipeConfig } from '../config/schema.js'
 
 /**
- * Base system prompt shared by every agent harness (Pi, Claude, …).
+ * Base system prompt shared by every agent harness (Pi, Claude, Codex, …).
  *
  * It is intentionally harness-agnostic: it only describes the chat-app
  * behaviour and the marker protocols (attachments, keyboards, memory) that the

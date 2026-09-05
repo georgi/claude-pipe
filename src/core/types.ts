@@ -72,6 +72,9 @@ export interface SentMessage {
   messageId: string
 }
 
+/** The agent harnesses that can own a persisted session. */
+export type HarnessName = 'pi' | 'claude' | 'codex'
+
 /**
  * Harness-agnostic reference to a persisted conversation session.
  *
@@ -79,10 +82,20 @@ export interface SentMessage {
  * the active harness needs:
  * - Pi persists a session-file path (`sessionFile`) opened via `SessionManager`.
  * - Claude persists an opaque `sessionId` passed back via `query({ resume })`.
+ * - Codex persists an opaque thread id, also in `sessionId`, passed back via
+ *   `resumeThread()`.
  *
- * Both fields are optional; a record typically carries exactly one.
+ * Because Claude and Codex share the `sessionId` field, every record also
+ * carries the `harness` that wrote it: an id minted by one harness is
+ * meaningless to another, and resuming with it would either fail or silently
+ * attach the conversation to the wrong session. Readers must therefore check
+ * `harness` before using an id — see `sessionForHarness`.
+ *
+ * `harness` is optional only for records written before the field existed;
+ * every write from here on sets it.
  */
 export interface SessionRef {
+  harness?: HarnessName
   sessionFile?: string
   sessionId?: string
 }

@@ -3,7 +3,7 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 
 import type { PiPipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
-import { SessionStore } from './session-store.js'
+import { SessionStore, sessionForHarness } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import { summarizeToolInput } from './tool-format.js'
@@ -149,7 +149,9 @@ export class ClaudeClient implements ModelClient {
   }
 
   async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
-    const savedSession = this.store.get(conversationKey)
+    // Only resume an id this harness minted: Codex stores its thread ids in
+    // the same field, and `resume` would reject or misattach one.
+    const savedSession = sessionForHarness(this.store.get(conversationKey), 'claude')
     const abort = new AbortController()
     this.abortControllers.set(conversationKey, abort)
 
@@ -191,7 +193,10 @@ export class ClaudeClient implements ModelClient {
         if (text) responseText = text
 
         if (message.type === 'result') {
-          await this.store.set(conversationKey, { sessionId: message.session_id })
+          await this.store.set(conversationKey, {
+            harness: 'claude',
+            sessionId: message.session_id
+          })
 
           if (message.is_error) {
             this.logger.error('claude.turn_failed', { conversationKey, subtype: message.subtype })

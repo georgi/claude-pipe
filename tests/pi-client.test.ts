@@ -143,6 +143,7 @@ describe('PiClient (Pi SDK)', () => {
     expect(sessionManagerCreateMock).toHaveBeenCalledWith('/tmp/workspace')
     expect(sessionManagerOpenMock).not.toHaveBeenCalled()
     expect(store.set).toHaveBeenCalledWith('telegram:1', {
+      harness: 'pi',
       sessionFile: '/sessions/sess-new.jsonl'
     })
     expect(session.prompt).toHaveBeenCalledWith('hello')

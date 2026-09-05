@@ -32,8 +32,9 @@ export const configSchema = z.object({
    * Which agent harness drives conversations:
    * - `pi`     — the Pi Coding Agent SDK (multi-provider; default).
    * - `claude` — the Claude Agent SDK (Anthropic models only).
+   * - `codex`  — the OpenAI Codex SDK (OpenAI models only).
    */
-  harness: z.enum(['pi', 'claude']).default('pi'),
+  harness: z.enum(['pi', 'claude', 'codex']).default('pi'),
   model: z.string(),
   workspace: z.string(),
   channels: z.object({
@@ -71,6 +72,33 @@ export const configSchema = z.object({
       path: `${process.cwd()}/data/transcript.jsonl`,
       maxBytes: 1_000_000,
       maxFiles: 3
+    }),
+  /**
+   * Codex-harness knobs. Ignored by every other harness.
+   *
+   * The defaults match how the Pi and Claude harnesses already run — full
+   * workspace access and no interactive approvals — because a chat bot has
+   * nobody at a terminal to answer an approval prompt, and a blocked turn
+   * would just hang. Tighten `sandboxMode` if you want Codex fenced in.
+   */
+  codex: z
+    .object({
+      sandboxMode: z
+        .enum(['read-only', 'workspace-write', 'danger-full-access'])
+        .default('danger-full-access'),
+      approvalPolicy: z.enum(['never', 'on-request', 'on-failure', 'untrusted']).default('never'),
+      webSearch: z.boolean().default(true),
+      // Codex refuses to run outside a git repository unless this is set.
+      skipGitRepoCheck: z.boolean().default(true),
+      reasoningEffort: z
+        .enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'persistent'])
+        .optional()
+    })
+    .default({
+      sandboxMode: 'danger-full-access',
+      approvalPolicy: 'never',
+      webSearch: true,
+      skipGitRepoCheck: true
     }),
   personality: z
     .object({

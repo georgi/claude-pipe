@@ -20,8 +20,10 @@ function parseOptionalBool(input: string | undefined): boolean | undefined {
 }
 
 /** Normalizes a harness string, falling back to 'pi' for unknown/missing values. */
-function parseHarness(input: string | undefined): 'pi' | 'claude' {
-  return input === 'claude' ? 'claude' : 'pi'
+function parseHarness(input: string | undefined): 'pi' | 'claude' | 'codex' {
+  if (input === 'claude') return 'claude'
+  if (input === 'codex') return 'codex'
+  return 'pi'
 }
 
 /**
@@ -58,6 +60,10 @@ export function loadConfig(): PiPipeConfig {
 
     return configSchema.parse({
       harness: parseHarness(process.env.PIPIPE_HARNESS ?? s.harness),
+      // Omitted entirely when absent so the schema's defaults apply; passing
+      // an explicit `undefined` would too, but this keeps the parsed input
+      // free of keys the settings file never set.
+      ...(s.codex ? { codex: s.codex } : {}),
       model: s.model,
       workspace: s.workspace,
       channels: {

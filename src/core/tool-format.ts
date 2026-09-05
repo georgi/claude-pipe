@@ -20,14 +20,14 @@ export function formatToolName(name: string): string {
 }
 
 /** Collapses whitespace and truncates to keep status lines single-line and short. */
-function condense(value: string, max = MAX_DETAIL): string {
+export function condense(value: string, max = MAX_DETAIL): string {
   const flat = value.replace(/\s+/g, ' ').trim()
   if (flat.length <= max) return flat
   return `${flat.slice(0, max - 1)}…`
 }
 
 /** Shortens a path to its last two segments so long absolute paths stay readable. */
-function shortPath(value: string): string {
+export function shortPath(value: string): string {
   const parts = value.split('/').filter(Boolean)
   if (parts.length <= 2) return value
   return parts.slice(-2).join('/')

@@ -14,7 +14,7 @@ import type { Model } from '@earendil-works/pi-ai'
 
 import type { PiPipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
-import { SessionStore } from './session-store.js'
+import { SessionStore, sessionForHarness } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import { createGuardrailExtension } from './guardrail-extension.js'
@@ -189,7 +189,9 @@ export class PiClient implements ModelClient {
       return cached
     }
 
-    const saved = this.store.get(conversationKey)
+    // A record left behind by another harness carries no Pi session file, so
+    // this starts a fresh session rather than resuming a foreign one.
+    const saved = sessionForHarness(this.store.get(conversationKey), 'pi')
     const model = resolveModel(this.config.model, this.modelRegistry)
     const resourceLoader = await this.makeResourceLoader()
 
@@ -207,7 +209,10 @@ export class PiClient implements ModelClient {
     })
 
     if (!saved?.sessionFile && session.sessionFile) {
-      await this.store.set(conversationKey, { sessionFile: session.sessionFile })
+      await this.store.set(conversationKey, {
+        harness: 'pi',
+        sessionFile: session.sessionFile
+      })
     }
 
     this.sessions.set(conversationKey, session)

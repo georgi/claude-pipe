@@ -1,6 +1,6 @@
 # pi-pipe
 
-Pi Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It runs on a configurable **agent harness** — either the [Pi Coding Agent SDK](https://pi.dev/docs/latest/sdk) (multi-provider; default) or the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic models). Both expose the same chat behavior, so you can switch with one setting.
+Pi Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It runs on a configurable **agent harness** — the [Pi Coding Agent SDK](https://pi.dev/docs/latest/sdk) (multi-provider; default), the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic models), or the [OpenAI Codex SDK](https://developers.openai.com/codex/sdk/) (OpenAI models). All three expose the same chat behavior, so you can switch with one setting.
 
 Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
@@ -36,7 +36,7 @@ First run starts the interactive setup wizard:
 
 1. **Choose platform** — select Telegram, Discord, or CLI (local terminal)
 2. **Enter bot token** — required for Telegram/Discord, skipped in CLI mode
-3. **Choose agent harness** — Pi Coding Agent SDK (multi-provider) or Claude Agent SDK (Anthropic only)
+3. **Choose agent harness** — Pi Coding Agent SDK (multi-provider), Claude Agent SDK (Anthropic only), or OpenAI Codex SDK (OpenAI only)
 4. **Select model** — preset list (Claude, GPT-5, …) or free-form entry (supports `provider/model-id`)
 5. **Set workspace** — directory the agent can access (defaults to current directory)
 6. **Set personality** — give your assistant a name and description
@@ -155,33 +155,83 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 }
 ```
 
-| Setting         | What it does                                                                                                                  |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                              |
-| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications) |
-| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                            |
-| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels); thread messages match their parent channel too       |
-| `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default) or `claude` (Claude Agent SDK, Anthropic only)             |
-| `model`         | Model name (e.g. `claude-opus-5`, `gpt-5`, `kimi-k2`, or `provider/model-id`; non-Anthropic ids require the `pi` harness)     |
-| `workspace`     | Root directory the agent can access                                                                                           |
-| `personality`   | Optional: give your assistant a `name` and `traits` description                                                               |
-| `env`           | Optional: environment variables to inject at startup                                                                          |
+| Setting         | What it does                                                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                                                            |
+| `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications)                               |
+| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                                                          |
+| `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels); thread messages match their parent channel too                                     |
+| `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default), `claude` (Claude Agent SDK, Anthropic only), or `codex` (OpenAI Codex SDK, OpenAI only) |
+| `model`         | Model name (e.g. `claude-opus-5`, `gpt-5.1-codex`, `kimi-k2`, or `provider/model-id`; the `provider/model-id` form requires the `pi` harness)               |
+| `workspace`     | Root directory the agent can access                                                                                                                         |
+| `personality`   | Optional: give your assistant a `name` and `traits` description                                                                                             |
+| `env`           | Optional: environment variables to inject at startup                                                                                                        |
 
-> **Picking a harness for newer Claude models.** The `pi` harness resolves `model`
+> **Switching harnesses starts a new conversation.** Each harness mints its own
+> kind of session reference, and a session id from one is meaningless to another,
+> so a stored session is only resumed by the harness that created it. Changing
+> `harness` therefore begins a fresh conversation rather than resuming the old one.
+
+> **Picking a harness for newer models.** The `pi` harness resolves `model`
 > against the Pi SDK's bundled model registry and throws `Unknown model` on ids it
-> doesn't recognise, so it trails Anthropic releases. The `claude` harness hands the
-> id straight to the Claude Agent SDK without validating it, so the newest models
-> (e.g. `claude-opus-5`) work there as soon as they ship.
+> doesn't recognise, so it trails provider releases. The `claude` and `codex`
+> harnesses hand the id straight to their SDK without validating it, so the newest
+> models (e.g. `claude-opus-5`, `gpt-5.1-codex-max`) work there as soon as they ship.
+
+### Codex harness options
+
+> **Heads-up on install size.** `@openai/codex-sdk` wraps the `codex` CLI and pulls
+> in a ~320 MB prebuilt binary for your platform, whichever harness you end up
+> using. If you only ever run the `pi` or `claude` harness and want to skip it,
+> install with `npm install --omit=optional` — the binary is an optional
+> dependency of `@openai/codex`, and only the `codex` harness needs it.
+
+The `codex` harness accepts an optional `codex` block in `~/.pi-pipe/settings.json`.
+Its defaults match how the `pi` and `claude` harnesses already run — full workspace
+access and no interactive approvals, because a chat bot has nobody at a terminal to
+answer an approval prompt and a blocked turn would just hang.
+
+```json
+{
+  "harness": "codex",
+  "model": "gpt-5.1-codex",
+  "codex": {
+    "sandboxMode": "danger-full-access",
+    "approvalPolicy": "never",
+    "webSearch": true,
+    "skipGitRepoCheck": true,
+    "reasoningEffort": "medium"
+  }
+}
+```
+
+| Option             | What it does                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `sandboxMode`      | `read-only`, `workspace-write`, or `danger-full-access` (default) — set `workspace-write` to fence Codex into the workspace |
+| `approvalPolicy`   | `never` (default), `on-request`, `on-failure`, or `untrusted` — anything but `never` will stall a chat turn                 |
+| `webSearch`        | Whether Codex may search the web (default: `true`)                                                                          |
+| `skipGitRepoCheck` | Allow a workspace that isn't a git repository (default: `true`)                                                             |
+| `reasoningEffort`  | Optional: `minimal` … `max` — omitted means the Codex default                                                               |
+
+Because the Codex SDK has no hook for appending to the agent's system prompt,
+pi-pipe prepends its instructions (chat style, attachment / keyboard / memory
+markers) to the first message of each Codex thread. Later turns inherit them from
+the thread transcript, including after a restart.
 
 ### Authentication
 
 The active harness reads provider credentials from the environment:
 
 - `ANTHROPIC_API_KEY` — required for Claude models (and for the entire `claude` harness)
-- `OPENAI_API_KEY` — required for GPT / OpenAI models (Pi harness)
+- `OPENAI_API_KEY` — required for GPT / OpenAI models (Pi and Codex harnesses)
 - Other providers (Pi harness): see the [Pi providers docs](https://pi.dev/docs/latest/providers)
 
-The `claude` harness only supports Anthropic models; use the `pi` harness for any other provider.
+The `claude` harness only supports Anthropic models and the `codex` harness only
+supports OpenAI models; use the `pi` harness for any other provider.
+
+The `codex` harness shells out to the bundled `codex` CLI, which reads its own
+credentials: run `codex login` once for a ChatGPT sign-in, or set `CODEX_API_KEY`
+(or `OPENAI_API_KEY`) in the environment.
 
 Set them in your shell profile or in `~/.pi-pipe/.env`.
 
@@ -189,21 +239,21 @@ Set them in your shell profile or in `~/.pi-pipe/.env`.
 
 For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the project root.
 
-| Variable                          | What it does                                                               |
-| --------------------------------- | -------------------------------------------------------------------------- |
-| `PIPIPE_HARNESS`                  | Agent harness: `pi` (default) or `claude` (overrides the settings value)   |
-| `PIPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)     |
-| `PIPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                      |
-| `PIPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                            |
-| `PIPIPE_SUMMARY_PROMPT_TEMPLATE`  | Template for summary requests (supports `{{workspace}}` and `{{request}}`) |
-| `PIPIPE_TRANSCRIPT_LOG_ENABLED`   | Log conversations to a file                                                |
-| `PIPIPE_TRANSCRIPT_LOG_PATH`      | Path for transcript log file                                               |
-| `PIPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation                                   |
-| `PIPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                 |
-| `PIPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                        |
-| `PIPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)            |
-| `PIPIPE_DISCORD_USE_THREADS`      | Auto-create a Discord thread per session (`true`/`false`, default: `true`) |
-| `PIPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                            |
+| Variable                          | What it does                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `PIPIPE_HARNESS`                  | Agent harness: `pi` (default), `claude`, or `codex` (overrides the settings value) |
+| `PIPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)             |
+| `PIPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                              |
+| `PIPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                                    |
+| `PIPIPE_SUMMARY_PROMPT_TEMPLATE`  | Template for summary requests (supports `{{workspace}}` and `{{request}}`)         |
+| `PIPIPE_TRANSCRIPT_LOG_ENABLED`   | Log conversations to a file                                                        |
+| `PIPIPE_TRANSCRIPT_LOG_PATH`      | Path for transcript log file                                                       |
+| `PIPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation                                           |
+| `PIPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                         |
+| `PIPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                                |
+| `PIPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)                    |
+| `PIPIPE_DISCORD_USE_THREADS`      | Auto-create a Discord thread per session (`true`/`false`, default: `true`)         |
+| `PIPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                                    |
 
 ### Permissions
 

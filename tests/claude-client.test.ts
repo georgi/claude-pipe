@@ -84,7 +84,10 @@ describe('ClaudeClient (Claude Agent SDK)', () => {
     })
 
     expect(result).toBe('hello from assistant')
-    expect(store.set).toHaveBeenCalledWith('telegram:1', { sessionId: 'sess-new' })
+    expect(store.set).toHaveBeenCalledWith('telegram:1', {
+      harness: 'claude',
+      sessionId: 'sess-new'
+    })
 
     expect(queryMock).toHaveBeenCalledTimes(1)
     const [callArgs] = queryMock.mock.calls[0] as [
@@ -147,6 +150,52 @@ describe('ClaudeClient (Claude Agent SDK)', () => {
     // The final streaming update carries the cumulative text, not just the last block.
     const streamed = updates.filter((u) => u.kind === 'text_streaming')
     expect(streamed.at(-1)?.text).toBe('Part one. Part two.')
+  })
+
+  it('ignores a thread id left behind by the codex harness', async () => {
+    const { ClaudeClient } = await import('../src/core/claude-client.js')
+    const store = {
+      // Codex stores its thread ids in the same field; resuming with one would
+      // point the SDK at a session it never created.
+      get: vi.fn(() => ({
+        harness: 'codex' as const,
+        sessionId: 'codex-thread-id',
+        updatedAt: new Date().toISOString()
+      })),
+      set: vi.fn(async () => undefined),
+      clear: vi.fn(async () => undefined)
+    }
+
+    queryMock.mockReturnValue(
+      makeQueryGen([
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'fresh',
+          session_id: 'sess-fresh'
+        }
+      ])
+    )
+
+    const client = new ClaudeClient(makeConfig() as never, store as never, {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+
+    await client.runTurn('discord:abc', 'continue', {
+      workspace: '/tmp/workspace',
+      channel: 'discord',
+      chatId: 'abc'
+    })
+
+    const [callArgs] = queryMock.mock.calls[0] as [{ options: Record<string, unknown> }]
+    expect(callArgs.options.resume).toBeUndefined()
+    expect(store.set).toHaveBeenCalledWith('discord:abc', {
+      harness: 'claude',
+      sessionId: 'sess-fresh'
+    })
   })
 
   it('passes resume session id when available', async () => {
