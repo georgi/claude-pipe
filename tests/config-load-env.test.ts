@@ -149,6 +149,72 @@ describe('loadConfig', () => {
     expect(cfg.transcriptLog.maxFiles).toBe(4)
   })
 
+  it('forwards an explicit codex block from settings.json', async () => {
+    const settingsDir = join(fakeHome, '.pi-pipe')
+    const fsp = await import('node:fs/promises')
+    await fsp.mkdir(settingsDir, { recursive: true })
+    await fsp.writeFile(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({
+        channel: 'cli',
+        token: '',
+        allowFrom: [],
+        harness: 'codex',
+        model: 'gpt-5.1-codex',
+        workspace: fakeHome,
+        codex: {
+          sandboxMode: 'workspace-write',
+          webSearch: false,
+          reasoningEffort: 'high'
+        }
+      }),
+      'utf-8'
+    )
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    const cfg = loadConfig()
+
+    expect(cfg.harness).toBe('codex')
+    // The values the settings file set must survive, not be replaced by the
+    // schema defaults (danger-full-access / web search on / no effort).
+    expect(cfg.codex.sandboxMode).toBe('workspace-write')
+    expect(cfg.codex.webSearch).toBe(false)
+    expect(cfg.codex.reasoningEffort).toBe('high')
+    // Fields the file left out still fall back to their defaults.
+    expect(cfg.codex.approvalPolicy).toBe('never')
+    expect(cfg.codex.skipGitRepoCheck).toBe(true)
+  })
+
+  it('applies codex defaults when settings.json omits the block', async () => {
+    const settingsDir = join(fakeHome, '.pi-pipe')
+    const fsp = await import('node:fs/promises')
+    await fsp.mkdir(settingsDir, { recursive: true })
+    await fsp.writeFile(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({
+        channel: 'cli',
+        token: '',
+        allowFrom: [],
+        harness: 'codex',
+        model: 'gpt-5.1-codex',
+        workspace: fakeHome
+      }),
+      'utf-8'
+    )
+
+    vi.resetModules()
+    const { loadConfig } = await import('../src/config/load.js')
+    const cfg = loadConfig()
+
+    expect(cfg.codex).toEqual({
+      sandboxMode: 'danger-full-access',
+      approvalPolicy: 'never',
+      webSearch: true,
+      skipGitRepoCheck: true
+    })
+  })
+
   it('loads from ~/.pi-pipe/settings.json when present', async () => {
     const settingsDir = join(fakeHome, '.pi-pipe')
     await writeFile.bind(null) // ensure import OK

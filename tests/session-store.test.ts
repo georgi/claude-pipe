@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { SessionStore } from '../src/core/session-store.js'
+import { SessionStore, sessionForHarness } from '../src/core/session-store.js'
 
 describe('SessionStore', () => {
   it('persists and reloads session records', async () => {
@@ -124,5 +124,44 @@ describe('SessionStore', () => {
     // Should succeed despite stale lock
     await store.set('telegram:789', { sessionFile: '/sessions/sess-stale.jsonl' })
     expect(store.get('telegram:789')?.sessionFile).toBe('/sessions/sess-stale.jsonl')
+  })
+})
+
+describe('sessionForHarness', () => {
+  const rec = (ref: Record<string, string>) => ({ ...ref, updatedAt: 'now' }) as never
+
+  it('returns a record written by the same harness', () => {
+    const codex = rec({ harness: 'codex', sessionId: 'thread-1' })
+    expect(sessionForHarness(codex, 'codex')).toBe(codex)
+  })
+
+  it('rejects a record written by a different harness', () => {
+    // Claude and Codex share the sessionId field, so this is the case that
+    // would otherwise hand a Claude session id to resumeThread().
+    expect(sessionForHarness(rec({ harness: 'claude', sessionId: 's-1' }), 'codex')).toBeUndefined()
+    expect(sessionForHarness(rec({ harness: 'codex', sessionId: 't-1' }), 'claude')).toBeUndefined()
+    expect(
+      sessionForHarness(rec({ harness: 'pi', sessionFile: '/s.jsonl' }), 'codex')
+    ).toBeUndefined()
+    expect(sessionForHarness(rec({ harness: 'claude', sessionId: 's-1' }), 'pi')).toBeUndefined()
+  })
+
+  it('attributes untagged legacy records by their populated field', () => {
+    // Records predating the harness tag: only pi and claude existed then.
+    const legacyPi = rec({ sessionFile: '/sessions/a.jsonl' })
+    const legacyClaude = rec({ sessionId: 'sess-legacy' })
+
+    expect(sessionForHarness(legacyPi, 'pi')).toBe(legacyPi)
+    expect(sessionForHarness(legacyClaude, 'claude')).toBe(legacyClaude)
+
+    expect(sessionForHarness(legacyPi, 'claude')).toBeUndefined()
+    expect(sessionForHarness(legacyClaude, 'pi')).toBeUndefined()
+    // Codex postdates the untagged format, so no untagged record is ever its.
+    expect(sessionForHarness(legacyClaude, 'codex')).toBeUndefined()
+    expect(sessionForHarness(legacyPi, 'codex')).toBeUndefined()
+  })
+
+  it('returns undefined for a missing record', () => {
+    expect(sessionForHarness(undefined, 'codex')).toBeUndefined()
   })
 })

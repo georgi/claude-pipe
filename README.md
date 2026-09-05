@@ -167,6 +167,11 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 | `personality`   | Optional: give your assistant a `name` and `traits` description                                                                                             |
 | `env`           | Optional: environment variables to inject at startup                                                                                                        |
 
+> **Switching harnesses starts a new conversation.** Each harness mints its own
+> kind of session reference, and a session id from one is meaningless to another,
+> so a stored session is only resumed by the harness that created it. Changing
+> `harness` therefore begins a fresh conversation rather than resuming the old one.
+
 > **Picking a harness for newer models.** The `pi` harness resolves `model`
 > against the Pi SDK's bundled model registry and throws `Unknown model` on ids it
 > doesn't recognise, so it trails provider releases. The `claude` and `codex`

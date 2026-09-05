@@ -54,7 +54,7 @@ function makeConfig(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function makeStore(saved?: { sessionId: string }) {
+function makeStore(saved?: { harness?: string; sessionId: string }) {
   return {
     get: vi.fn(() => saved),
     set: vi.fn(async () => undefined),
@@ -156,7 +156,10 @@ describe('CodexClient (Codex SDK)', () => {
     const result = await client.runTurn('telegram:1', 'hello', context)
 
     expect(result).toBe('hello from codex')
-    expect(store.set).toHaveBeenCalledWith('telegram:1', { sessionId: 'thread-1' })
+    expect(store.set).toHaveBeenCalledWith('telegram:1', {
+      harness: 'codex',
+      sessionId: 'thread-1'
+    })
     expect(startThreadMock).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'gpt-5.1-codex',
@@ -199,7 +202,7 @@ describe('CodexClient (Codex SDK)', () => {
 
     const client = new CodexClient(
       makeConfig() as never,
-      makeStore({ sessionId: 'thread-saved' }) as never,
+      makeStore({ harness: 'codex', sessionId: 'thread-saved' }) as never,
       logger()
     )
     const result = await client.runTurn('telegram:1', 'again', context)
@@ -208,6 +211,79 @@ describe('CodexClient (Codex SDK)', () => {
     expect(startThreadMock).not.toHaveBeenCalled()
     expect(resumeThreadMock).toHaveBeenCalledWith('thread-saved', expect.any(Object))
     expect(thread.runStreamed.mock.calls[0]![0]).toBe('again')
+  })
+
+  it('ignores a session id left behind by another harness', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    const thread = makeThread([
+      { type: 'thread.started', thread_id: 'thread-fresh' },
+      { type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'fresh' } }
+    ])
+    startThreadMock.mockReturnValue(thread)
+
+    // Claude stores its session ids in the same field; resuming with one would
+    // point Codex at a thread that does not exist.
+    const store = makeStore({ harness: 'claude', sessionId: 'claude-session-id' })
+    const client = new CodexClient(makeConfig() as never, store as never, logger())
+    await client.runTurn('telegram:1', 'go', context)
+
+    expect(resumeThreadMock).not.toHaveBeenCalled()
+    expect(startThreadMock).toHaveBeenCalledTimes(1)
+    // The fresh thread is re-tagged, so switching back to Claude won't pick it up.
+    expect(store.set).toHaveBeenCalledWith('telegram:1', {
+      harness: 'codex',
+      sessionId: 'thread-fresh'
+    })
+  })
+
+  it('ignores an untagged legacy session id', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    startThreadMock.mockReturnValue(
+      makeThread([
+        { type: 'thread.started', thread_id: 'thread-fresh' },
+        { type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'fresh' } }
+      ])
+    )
+
+    // Records written before the harness tag existed predate the codex harness
+    // entirely, so an untagged sessionId can only have come from Claude.
+    const store = makeStore({ sessionId: 'legacy-session-id' })
+    const client = new CodexClient(makeConfig() as never, store as never, logger())
+    await client.runTurn('telegram:1', 'go', context)
+
+    expect(resumeThreadMock).not.toHaveBeenCalled()
+    expect(startThreadMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('resumes across a restart when a fresh client reads the stored thread id', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    const store = makeStore()
+    startThreadMock.mockReturnValue(
+      makeThread([
+        { type: 'thread.started', thread_id: 'thread-persisted' },
+        { type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'first' } }
+      ])
+    )
+
+    const before = new CodexClient(makeConfig() as never, store as never, logger())
+    await before.runTurn('telegram:1', 'first', context)
+    const [, written] = store.set.mock.calls[0] as [string, { harness: string; sessionId: string }]
+
+    // A new process: no in-memory thread cache, only what the store holds.
+    const resumed = makeThread(
+      [{ type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'second' } }],
+      'thread-persisted'
+    )
+    resumeThreadMock.mockReturnValue(resumed)
+    store.get.mockReturnValue({ ...written, updatedAt: 'now' })
+
+    const after = new CodexClient(makeConfig() as never, store as never, logger())
+    const result = await after.runTurn('telegram:1', 'second', context)
+
+    expect(result).toBe('second')
+    expect(resumeThreadMock).toHaveBeenCalledWith('thread-persisted', expect.any(Object))
+    // Instructions are not replayed — the resumed thread already carries them.
+    expect(resumed.runStreamed.mock.calls[0]![0]).toBe('second')
   })
 
   it('maps command, file-change and MCP items onto tool-call updates', async () => {
@@ -337,6 +413,130 @@ describe('CodexClient (Codex SDK)', () => {
     const client = new CodexClient(makeConfig() as never, makeStore() as never, logger())
     const result = await client.runTurn('telegram:1', 'go', context)
     expect(result).toBe('partial answer, complete')
+  })
+
+  it('surfaces a terminal turn.failed even after the agent produced text', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    const thread = makeThread([
+      { type: 'thread.started', thread_id: 't' },
+      {
+        type: 'item.completed',
+        item: { id: 'm', type: 'agent_message', text: 'I will update the files now.' }
+      },
+      { type: 'turn.failed', error: { message: 'model overloaded' } }
+    ])
+    startThreadMock.mockReturnValue(thread)
+
+    const client = new CodexClient(makeConfig() as never, makeStore() as never, logger())
+    const result = await client.runTurn('telegram:1', 'go', context)
+
+    // The progress note alone would read as success; the failure has to reach
+    // the user, since AgentLoop drops turn_finished updates.
+    expect(result).toBe('I will update the files now.\n\nSorry, I hit an error: model overloaded')
+  })
+
+  it('surfaces a thrown stream error after partial text', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    startThreadMock.mockReturnValue({
+      id: null,
+      runStreamed: vi.fn(async () => ({
+        events: (async function* () {
+          yield {
+            type: 'item.completed',
+            item: { id: 'm', type: 'agent_message', text: 'Starting on it.' }
+          }
+          throw new Error('codex CLI exited unexpectedly')
+        })()
+      }))
+    })
+    const log = logger()
+
+    const client = new CodexClient(makeConfig() as never, makeStore() as never, log)
+    const result = await client.runTurn('telegram:1', 'go', context)
+
+    expect(result).toBe('Starting on it.\n\nSorry, I hit an error: codex CLI exited unexpectedly')
+    expect(log.error).toHaveBeenCalledWith(
+      'codex.turn_failed',
+      expect.objectContaining({ error: 'codex CLI exited unexpectedly' })
+    )
+  })
+
+  it('does not report a tool failure the agent recovered from', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    const thread = makeThread([
+      { type: 'thread.started', thread_id: 't' },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'cmd-1',
+          type: 'command_execution',
+          command: 'npm test',
+          aggregated_output: '1 test failed',
+          exit_code: 1,
+          status: 'failed'
+        }
+      },
+      {
+        type: 'item.completed',
+        item: { id: 'm', type: 'agent_message', text: 'Fixed the failing test.' }
+      },
+      { type: 'turn.completed', usage: {} }
+    ])
+    startThreadMock.mockReturnValue(thread)
+
+    const client = new CodexClient(makeConfig() as never, makeStore() as never, logger())
+    const result = await client.runTurn('telegram:1', 'go', context)
+
+    // A failed command the agent worked around is not the turn's outcome.
+    expect(result).toBe('Fixed the failing test.')
+  })
+
+  it('reports a tool failure when it is the only explanation for an empty turn', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    startThreadMock.mockReturnValue(
+      makeThread([
+        { type: 'thread.started', thread_id: 't' },
+        {
+          type: 'item.completed',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'npm test',
+            aggregated_output: 'ENOENT: no such file',
+            exit_code: 1,
+            status: 'failed'
+          }
+        },
+        { type: 'turn.completed', usage: {} }
+      ])
+    )
+
+    const client = new CodexClient(makeConfig() as never, makeStore() as never, logger())
+    const result = await client.runTurn('telegram:1', 'go', context)
+    expect(result).toBe('Sorry, I hit an error: ENOENT: no such file')
+  })
+
+  it('marks the turn_finished update as failed on a terminal error', async () => {
+    const { CodexClient } = await import('../src/core/codex-client.js')
+    startThreadMock.mockReturnValue(
+      makeThread([
+        { type: 'thread.started', thread_id: 't' },
+        { type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'working' } },
+        { type: 'error', message: 'stream closed' }
+      ])
+    )
+
+    const messages: string[] = []
+    const client = new CodexClient(makeConfig() as never, makeStore() as never, logger())
+    const result = await client.runTurn('telegram:1', 'go', {
+      ...context,
+      onUpdate: async (event) => {
+        if (event.kind === 'turn_finished') messages.push(event.message)
+      }
+    })
+
+    expect(messages).toEqual(['Turn failed'])
+    expect(result).toBe('working\n\nSorry, I hit an error: stream closed')
   })
 
   it('surfaces a failed turn as an error message', async () => {

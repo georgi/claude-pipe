@@ -1,7 +1,36 @@
 import { mkdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-import type { SessionMap, SessionRecord, SessionRef } from './types.js'
+import type { HarnessName, SessionMap, SessionRecord, SessionRef } from './types.js'
+
+/**
+ * The field an untagged legacy record would have used, per harness.
+ *
+ * Records written before {@link SessionRef.harness} existed carry no tag, so
+ * ownership has to be inferred from which field is populated. Only `pi` and
+ * `claude` shipped in that era — `codex` came later, so an untagged record can
+ * never be its, and a Claude session id must not be handed to Codex.
+ */
+const LEGACY_FIELD: Record<HarnessName, keyof SessionRef | undefined> = {
+  pi: 'sessionFile',
+  claude: 'sessionId',
+  codex: undefined
+}
+
+/**
+ * Narrows a stored record to one the given harness can actually resume,
+ * returning `undefined` when it belongs to a different harness so the caller
+ * starts a fresh session instead of resuming with an incompatible id.
+ */
+export function sessionForHarness(
+  record: SessionRecord | undefined,
+  harness: HarnessName
+): SessionRecord | undefined {
+  if (!record) return undefined
+  if (record.harness) return record.harness === harness ? record : undefined
+  const legacyField = LEGACY_FIELD[harness]
+  return legacyField && record[legacyField] ? record : undefined
+}
 
 const LOCK_RETRIES = 10
 const LOCK_RETRY_DELAY_MS = 50
@@ -11,7 +40,8 @@ const LOCK_STALE_MS = 10_000
  * File-backed conversation session map.
  *
  * Persists only conversation key -> harness session reference metadata
- * (a {@link SessionRef}: a Pi session-file path or a Claude session id).
+ * (a {@link SessionRef}: a Pi session-file path, or a Claude session id /
+ * Codex thread id tagged with the harness that minted it).
  * Uses a directory-based lockfile to prevent concurrent write corruption
  * across multiple processes.
  */

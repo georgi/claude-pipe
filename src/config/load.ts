@@ -60,6 +60,10 @@ export function loadConfig(): PiPipeConfig {
 
     return configSchema.parse({
       harness: parseHarness(process.env.PIPIPE_HARNESS ?? s.harness),
+      // Omitted entirely when absent so the schema's defaults apply; passing
+      // an explicit `undefined` would too, but this keeps the parsed input
+      // free of keys the settings file never set.
+      ...(s.codex ? { codex: s.codex } : {}),
       model: s.model,
       workspace: s.workspace,
       channels: {

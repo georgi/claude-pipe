@@ -2,7 +2,7 @@ import { Codex, type Thread, type ThreadEvent, type ThreadItem } from '@openai/c
 
 import type { PiPipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
-import { SessionStore } from './session-store.js'
+import { SessionStore, sessionForHarness } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
 import { condense, shortPath, summarizeToolInput } from './tool-format.js'
@@ -58,6 +58,17 @@ export function describeItem(
       return undefined
   }
 }
+
+/**
+ * An error surfaced during a turn.
+ *
+ * `terminal` errors end the turn with no answer — the stream died or Codex
+ * reported the turn itself as failed — and must reach the user even when
+ * partial assistant text was already produced. Everything else is recoverable:
+ * a failed shell command or MCP call that the agent may well work around, so
+ * it is only worth reporting when the turn ends with nothing else to say.
+ */
+type TurnError = { terminal: boolean; message: string }
 
 /** True when a terminal item reports failure rather than success. */
 function itemFailed(item: ThreadItem): boolean {
@@ -134,7 +145,12 @@ export class CodexClient implements ModelClient {
 
   /**
    * Returns the thread for a conversation, resuming the persisted one when
-   * there is a saved id and starting a fresh one otherwise.
+   * there is a saved Codex thread id and starting a fresh one otherwise.
+   *
+   * The stored id is only used when the record was written by this harness:
+   * Claude keeps its own session ids in the same field, and handing one to
+   * `resumeThread()` would resume nothing useful. Switching harnesses
+   * therefore starts a new conversation rather than resuming a foreign one.
    *
    * A cached thread is dropped when `config.model` has changed since it was
    * built (e.g. after `/reload` or `/pi_model`), so the next turn runs on the
@@ -144,7 +160,7 @@ export class CodexClient implements ModelClient {
     const cached = this.threads.get(conversationKey)
     if (cached && this.threadModels.get(conversationKey) === this.config.model) return cached
 
-    const saved = this.store.get(conversationKey)
+    const saved = sessionForHarness(this.store.get(conversationKey), 'codex')
     // A cached thread already knows its id even when the store hasn't caught
     // up, so prefer it over the persisted one when rebuilding for a new model.
     const threadId = cached?.id ?? saved?.sessionId
@@ -191,13 +207,14 @@ export class CodexClient implements ModelClient {
         .join('\n\n')
 
     const startedItems = new Set<string>()
-    let errorText = ''
+    let terminalError = ''
+    let recoverableError = ''
     let aborted = false
 
     try {
       const { events } = await thread.runStreamed(prompt, { signal: abort.signal })
       for await (const event of events) {
-        const text = await this.handleEvent(
+        const error = await this.handleEvent(
           event,
           conversationKey,
           context,
@@ -205,16 +222,19 @@ export class CodexClient implements ModelClient {
           startedItems,
           joinText
         )
-        if (text) errorText = text
+        if (error?.terminal) {
+          // Nothing useful follows a dead stream or a failed turn, and the
+          // early return lets the generator run its cleanup.
+          terminalError = error.message
+          break
+        }
+        if (error) recoverableError = error.message
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (/abort/i.test(msg) || abort.signal.aborted) {
-        aborted = true
-      } else {
-        errorText = msg
-        this.logger.error('codex.turn_failed', { conversationKey, error: msg })
-      }
+      // A thrown stream error kills the turn the same way `turn.failed` does.
+      if (/abort/i.test(msg) || abort.signal.aborted) aborted = true
+      else terminalError = msg
     } finally {
       this.abortControllers.delete(conversationKey)
     }
@@ -222,24 +242,39 @@ export class CodexClient implements ModelClient {
     await this.publishUpdate(context, {
       kind: 'turn_finished',
       conversationKey,
-      message: aborted ? 'Turn cancelled' : errorText ? 'Turn failed' : 'Turn finished'
+      message: aborted ? 'Turn cancelled' : terminalError ? 'Turn failed' : 'Turn finished'
     })
 
     const responseText = joinText()
     if (responseText) {
       await this.transcript.log(conversationKey, { type: 'assistant_text', text: responseText })
+    }
+
+    // A terminal failure is reported even when the agent already said
+    // something: text like "I'll update the files now" is a progress note, not
+    // an answer, and the agent loop drops `turn_finished` updates — so this
+    // return value is the only place the user can learn the turn died.
+    if (terminalError) {
+      this.logger.error('codex.turn_failed', { conversationKey, error: terminalError })
+      const notice = `Sorry, I hit an error: ${terminalError.slice(0, 200)}`
+      return responseText ? `${responseText}\n\n${notice}` : notice
+    }
+
+    if (responseText) {
       this.logger.info('codex.turn_finished', { conversationKey })
       return responseText
     }
     if (aborted) return 'Cancelled.'
-    if (errorText) return `Sorry, I hit an error: ${errorText.slice(0, 200)}`
+    // No answer and no terminal failure: a tool error is the best explanation
+    // available for why the turn came back empty.
+    if (recoverableError) return `Sorry, I hit an error: ${recoverableError.slice(0, 200)}`
     return 'I completed processing but have no response to return.'
   }
 
   /**
    * Translates one Codex event into transcript entries and channel updates.
-   * Returns an error message when the event carries one, so the caller can
-   * surface it if the turn produces no text.
+   * Returns a {@link TurnError} when the event carries one, classified so the
+   * caller knows whether it ended the turn or the agent may recover from it.
    */
   private async handleEvent(
     event: ThreadEvent,
@@ -248,23 +283,25 @@ export class CodexClient implements ModelClient {
     messagesByItemId: Map<string, string>,
     startedItems: Set<string>,
     joinText: () => string
-  ): Promise<string> {
+  ): Promise<TurnError | undefined> {
     await this.transcript.log(conversationKey, { type: event.type })
 
     if (event.type === 'thread.started') {
-      await this.store.set(conversationKey, { sessionId: event.thread_id })
-      return ''
+      await this.store.set(conversationKey, { harness: 'codex', sessionId: event.thread_id })
+      return undefined
     }
 
-    if (event.type === 'error') return event.message
-    if (event.type === 'turn.failed') return event.error.message
+    // Both end the turn: `error` is the stream's own unrecoverable error, and
+    // `turn.failed` is Codex reporting the turn itself as failed.
+    if (event.type === 'error') return { terminal: true, message: event.message }
+    if (event.type === 'turn.failed') return { terminal: true, message: event.error.message }
 
     if (
       event.type !== 'item.started' &&
       event.type !== 'item.updated' &&
       event.type !== 'item.completed'
     ) {
-      return ''
+      return undefined
     }
 
     const item = event.item
@@ -279,23 +316,25 @@ export class CodexClient implements ModelClient {
         message: 'Streaming response...',
         text
       })
-      return ''
+      return undefined
     }
 
+    // An ErrorItem is documented as non-fatal — the turn carries on — so it is
+    // only worth surfacing if nothing better turns up before the turn ends.
     if (item.type === 'error') {
       this.logger.warn('codex.item_error', { conversationKey, message: item.message })
-      return item.message
+      return { terminal: false, message: item.message }
     }
 
     // Reasoning summaries are recorded but never pushed to a chat channel —
     // they'd bury the actual answer on a phone screen.
     if (item.type === 'reasoning') {
       await this.transcript.log(conversationKey, { type: 'reasoning', text: item.text })
-      return ''
+      return undefined
     }
 
     const described = describeItem(item)
-    if (!described) return ''
+    if (!described) return undefined
     const { toolName, toolDetail } = described
 
     // Codex emits `item.completed` for some items (file_change) without a
@@ -319,7 +358,7 @@ export class CodexClient implements ModelClient {
       })
     }
 
-    if (event.type !== 'item.completed') return ''
+    if (event.type !== 'item.completed') return undefined
 
     const failed = itemFailed(item)
     if (failed) {
@@ -340,13 +379,19 @@ export class CodexClient implements ModelClient {
       ...(toolDetail ? { toolDetail } : {})
     })
 
-    // A failed command is worth surfacing when nothing else explains an empty
-    // turn, but never overrides real assistant text.
+    // A failed tool call is recoverable by definition — the agent sees the
+    // failure and usually retries — so it only explains an empty turn and
+    // never overrides real assistant text.
     if (failed && item.type === 'command_execution') {
-      return condense(item.aggregated_output || `command failed: ${item.command}`, 200)
+      return {
+        terminal: false,
+        message: condense(item.aggregated_output || `command failed: ${item.command}`, 200)
+      }
     }
-    if (failed && item.type === 'mcp_tool_call' && item.error) return item.error.message
-    return ''
+    if (failed && item.type === 'mcp_tool_call' && item.error) {
+      return { terminal: false, message: item.error.message }
+    }
+    return undefined
   }
 
   cancelTurn(conversationKey: string): void {
