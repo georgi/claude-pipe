@@ -102,18 +102,16 @@ export class MemoryStore {
       return rows.map((r) => r.key)
     }
 
-    const rows = this.db
-      .prepare('SELECT key FROM memories ORDER BY key')
-      .all() as Array<{ key: string }>
+    const rows = this.db.prepare('SELECT key FROM memories ORDER BY key').all() as Array<{
+      key: string
+    }>
     return rows.map((r) => r.key)
   }
 
   /** Gets a specific memory by key. */
   get(key: string): MemoryEntry | undefined {
     const row = this.db
-      .prepare(
-        'SELECT key, content, metadata, created_at, updated_at FROM memories WHERE key = ?'
-      )
+      .prepare('SELECT key, content, metadata, created_at, updated_at FROM memories WHERE key = ?')
       .get(key) as
       | {
           key: string

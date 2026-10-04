@@ -210,7 +210,7 @@ export async function transcribeAudio(audioFilePath: string): Promise<Transcribe
  * Returns the local file path.
  */
 export async function downloadToTemp(url: string, extension: string): Promise<string> {
-  const tempDir = join(tmpdir(), 'claude-pipe-audio')
+  const tempDir = join(tmpdir(), 'pi-pipe-audio')
   await mkdir(tempDir, { recursive: true })
 
   const filePath = join(tempDir, `${randomUUID()}${extension}`)

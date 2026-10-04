@@ -72,11 +72,39 @@ export interface SentMessage {
   messageId: string
 }
 
+/** The agent harnesses that can own a persisted session. */
+export type HarnessName = 'pi' | 'claude' | 'codex'
+
 /**
- * Persistent mapping record from conversation key to Claude session ID.
+ * Harness-agnostic reference to a persisted conversation session.
+ *
+ * Each harness resumes conversations differently, so the store keeps whatever
+ * the active harness needs:
+ * - Pi persists a session-file path (`sessionFile`) opened via `SessionManager`.
+ * - Claude persists an opaque `sessionId` passed back via `query({ resume })`.
+ * - Codex persists an opaque thread id, also in `sessionId`, passed back via
+ *   `resumeThread()`.
+ *
+ * Because Claude and Codex share the `sessionId` field, every record also
+ * carries the `harness` that wrote it: an id minted by one harness is
+ * meaningless to another, and resuming with it would either fail or silently
+ * attach the conversation to the wrong session. Readers must therefore check
+ * `harness` before using an id — see `sessionForHarness`.
+ *
+ * `harness` is optional only for records written before the field existed;
+ * every write from here on sets it.
  */
-export interface SessionRecord {
-  sessionId: string
+export interface SessionRef {
+  harness?: HarnessName
+  sessionFile?: string
+  sessionId?: string
+}
+
+/**
+ * Persistent mapping record from conversation key to a harness session
+ * reference, plus bookkeeping metadata.
+ */
+export interface SessionRecord extends SessionRef {
   updatedAt: string
 }
 
@@ -106,6 +134,8 @@ export interface AgentTurnUpdate {
   message: string
   toolName?: string
   toolUseId?: string
+  /** Short human-readable summary of the tool's arguments (e.g. the shell command). */
+  toolDetail?: string
   /** Partial accumulated response text, present when kind is 'text_streaming'. */
   text?: string
 }

@@ -12,11 +12,11 @@ export interface SkillInfo {
 }
 
 /**
- * Scans ~/.claude/skills/ for user-invocable skills by reading SKILL.md frontmatter.
- * Returns skills that have `user-invocable: true` set.
+ * Scans Pi's skills directory (~/.pi/agent/skills/) for user-invocable skills
+ * by reading SKILL.md frontmatter. Returns skills that have `user-invocable: true` set.
  */
 export function discoverSkills(): SkillInfo[] {
-  const skillsDir = join(homedir(), '.claude', 'skills')
+  const skillsDir = join(homedir(), '.pi', 'agent', 'skills')
   if (!existsSync(skillsDir)) return []
 
   const skills: SkillInfo[] = []

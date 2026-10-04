@@ -1,7 +1,7 @@
 import readline from 'node:readline'
 import type { Readable, Writable } from 'node:stream'
 
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import type {
   FileAttachment,
@@ -28,13 +28,13 @@ export class CliChannel implements Channel {
   private readonly io: CliChannelIo
 
   constructor(
-    private readonly config: ClaudePipeConfig,
+    private readonly config: PiPipeConfig,
     private readonly bus: MessageBus,
     private readonly logger: Logger,
     io?: Partial<CliChannelIo>
   ) {
-    this.senderId = process.env.CLAUDEPIPE_CLI_SENDER_ID || 'local-user'
-    this.chatId = process.env.CLAUDEPIPE_CLI_CHAT_ID || 'local-chat'
+    this.senderId = process.env.PIPIPE_CLI_SENDER_ID || 'local-user'
+    this.chatId = process.env.PIPIPE_CLI_CHAT_ID || 'local-chat'
     this.io = {
       input: io?.input ?? process.stdin,
       output: io?.output ?? process.stdout

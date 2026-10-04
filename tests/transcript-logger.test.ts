@@ -8,7 +8,7 @@ import { TranscriptLogger } from '../src/core/transcript-logger.js'
 
 describe('TranscriptLogger', () => {
   it('does not write file when disabled', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-transcript-'))
+    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-transcript-'))
     const path = join(dir, 'transcript.jsonl')
 
     const logger = new TranscriptLogger({ enabled: false, path })
@@ -18,7 +18,7 @@ describe('TranscriptLogger', () => {
   })
 
   it('writes JSONL entries when enabled', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-transcript-'))
+    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-transcript-'))
     const path = join(dir, 'transcript.jsonl')
 
     const logger = new TranscriptLogger({ enabled: true, path })

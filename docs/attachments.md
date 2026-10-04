@@ -1,6 +1,6 @@
 # Image and Media Attachments
 
-Claude Pipe supports **bidirectional** image and media attachments for both Telegram and Discord channels. Agents can receive attachments from users and send attachments back in responses. This document describes how attachments flow through the system.
+Pi Pipe supports **bidirectional** image and media attachments for both Telegram and Discord channels. Agents can receive attachments from users and send attachments back in responses. This document describes how attachments flow through the system.
 
 ## Supported Attachment Types
 
@@ -115,7 +115,7 @@ interface ModelClient {
 
 When implementing the `ModelClient` interface to handle attachments:
 
-1. **Describe attachments in text**: Since the Claude CLI currently accepts text arguments, attachments are described to the LLM:
+1. **Describe attachments in text**: Since `session.prompt()` currently accepts text arguments, attachments are described to the LLM:
    ```
    [User sent image: photo.jpg (URL: https://...)]
    [User sent document: report.pdf at /tmp/downloads/report.pdf]

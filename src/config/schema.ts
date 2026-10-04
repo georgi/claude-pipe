@@ -8,7 +8,15 @@ const channelSchema = z.object({
 
 const discordChannelSchema = channelSchema.extend({
   // Optional allowlist of Discord channel IDs. Empty/omitted means allow all channels.
-  allowChannels: z.array(z.string()).optional()
+  // Thread messages are matched against the thread's parent channel too.
+  allowChannels: z.array(z.string()).optional(),
+  // Automatically open a Discord thread per conversation so every session gets
+  // its own thread (and therefore its own agent session). Defaults to enabled.
+  useThreads: z.boolean().optional(),
+  // Discord only accepts these four auto-archive durations (minutes).
+  threadAutoArchiveMinutes: z
+    .union([z.literal(60), z.literal(1440), z.literal(4320), z.literal(10080)])
+    .optional()
 })
 
 const cliChannelSchema = z.object({
@@ -17,9 +25,16 @@ const cliChannelSchema = z.object({
 })
 
 /**
- * Runtime configuration schema for Claude Pipe.
+ * Runtime configuration schema for Pi Pipe.
  */
 export const configSchema = z.object({
+  /**
+   * Which agent harness drives conversations:
+   * - `pi`     — the Pi Coding Agent SDK (multi-provider; default).
+   * - `claude` — the Claude Agent SDK (Anthropic models only).
+   * - `codex`  — the OpenAI Codex SDK (OpenAI models only).
+   */
+  harness: z.enum(['pi', 'claude', 'codex']).default('pi'),
   model: z.string(),
   workspace: z.string(),
   channels: z.object({
@@ -58,6 +73,33 @@ export const configSchema = z.object({
       maxBytes: 1_000_000,
       maxFiles: 3
     }),
+  /**
+   * Codex-harness knobs. Ignored by every other harness.
+   *
+   * The defaults match how the Pi and Claude harnesses already run — full
+   * workspace access and no interactive approvals — because a chat bot has
+   * nobody at a terminal to answer an approval prompt, and a blocked turn
+   * would just hang. Tighten `sandboxMode` if you want Codex fenced in.
+   */
+  codex: z
+    .object({
+      sandboxMode: z
+        .enum(['read-only', 'workspace-write', 'danger-full-access'])
+        .default('danger-full-access'),
+      approvalPolicy: z.enum(['never', 'on-request', 'on-failure', 'untrusted']).default('never'),
+      webSearch: z.boolean().default(true),
+      // Codex refuses to run outside a git repository unless this is set.
+      skipGitRepoCheck: z.boolean().default(true),
+      reasoningEffort: z
+        .enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'persistent'])
+        .optional()
+    })
+    .default({
+      sandboxMode: 'danger-full-access',
+      approvalPolicy: 'never',
+      webSearch: true,
+      skipGitRepoCheck: true
+    }),
   personality: z
     .object({
       name: z.string(),
@@ -91,4 +133,4 @@ export const configSchema = z.object({
     })
 })
 
-export type ClaudePipeConfig = z.infer<typeof configSchema>
+export type PiPipeConfig = z.infer<typeof configSchema>

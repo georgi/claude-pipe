@@ -19,21 +19,19 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 1 – Check Claude CLI availability                             */
+/*  Step 1 – Check API key availability                                */
 /* ------------------------------------------------------------------ */
 
-async function checkClaudeCli(): Promise<void> {
-  const { execFileSync } = await import('node:child_process')
-  try {
-    execFileSync('claude', ['--version'], { stdio: 'pipe' })
-  } catch {
-    console.error(
-      '\n✖  Claude Code CLI not found.\n' +
-        '   Install it first: https://docs.anthropic.com/en/docs/claude-code\n'
-    )
-    process.exit(1)
+function checkApiKey(): void {
+  if (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY) {
+    console.log('✔  API key detected in environment.\n')
+    return
   }
-  console.log('✔  Claude Code CLI detected.\n')
+  console.log(
+    '⚠  No ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.\n' +
+      '   Pi will need one to talk to a model. Set the variable that matches\n' +
+      '   the provider for the model you pick below.\n'
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -97,36 +95,138 @@ async function collectCredentials(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 5 – Choose model                                              */
+/*  Step 5 – Choose agent harness                                      */
 /* ------------------------------------------------------------------ */
 
-const CLAUDE_MODEL_PRESETS: Record<string, string> = {
+type Harness = 'pi' | 'claude' | 'codex'
+
+const HARNESS_BY_CHOICE: Record<string, Harness> = {
+  '1': 'pi',
+  '2': 'claude',
+  '3': 'codex'
+}
+
+async function chooseHarness(rl: readline.Interface, current?: Harness): Promise<Harness> {
+  const defaultChoice =
+    Object.entries(HARNESS_BY_CHOICE).find(([, id]) => id === current)?.[0] ?? '1'
+  console.log(
+    '\nWhich agent harness should drive your assistant?\n' +
+      '  1) Pi Coding Agent SDK   (multi-provider: Claude, GPT, Gemini, …)\n' +
+      '  2) Claude Agent SDK      (Anthropic models only; needs ANTHROPIC_API_KEY)\n' +
+      '  3) OpenAI Codex SDK      (OpenAI models only; needs the codex CLI signed in)\n'
+  )
+  const choice = await ask(rl, `Enter 1–3 [${defaultChoice}]: `)
+  const effective = choice || defaultChoice
+  return HARNESS_BY_CHOICE[effective] ?? 'pi'
+}
+
+/* ------------------------------------------------------------------ */
+/*  Step 6 – Choose model                                              */
+/* ------------------------------------------------------------------ */
+
+// The pi harness resolves ids against the Pi SDK's bundled model registry and
+// throws on anything it doesn't know, so these presets deliberately stay on
+// releases the registry has caught up with.
+const PI_MODEL_PRESETS: Record<string, string> = {
   '1': 'claude-haiku-4-5',
   '2': 'claude-sonnet-4-5',
-  '3': 'claude-opus-4-5'
+  '3': 'gpt-5'
 }
 
-function getModelChoiceNumber(model: string): string {
-  if (model === 'claude-haiku-4-5') return '1'
-  if (model === 'claude-sonnet-4-5') return '2'
-  if (model === 'claude-opus-4-5') return '3'
-  return '4'
+// The Claude harness passes the model straight into the Claude Agent SDK, which
+// only accepts Anthropic models — so its preset list omits non-Anthropic
+// options and the free-form prompt is scoped to Anthropic model ids. The SDK
+// takes the id verbatim rather than validating it, so newer releases than the
+// pi registry knows about are selectable here.
+const CLAUDE_MODEL_PRESETS: Record<string, string> = {
+  '1': 'claude-haiku-4-5',
+  '2': 'claude-sonnet-5',
+  '3': 'claude-opus-5'
 }
 
-async function chooseModel(rl: readline.Interface, currentModel?: string): Promise<string> {
-  const defaultChoice = currentModel ? getModelChoiceNumber(currentModel) : '2'
+// The Codex harness passes the model straight to the `codex` CLI, which only
+// serves OpenAI models. Like the Claude harness it takes the id verbatim, so
+// newer releases than any bundled registry knows about are selectable here.
+const CODEX_MODEL_PRESETS: Record<string, string> = {
+  '1': 'gpt-5.1-codex-mini',
+  '2': 'gpt-5.1-codex',
+  '3': 'gpt-5.1-codex-max'
+}
+
+/** Menu entry for "Other (free-form)" — the last option in both model menus. */
+const OTHER_MODEL_CHOICE = '4'
+
+const MODEL_PRESETS_BY_HARNESS: Record<Harness, Record<string, string>> = {
+  pi: PI_MODEL_PRESETS,
+  claude: CLAUDE_MODEL_PRESETS,
+  codex: CODEX_MODEL_PRESETS
+}
+
+function getModelChoiceNumber(model: string, harness: Harness): string {
+  const presets = MODEL_PRESETS_BY_HARNESS[harness]
+  const preset = Object.entries(presets).find(([, id]) => id === model)
+  return preset ? preset[0] : OTHER_MODEL_CHOICE
+}
+
+async function chooseModel(
+  rl: readline.Interface,
+  harness: Harness,
+  currentModel?: string
+): Promise<string> {
+  const defaultChoice = currentModel ? getModelChoiceNumber(currentModel, harness) : '2'
+
+  if (harness === 'codex') {
+    console.log(
+      '\nWhich Codex model would you like to use? (the Codex harness is OpenAI-only)\n' +
+        '  1) GPT-5.1 Codex Mini (fastest, cheapest)\n' +
+        '  2) GPT-5.1 Codex      (balanced)\n' +
+        '  3) GPT-5.1 Codex Max  (most capable)\n' +
+        '  4) Other (free-form OpenAI model id, e.g. gpt-5.1)\n'
+    )
+    const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
+    const effectiveChoice = choice || defaultChoice
+    if (effectiveChoice in CODEX_MODEL_PRESETS) return CODEX_MODEL_PRESETS[effectiveChoice]!
+
+    const currentLabel = currentModel ? ` [${currentModel}]` : ''
+    const custom = await ask(rl, `Enter OpenAI model id (e.g. gpt-5.1)${currentLabel}: `)
+    return custom || currentModel || 'gpt-5.1-codex'
+  }
+
+  if (harness === 'claude') {
+    console.log(
+      '\nWhich Claude model would you like to use? (the Claude harness is Anthropic-only)\n' +
+        '  1) Claude Haiku 4.5  (needs ANTHROPIC_API_KEY)\n' +
+        '  2) Claude Sonnet 5   (needs ANTHROPIC_API_KEY)\n' +
+        '  3) Claude Opus 5     (needs ANTHROPIC_API_KEY)\n' +
+        '  4) Other (free-form Anthropic model id, e.g. claude-fable-5)\n'
+    )
+    const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
+    const effectiveChoice = choice || defaultChoice
+    if (effectiveChoice in CLAUDE_MODEL_PRESETS) return CLAUDE_MODEL_PRESETS[effectiveChoice]!
+
+    const currentLabel = currentModel ? ` [${currentModel}]` : ''
+    const custom = await ask(rl, `Enter Anthropic model id (e.g. claude-fable-5)${currentLabel}: `)
+    return custom || currentModel || 'claude-sonnet-5'
+  }
+
   console.log(
     '\nWhich model would you like to use?\n' +
-      '  1) Haiku 4.5\n' +
-      '  2) Sonnet 4.5\n' +
-      '  3) Opus 4.5\n' +
-      '  4) Other (free-form entry)\n'
+      '  1) Claude Haiku 4.5  (needs ANTHROPIC_API_KEY)\n' +
+      '  2) Claude Sonnet 4.5 (needs ANTHROPIC_API_KEY)\n' +
+      '  3) GPT-5             (needs OPENAI_API_KEY)\n' +
+      '  4) Other (free-form entry — supports provider/model-id syntax)\n'
   )
   const choice = await ask(rl, `Enter 1–4 [${defaultChoice}]: `)
-  if (choice in CLAUDE_MODEL_PRESETS) return CLAUDE_MODEL_PRESETS[choice]!
+  // An empty answer means "accept the displayed default" — only fall through
+  // to the free-form prompt when the user explicitly picks "4".
+  const effectiveChoice = choice || defaultChoice
+  if (effectiveChoice in PI_MODEL_PRESETS) return PI_MODEL_PRESETS[effectiveChoice]!
 
   const currentLabel = currentModel ? ` [${currentModel}]` : ''
-  const custom = await ask(rl, `Enter model name (e.g. Minimax, GLM-4.7, Kimi)${currentLabel}: `)
+  const custom = await ask(
+    rl,
+    `Enter model name (e.g. kimi-k2, glm-4.6, gemini-2.5-pro)${currentLabel}: `
+  )
   return custom || currentModel || 'claude-sonnet-4-5'
 }
 
@@ -136,7 +236,7 @@ async function chooseModel(rl: readline.Interface, currentModel?: string): Promi
 
 const DEFAULT_AGENTS_MD =
   '# AGENTS.md\n\n' +
-  'This file configures the Claude agent for this workspace.\n\n' +
+  'This file configures the Pi agent for this workspace.\n\n' +
   '## Instructions\n\n' +
   '- Answer concisely and accurately.\n' +
   '- When modifying files, explain what changed.\n'
@@ -196,18 +296,19 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
   const isReconfigure = !!existingSettings
   console.log(
     isReconfigure
-      ? '\n⚙️  Reconfiguring Claude Pipe\n   Press Enter to keep current values.\n'
-      : "\n🚀 Welcome to Claude Pipe!\n   Let's get you set up.\n"
+      ? '\n⚙️  Reconfiguring Pi Pipe\n   Press Enter to keep current values.\n'
+      : "\n🚀 Welcome to Pi Pipe!\n   Let's get you set up.\n"
   )
 
   const rl = createInterface()
   try {
     if (!isReconfigure) {
-      await checkClaudeCli()
+      checkApiKey()
     }
     const channel = await chooseChannel(rl, existingSettings?.channel)
     const token = await collectCredentials(rl, channel, existingSettings?.token)
-    const model = await chooseModel(rl, existingSettings?.model)
+    const harness = await chooseHarness(rl, existingSettings?.harness)
+    const model = await chooseModel(rl, harness, existingSettings?.model)
     const workspace = await chooseWorkspace(rl, existingSettings?.workspace)
     const personality = await choosePersonality(rl, existingSettings?.personality)
 
@@ -215,6 +316,7 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
       channel,
       token,
       allowFrom: existingSettings?.allowFrom ?? [],
+      harness,
       model,
       workspace,
       personality
@@ -223,8 +325,8 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
     writeSettings(settings)
     console.log(
       isReconfigure
-        ? '\n✔  Settings updated. Run claude-pipe to start the bot.\n'
-        : '\n✔  Settings saved. Run claude-pipe again to start the bot.\n'
+        ? '\n✔  Settings updated. Run `npm run dev` (or `npm start` after `npm run build`) to start the bot.\n'
+        : '\n✔  Settings saved. Run `npm run dev` (or `npm start` after `npm run build`) to start the bot.\n'
     )
     return settings
   } finally {

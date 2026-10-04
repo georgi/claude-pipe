@@ -1,10 +1,11 @@
 import type { CommandHandler } from '../commands/handler.js'
 import type { ChannelManager } from '../channels/manager.js'
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import type { DailyLog } from '../memory/daily-log.js'
 import type { MemoryStore } from '../memory/store.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
+import { formatToolLine, type ToolCallStatus } from './tool-format.js'
 import type { ModelClient } from './model-client.js'
 import type {
   AgentTurnUpdate,
@@ -16,20 +17,9 @@ import type {
 } from './types.js'
 
 /**
- * Converts a raw tool name into a human-readable label safe for Telegram Markdown.
- * MCP tools arrive as mcp__ServerName__tool_name — strip the prefix and
- * replace underscores so Telegram does not interpret __x__ as bold formatting.
- */
-function formatToolName(name: string): string {
-  const mcpMatch = /^mcp__[^_]+(?:_[^_]+)*__(.+)$/.exec(name)
-  const bare = mcpMatch?.[1] ?? name
-  return bare.replace(/_/g, ' ')
-}
-
-/**
  * Central message-processing loop.
  *
- * Consumes inbound chat events, executes one Claude turn, and publishes outbound replies.
+ * Consumes inbound chat events, executes one Pi turn, and publishes outbound replies.
  * When a {@link CommandHandler} is provided it intercepts slash commands before they reach the LLM.
  *
  * When a {@link ChannelManager} is attached, tool call updates are sent as editable messages
@@ -45,7 +35,7 @@ export class AgentLoop {
 
   constructor(
     private readonly bus: MessageBus,
-    private readonly config: ClaudePipeConfig,
+    private readonly config: PiPipeConfig,
     private readonly client: ModelClient,
     private readonly logger: Logger
   ) {}
@@ -87,7 +77,7 @@ export class AgentLoop {
     await this.processMessage(inbound)
   }
 
-  /** Stops the loop and closes live Claude sessions. */
+  /** Stops the loop and closes live Pi sessions. */
   stop(): void {
     this.running = false
     this.client.closeAll()
@@ -122,7 +112,10 @@ export class AgentLoop {
 
     let statusMessage: SentMessage | null = null
     let streamMessage: SentMessage | null = null
-    const toolUpdates: Array<{ id: string; label: string }> = []
+    // Only the most recent tool call is shown — each new call replaces the
+    // previous one in the same chat message instead of appending to a list.
+    let currentTool: { id: string; name: string; detail: string; status: ToolCallStatus } | null =
+      null
 
     const publishProgress = async (update: AgentTurnUpdate): Promise<void> => {
       if (update.kind === 'text_streaming') {
@@ -176,28 +169,36 @@ export class AgentLoop {
         kind: update.kind,
         toolName: update.toolName,
         toolUseId: update.toolUseId,
+        toolDetail: update.toolDetail,
         message: update.message
       })
 
       if (!this.channelManager) return
 
       const toolId = update.toolUseId ?? update.toolName ?? 'tool'
-      const toolLabel = formatToolName(update.toolName ?? 'tool')
 
       if (update.kind === 'tool_call_started') {
-        toolUpdates.push({ id: toolId, label: `🔧 ${toolLabel}` })
-      } else if (update.kind === 'tool_call_finished') {
-        const entry = toolUpdates.find((t) => t.id === toolId)
-        if (entry) entry.label = `✅ ${toolLabel}`
-      } else if (update.kind === 'tool_call_failed') {
-        const entry = toolUpdates.find((t) => t.id === toolId)
-        if (entry) entry.label = `❌ ${toolLabel}`
+        currentTool = {
+          id: toolId,
+          name: update.toolName ?? 'tool',
+          detail: update.toolDetail ?? '',
+          status: 'running'
+        }
+      } else if (currentTool && currentTool.id === toolId) {
+        currentTool = {
+          ...currentTool,
+          ...(update.toolDetail ? { detail: update.toolDetail } : {}),
+          status: update.kind === 'tool_call_failed' ? 'failed' : 'done'
+        }
+      } else {
+        // A result for a tool that is no longer on screen — nothing to redraw.
+        return
       }
 
       // Don't overwrite a streaming text draft with tool status
       if (streamMessage) return
 
-      const statusText = toolUpdates.map((t) => t.label).join('\n')
+      const statusText = formatToolLine(currentTool.status, currentTool.name, currentTool.detail)
       try {
         if (statusMessage) {
           await this.channelManager.editMessage(statusMessage, statusText)
@@ -340,9 +341,7 @@ export class AgentLoop {
       try {
         const memories = this.memoryStore.search(inbound.content, 5)
         if (memories.length > 0) {
-          const lines = memories.map(
-            (m) => `- [${m.key}]: ${m.content.slice(0, 200)}`
-          )
+          const lines = memories.map((m) => `- [${m.key}]: ${m.content.slice(0, 200)}`)
           sections.push(`# Relevant memories\n${lines.join('\n')}`)
         }
       } catch {

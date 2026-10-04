@@ -1,66 +1,13 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
-import { SessionStore } from './session-store.js'
+import { SessionStore, sessionForHarness } from './session-store.js'
+import { buildSystemPrompt } from './system-prompt.js'
 import { TranscriptLogger } from './transcript-logger.js'
+import { summarizeToolInput } from './tool-format.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
-
-/** Base system prompt always appended — covers chat-app behavior and attachment protocol. */
-const BASE_SYSTEM_PROMPT = [
-  'You are a personal AI assistant running inside a chat app (Telegram, Discord, or CLI) via claude-pipe.',
-  '',
-  '## Communication style',
-  '- Be direct and concise — your human is reading on a phone, not a desktop.',
-  '- Bias toward action. When you can just do something, do it and report back.',
-  "- Don't repeat the question back. Just answer it.",
-  "- Don't pad responses with filler or unnecessary disclaimers.",
-  '- Use short paragraphs and line breaks. Avoid markdown tables — use plain text lists instead.',
-  '- If a response would be long, summarize and offer to elaborate.',
-  '',
-  '## File attachments',
-  'To send files (images, audio, documents) to the user, include file markers in your response text:',
-  '- [[file:/absolute/path/to/file.ext]] — sends the file as an attachment',
-  '- [[file:/absolute/path/to/file.ext|Optional caption]] — sends with a caption',
-  '',
-  'The markers are stripped from the visible message and the files are sent via the appropriate method:',
-  '- .mp3, .m4a, .ogg, .wav, .flac, .aac → sent as audio',
-  '- .jpg, .jpeg, .png, .gif, .webp → sent as photo',
-  '- .mp4, .avi, .mkv, .mov, .webm → sent as video',
-  '- Everything else → sent as document',
-  '',
-  'Multiple attachments can be included in one response. The file must exist on disk at the given absolute path.',
-  '',
-  '## Inline keyboards',
-  'To show interactive buttons below a message, include a keyboard marker:',
-  '- [[keyboard:Button1=callback1,Button2=callback2]] — one row with two buttons',
-  '- [[keyboard:Button1=callback1,Button2=callback2|Button3=callback3]] — two rows (pipe separates rows)',
-  '',
-  'When a user presses a button, you receive: [Button pressed]: callback_data',
-  'Use keyboards for quick choices, confirmations, or navigation. Keep callback_data short (<64 chars).',
-  'Only one keyboard marker per response. The keyboard attaches to the last text chunk.',
-  '',
-  '## Memory',
-  'You have a persistent memory system. Memories from past conversations may be included in your context.',
-  'To save something to memory for future conversations, include a marker in your response:',
-  '[[memory:key_name|content to remember]]',
-  '',
-  'Use descriptive keys like "user_preference_language" or "project_nodetool_status".',
-  'Only save information that would be useful in future conversations.',
-].join('\n')
-
-/** Builds the full system prompt: base instructions + optional personality. */
-function buildSystemPrompt(config: ClaudePipeConfig): string {
-  if (!config.personality?.name) return BASE_SYSTEM_PROMPT
-  const { name, traits } = config.personality
-  return [
-    `You are ${name}, a personal AI assistant that lives inside chat apps.`,
-    `Your personality: ${traits}.`,
-    '',
-    BASE_SYSTEM_PROMPT
-  ].join('\n')
-}
 
 function summarizeToolResult(content: unknown): string {
   if (typeof content === 'string') {
@@ -71,17 +18,24 @@ function summarizeToolResult(content: unknown): string {
 }
 
 /**
- * Runs Claude via the official Agent SDK, one query() call per turn.
+ * Runs Claude via the official Claude Agent SDK, one `query()` call per turn.
  *
- * Sessions are persisted across turns via session_id from the result message.
- * Cancellation is handled via AbortController passed to query().
+ * This is the Claude counterpart to {@link PiClient}: both satisfy the same
+ * {@link ModelClient} contract, share the system prompt from
+ * `./system-prompt.js`, and translate their SDK's stream into the agent loop's
+ * {@link AgentTurnUpdate} events, so the surrounding app can't tell which
+ * harness is active.
+ *
+ * Sessions resume across turns via the `session_id` from the result message,
+ * persisted as a {@link SessionRef} `{ sessionId }`. Cancellation uses an
+ * `AbortController` passed to `query()`.
  */
 export class ClaudeClient implements ModelClient {
   private readonly transcript: TranscriptLogger
   private readonly abortControllers = new Map<string, AbortController>()
 
   constructor(
-    private readonly config: ClaudePipeConfig,
+    private config: PiPipeConfig,
     private readonly store: SessionStore,
     private readonly logger: Logger
   ) {
@@ -106,7 +60,8 @@ export class ClaudeClient implements ModelClient {
     message: SDKMessage,
     conversationKey: string,
     context: ToolContext,
-    toolNamesByCallId: Map<string, string>
+    toolNamesByCallId: Map<string, string>,
+    toolDetailsByCallId: Map<string, string>
   ): Promise<{ text: string }> {
     let text = ''
 
@@ -117,7 +72,9 @@ export class ClaudeClient implements ModelClient {
 
       for (const block of content) {
         if (block.type === 'text') {
-          text = block.text
+          // Accumulate so a message with multiple text blocks isn't truncated
+          // to its last block, and streamed updates stay cumulative.
+          text += block.text
           await this.transcript.log(conversationKey, { type: 'assistant_text', text })
           await this.publishUpdate(context, {
             kind: 'text_streaming',
@@ -127,17 +84,21 @@ export class ClaudeClient implements ModelClient {
           })
         } else if (block.type === 'tool_use') {
           if (block.id) toolNamesByCallId.set(block.id, block.name)
+          const detail = summarizeToolInput(block.name, block.input)
+          if (block.id && detail) toolDetailsByCallId.set(block.id, detail)
           this.logger.info('claude.tool_call_started', {
             conversationKey,
             toolName: block.name,
-            toolUseId: block.id
+            toolUseId: block.id,
+            toolDetail: detail
           })
           await this.publishUpdate(context, {
             kind: 'tool_call_started',
             conversationKey,
             message: `Using tool: ${block.name}`,
             toolName: block.name,
-            ...(block.id ? { toolUseId: block.id } : {})
+            ...(block.id ? { toolUseId: block.id } : {}),
+            ...(detail ? { toolDetail: detail } : {})
           })
         }
       }
@@ -160,6 +121,7 @@ export class ClaudeClient implements ModelClient {
           }
           const toolUseId = toolResult.tool_use_id
           const toolName = toolUseId ? toolNamesByCallId.get(toolUseId) : undefined
+          const toolDetail = toolUseId ? toolDetailsByCallId.get(toolUseId) : undefined
           const summary = summarizeToolResult(toolResult.content)
           const failed = summary.includes('error')
 
@@ -176,7 +138,8 @@ export class ClaudeClient implements ModelClient {
               ? `Tool failed${toolName ? `: ${toolName}` : ''}`
               : `Tool completed${toolName ? `: ${toolName}` : ''}`,
             ...(toolName ? { toolName } : {}),
-            ...(toolUseId ? { toolUseId } : {})
+            ...(toolUseId ? { toolUseId } : {}),
+            ...(toolDetail ? { toolDetail } : {})
           })
         }
       }
@@ -186,7 +149,9 @@ export class ClaudeClient implements ModelClient {
   }
 
   async runTurn(conversationKey: string, userText: string, context: ToolContext): Promise<string> {
-    const savedSession = this.store.get(conversationKey)
+    // Only resume an id this harness minted: Codex stores its thread ids in
+    // the same field, and `resume` would reject or misattach one.
+    const savedSession = sessionForHarness(this.store.get(conversationKey), 'claude')
     const abort = new AbortController()
     this.abortControllers.set(conversationKey, abort)
 
@@ -199,6 +164,7 @@ export class ClaudeClient implements ModelClient {
 
     let responseText = ''
     const toolNamesByCallId = new Map<string, string>()
+    const toolDetailsByCallId = new Map<string, string>()
 
     try {
       for await (const message of query({
@@ -221,12 +187,16 @@ export class ClaudeClient implements ModelClient {
           message,
           conversationKey,
           context,
-          toolNamesByCallId
+          toolNamesByCallId,
+          toolDetailsByCallId
         )
         if (text) responseText = text
 
         if (message.type === 'result') {
-          await this.store.set(conversationKey, message.session_id)
+          await this.store.set(conversationKey, {
+            harness: 'claude',
+            sessionId: message.session_id
+          })
 
           if (message.is_error) {
             this.logger.error('claude.turn_failed', { conversationKey, subtype: message.subtype })
@@ -251,6 +221,23 @@ export class ClaudeClient implements ModelClient {
           )
         }
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/abort/i.test(msg)) {
+        await this.publishUpdate(context, {
+          kind: 'turn_finished',
+          conversationKey,
+          message: 'Turn cancelled'
+        })
+        return responseText || 'Cancelled.'
+      }
+      this.logger.error('claude.turn_failed', { conversationKey, error: msg })
+      await this.publishUpdate(context, {
+        kind: 'turn_finished',
+        conversationKey,
+        message: 'Turn failed'
+      })
+      return responseText || `Sorry, I hit an error: ${msg.slice(0, 200)}`
     } finally {
       this.abortControllers.delete(conversationKey)
     }
@@ -270,5 +257,15 @@ export class ClaudeClient implements ModelClient {
 
   async startNewSession(conversationKey: string): Promise<void> {
     await this.store.clear(conversationKey)
+  }
+
+  /**
+   * Switches the model used for subsequent turns. The Claude SDK takes the
+   * model per `query()` call, so this just updates the shared config; the next
+   * turn picks it up. Kept symmetric with {@link PiClient.setModel} so the
+   * `/pi_model` command works regardless of the active harness.
+   */
+  setModel(modelString: string): void {
+    this.config.model = modelString
   }
 }

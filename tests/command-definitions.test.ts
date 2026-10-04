@@ -8,8 +8,8 @@ import {
   helpCommand,
   statusCommand,
   pingCommand,
-  claudeAskCommand,
-  claudeModelCommand,
+  piAskCommand,
+  piModelCommand,
   configSetCommand,
   configGetCommand,
   CommandRegistry
@@ -54,15 +54,20 @@ describe('Session commands', () => {
     expect(result.content).toBe('No active sessions.')
   })
 
-  it('/session_info returns session details', async () => {
+  it('/session_info is admin-only and shows only the session file basename', async () => {
     const cmd = sessionInfoCommand(() => ({
-      sessionId: 'sess-abc',
+      sessionFile: '/Users/secret-user/private-workspace/.pi/sessions/sess-abc.jsonl',
       updatedAt: '2025-01-01T00:00:00Z'
     }))
 
+    expect(cmd.permission).toBe('admin')
+
     const result = await cmd.execute(makeCtx())
-    expect(result.content).toContain('sess-abc')
+    expect(result.content).toContain('sess-abc.jsonl')
     expect(result.content).toContain('Session info')
+    // The full path must not leak via the message content
+    expect(result.content).not.toContain('/Users/secret-user')
+    expect(result.content).not.toContain('private-workspace')
   })
 
   it('/session_info returns no-session message', async () => {
@@ -137,32 +142,32 @@ describe('Utility commands', () => {
   })
 })
 
-describe('Claude commands', () => {
-  it('/claude_ask sends prompt and returns reply', async () => {
-    const runTurn = vi.fn(async () => 'Claude says hello')
-    const cmd = claudeAskCommand(runTurn)
+describe('Pi commands', () => {
+  it('/pi_ask sends prompt and returns reply', async () => {
+    const runTurn = vi.fn(async () => 'Pi says hello')
+    const cmd = piAskCommand(runTurn)
 
     const result = await cmd.execute(makeCtx({ rawArgs: 'hello world', args: ['hello', 'world'] }))
-    expect(result.content).toBe('Claude says hello')
+    expect(result.content).toBe('Pi says hello')
     expect(runTurn).toHaveBeenCalledWith('telegram:42', 'hello world', 'telegram', '42')
   })
 
-  it('/claude_ask with no prompt returns usage error', async () => {
-    const cmd = claudeAskCommand(vi.fn())
+  it('/pi_ask with no prompt returns usage error', async () => {
+    const cmd = piAskCommand(vi.fn())
     const result = await cmd.execute(makeCtx())
     expect(result.error).toBe(true)
     expect(result.content).toContain('Usage')
   })
 
-  it('/claude_model with no args shows current model', async () => {
-    const cmd = claudeModelCommand(() => 'claude-sonnet-4-5')
+  it('/pi_model with no args shows current model', async () => {
+    const cmd = piModelCommand(() => 'claude-sonnet-4-5')
     const result = await cmd.execute(makeCtx())
     expect(result.content).toContain('claude-sonnet-4-5')
   })
 
-  it('/claude_model with arg switches model', async () => {
+  it('/pi_model with arg switches model', async () => {
     const setModel = vi.fn()
-    const cmd = claudeModelCommand(() => 'old-model', setModel)
+    const cmd = piModelCommand(() => 'old-model', setModel)
 
     const result = await cmd.execute(makeCtx({ args: ['new-model'], rawArgs: 'new-model' }))
     expect(result.content).toContain('new-model')
@@ -211,5 +216,50 @@ describe('Config commands', () => {
     const cmd = configGetCommand(() => undefined)
     const result = await cmd.execute(makeCtx({ args: ['bad'], rawArgs: 'bad' }))
     expect(result.error).toBe(true)
+  })
+
+  it('/config_get with no key returning a string handles the empty key formatter', async () => {
+    const cmd = configGetCommand(() => 'just-a-string')
+    const result = await cmd.execute(makeCtx())
+    expect(result.error).toBeUndefined()
+    expect(result.content).toContain('just-a-string')
+  })
+
+  it('/config_get with no key returning undefined still surfaces an error', async () => {
+    const cmd = configGetCommand(() => undefined)
+    const result = await cmd.execute(makeCtx())
+    expect(result.error).toBe(true)
+  })
+})
+
+describe('Pi commands edge paths', () => {
+  it('/pi_model with arg but no setter is rejected', async () => {
+    const cmd = piModelCommand(() => 'current-model') // no second arg = no setter
+    const result = await cmd.execute(makeCtx({ args: ['new-model'], rawArgs: 'new-model' }))
+    expect(result.error).toBe(true)
+    expect(result.content).toContain('not supported')
+  })
+})
+
+describe('helpCommand edge paths', () => {
+  it('renders a command with no usage and no aliases', async () => {
+    const { CommandRegistry } = await import('../src/commands/index.js')
+    const { helpCommand } = await import('../src/commands/definitions/utility.js')
+    const registry = new CommandRegistry()
+    registry.register({
+      name: 'bare',
+      category: 'utility',
+      description: 'A bare command',
+      permission: 'user',
+      async execute() {
+        return { content: '' }
+      }
+    })
+    const help = helpCommand(registry)
+    registry.register(help)
+    const result = await help.execute(makeCtx({ args: ['bare'], rawArgs: 'bare' }))
+    expect(result.content).toContain('/bare')
+    expect(result.content).not.toContain('Usage:')
+    expect(result.content).not.toContain('Aliases:')
   })
 })

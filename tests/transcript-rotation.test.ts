@@ -8,7 +8,7 @@ import { TranscriptLogger } from '../src/core/transcript-logger.js'
 
 describe('TranscriptLogger rotation', () => {
   it('rotates log file when exceeding maxBytes', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-transcript-rotation-'))
+    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-transcript-rotation-'))
     const path = join(dir, 'transcript.jsonl')
 
     const logger = new TranscriptLogger({

@@ -75,4 +75,19 @@ describe('CommandRegistry', () => {
     expect(newCmd?.telegramName).toBe('session_new')
     expect(newCmd?.group).toBe('session')
   })
+
+  it('does not double-prefix telegramName when name already starts with the group', () => {
+    const registry = new CommandRegistry()
+    registry.register(makeCommand({ name: 'pi_ask', category: 'pi' }))
+    registry.register(makeCommand({ name: 'session_new', category: 'session' }))
+
+    const meta = registry.toMeta()
+    const ask = meta.find((m) => m.name === 'pi_ask')
+    const newCmd = meta.find((m) => m.name === 'session_new')
+
+    expect(ask?.telegramName).toBe('pi_ask')
+    expect(ask?.group).toBe('pi')
+    expect(newCmd?.telegramName).toBe('session_new')
+    expect(newCmd?.group).toBe('session')
+  })
 })

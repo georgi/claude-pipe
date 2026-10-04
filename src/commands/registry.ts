@@ -46,13 +46,14 @@ export class CommandRegistry {
   toMeta(): CommandMeta[] {
     return this.all().map((cmd) => {
       const group = cmd.category !== 'utility' ? cmd.category : undefined
-      const telegramName = group ? `${group}_${cmd.name}` : cmd.name
-      // Strip the group prefix for Discord subcommand names (e.g. "session_new" → "new")
-      const shortName = group && cmd.name.startsWith(`${group}_`)
-        ? cmd.name.slice(group.length + 1)
-        : cmd.name
+      // Avoid double-prefixing when the command name already begins with the
+      // category prefix (e.g. category `pi`, name `pi_ask` → `pi_ask`, not
+      // `pi_pi_ask`). Telegram BotFather and Discord slash subcommand names
+      // both depend on this collapsing.
+      const telegramName =
+        group && !cmd.name.startsWith(`${group}_`) ? `${group}_${cmd.name}` : cmd.name
       return {
-        name: shortName,
+        name: cmd.name,
         description: cmd.description,
         category: cmd.category,
         ...(group ? { group } : {}),

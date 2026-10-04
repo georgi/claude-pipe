@@ -2,13 +2,24 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 
+import type { PiPipeConfig } from './schema.js'
+
 /**
- * Persisted settings stored in ~/.claude-pipe/settings.json.
+ * Persisted settings stored in ~/.pi-pipe/settings.json.
  */
 export interface PersonalitySettings {
   name: string
   traits: string
 }
+
+/**
+ * Codex-harness options as they appear in settings.json.
+ *
+ * Derived from the config schema so the two can't drift, and partial because
+ * every field has a schema-level default — omitting one keeps that default
+ * rather than clearing it.
+ */
+export type CodexSettings = Partial<PiPipeConfig['codex']>
 
 export interface Settings {
   channel: 'telegram' | 'discord' | 'cli'
@@ -16,6 +27,10 @@ export interface Settings {
   allowFrom: string[]
   // Optional allowlist of Discord channel IDs. Empty/missing means allow all channels.
   allowChannels?: string[]
+  // Which agent harness drives conversations. Defaults to 'pi' when omitted.
+  harness?: 'pi' | 'claude' | 'codex'
+  // Codex-harness options; ignored by the other harnesses.
+  codex?: CodexSettings
   model: string
   workspace: string
   personality?: PersonalitySettings
@@ -23,7 +38,7 @@ export interface Settings {
 }
 
 function defaultConfigDir(): string {
-  return path.join(os.homedir(), '.claude-pipe')
+  return process.env.PI_PIPE_CONFIG_DIR || path.join(os.homedir(), '.pi-pipe')
 }
 
 /** Returns the resolved path to the settings directory. */

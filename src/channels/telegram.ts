@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 
 import type { CommandMeta } from '../commands/types.js'
-import type { ClaudePipeConfig } from '../config/schema.js'
+import type { PiPipeConfig } from '../config/schema.js'
 import { MessageBus } from '../core/bus.js'
 import { retry } from '../core/retry.js'
 import { chunkText } from '../core/text-chunk.js'
@@ -91,7 +91,7 @@ type TelegramUpdate = {
 const TELEGRAM_MESSAGE_MAX = 3800
 const SEND_RETRY_ATTEMPTS = 2
 const SEND_RETRY_BACKOFF_MS = 50
-const PID_FILE = join(tmpdir(), 'claude-pipe-telegram.pid')
+const PID_FILE = join(tmpdir(), 'pi-pipe-telegram.pid')
 
 /** Telegram Bot API chat actions for typing indicators. */
 type ChatAction =
@@ -116,7 +116,7 @@ export class TelegramChannel implements Channel {
   private pendingTyping = new Set<string>()
 
   constructor(
-    private readonly config: ClaudePipeConfig,
+    private readonly config: PiPipeConfig,
     private readonly bus: MessageBus,
     private readonly logger: Logger
   ) {}
@@ -678,7 +678,7 @@ export class TelegramChannel implements Channel {
         return `[Voice message transcription]: ${result.text}`
       }
 
-      // whisper-cpp not available — provide context to Claude
+      // whisper-cpp not available — provide context to the agent
       this.logger.warn('channel.telegram.whisper_unavailable', {
         reason: result.reason
       })
@@ -705,7 +705,7 @@ export class TelegramChannel implements Channel {
 
   /**
    * Processes a photo or document message: downloads the file from Telegram
-   * and returns a content string with the file path so Claude can read it.
+   * and returns a content string with the file path so the agent can read it.
    */
   private async processMediaMessage(
     message: NonNullable<TelegramUpdate['message']>
@@ -745,7 +745,7 @@ export class TelegramChannel implements Channel {
       const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext.toLowerCase())
 
       if (isImage) {
-        // Tell Claude to read the image — its Read tool handles images natively
+        // Tell the agent to read the image — Pi's read tool handles images natively
         const parts = [`[The user sent an image. View it by reading this file: ${localPath}]`]
         if (caption) parts.push(caption)
         return parts.join('\n\n')

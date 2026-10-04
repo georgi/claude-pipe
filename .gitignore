@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .env
+
+# Runtime data: session map, memory DB, daily logs, transcripts
+data/
 .vscode/
 .DS_Store
 *.log
