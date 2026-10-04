@@ -10,6 +10,9 @@ const discordChannelSchema = channelSchema.extend({
   // Optional allowlist of Discord channel IDs. Empty/omitted means allow all channels.
   // Thread messages are matched against the thread's parent channel too.
   allowChannels: z.array(z.string()).optional(),
+  // Whether the bot answers direct messages. DMs bypass the channel allowlist,
+  // so when omitted they are only accepted if `allowFrom` restricts senders.
+  allowDMs: z.boolean().optional(),
   // Automatically open a Discord thread per conversation so every session gets
   // its own thread (and therefore its own agent session). Defaults to enabled.
   useThreads: z.boolean().optional(),

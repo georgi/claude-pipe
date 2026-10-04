@@ -20,7 +20,7 @@ function makeConfig(overrides?: {
       discord: {
         enabled: true,
         token: 'discord-token',
-        allowFrom: ['u1'],
+        allowFrom: ['u1', 'u2'],
         allowChannels: overrides?.allowChannels,
         useThreads: overrides?.useThreads,
         threadAutoArchiveMinutes: overrides?.threadAutoArchiveMinutes
