@@ -3,6 +3,7 @@ import type { ChannelManager } from '../channels/manager.js'
 import type { PiPipeConfig } from '../config/schema.js'
 import type { DailyLog } from '../memory/daily-log.js'
 import type { MemoryStore } from '../memory/store.js'
+import { parseMemoryMarker } from '../memory/marker.js'
 import { applySummaryTemplate } from './prompt-template.js'
 import { MessageBus } from './bus.js'
 import { formatToolLine, type ToolCallStatus } from './tool-format.js'
@@ -252,21 +253,21 @@ export class AgentLoop {
       return ''
     })
 
-    // Extract memory save markers: [[memory:key_name|content to remember]]
-    processed = processed.replace(
-      /\[\[memory:([^|]+)\|([^\]]+)\]\]/g,
-      (_match, key: string, value: string) => {
-        if (this.memoryStore) {
-          try {
-            this.memoryStore.save(key.trim(), value.trim())
-            this.logger.info('memory.saved', { key: key.trim() })
-          } catch (err: unknown) {
-            this.logger.warn('memory.save_failed', { key: key.trim(), error: String(err) })
-          }
+    // Extract memory save markers (format documented in parseMemoryMarker):
+    //   [[memory:key|content]]
+    //   [[memory:key|content|type:fact|entity:person:yasmin]]
+    processed = processed.replace(/\[\[memory:([^\]]+)\]\]/g, (_match, body: string) => {
+      const marker = parseMemoryMarker(body)
+      if (marker && this.memoryStore) {
+        try {
+          this.memoryStore.save(marker.key, marker.content, marker.opts)
+          this.logger.info('memory.saved', { key: marker.key, type: marker.opts.type })
+        } catch (err: unknown) {
+          this.logger.warn('memory.save_failed', { key: marker.key, error: String(err) })
         }
-        return ''
       }
-    )
+      return ''
+    })
 
     const content = processed.trim()
 
@@ -336,12 +337,21 @@ export class AgentLoop {
 
     const sections: string[] = []
 
-    // Search memory for relevant context
+    // Search memory for relevant context (multi-query with recency scoring)
     if (this.memoryStore) {
       try {
         const memories = this.memoryStore.search(inbound.content, 5)
         if (memories.length > 0) {
-          const lines = memories.map((m) => `- [${m.key}]: ${m.content.slice(0, 200)}`)
+          const lines = memories.map((m) => {
+            const tags = [
+              m.type ? `type:${m.type}` : null,
+              m.entityTags?.length ? `entities:${m.entityTags.join(',')}` : null
+            ]
+              .filter(Boolean)
+              .join(' ')
+            const tagStr = tags ? ` (${tags})` : ''
+            return `- [${m.key}]${tagStr}: ${m.content.slice(0, 300)}`
+          })
           sections.push(`# Relevant memories\n${lines.join('\n')}`)
         }
       } catch {

@@ -47,6 +47,12 @@ export const BASE_SYSTEM_PROMPT = [
   'To save something to memory for future conversations, include a marker in your response:',
   '[[memory:key_name|content to remember]]',
   '',
+  'Optionally append metadata segments after the content:',
+  '[[memory:key_name|content|type:fact|entity:person:yasmin|confidence:high]]',
+  '- type: fact, preference, decision, entity, task, project',
+  '- entity (repeatable): person:name, service:name, project:name, location:name',
+  '- confidence: high (user stated), medium (inferred), low (guessed)',
+  '',
   'Use descriptive keys like "user_preference_language" or "project_nodetool_status".',
   'Only save information that would be useful in future conversations.'
 ].join('\n')

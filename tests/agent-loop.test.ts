@@ -512,7 +512,7 @@ describe('AgentLoop', () => {
         { text: 'No', callbackData: 'no' }
       ]
     ])
-    expect(memorySave).toHaveBeenCalledWith('user_pref', 'likes terse replies')
+    expect(memorySave).toHaveBeenCalledWith('user_pref', 'likes terse replies', {})
     // Markers should be stripped from the visible content
     expect(out.content).not.toContain('[[file:')
     expect(out.content).not.toContain('[[keyboard:')
