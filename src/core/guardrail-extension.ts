@@ -13,7 +13,7 @@ const BLOCKED_PREFIXES = ['spawn_', 'exec_']
 
 const SENSITIVE_PATHS = [
   '/home/claude/.env',
-  '/home/claude/.pi-pipe',
+  '/home/claude/.claude-pipe',
   '/home/claude/.pi',
   '/home/claude/.ssh',
   '/home/claude/.aws',

@@ -2,10 +2,10 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 
-import type { PiPipeConfig } from './schema.js'
+import type { ClaudePipeConfig } from './schema.js'
 
 /**
- * Persisted settings stored in ~/.pi-pipe/settings.json.
+ * Persisted settings stored in ~/.claude-pipe/settings.json.
  */
 export interface PersonalitySettings {
   name: string
@@ -19,7 +19,7 @@ export interface PersonalitySettings {
  * every field has a schema-level default — omitting one keeps that default
  * rather than clearing it.
  */
-export type CodexSettings = Partial<PiPipeConfig['codex']>
+export type CodexSettings = Partial<ClaudePipeConfig['codex']>
 
 export interface Settings {
   channel: 'telegram' | 'discord' | 'cli'
@@ -40,7 +40,7 @@ export interface Settings {
 }
 
 function defaultConfigDir(): string {
-  return process.env.PI_PIPE_CONFIG_DIR || path.join(os.homedir(), '.pi-pipe')
+  return process.env.CLAUDE_PIPE_CONFIG_DIR || path.join(os.homedir(), '.claude-pipe')
 }
 
 /** Returns the resolved path to the settings directory. */

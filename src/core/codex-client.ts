@@ -1,6 +1,6 @@
 import { Codex, type Thread, type ThreadEvent, type ThreadItem } from '@openai/codex-sdk'
 
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore, sessionForHarness } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
@@ -91,7 +91,7 @@ function itemFailed(item: ThreadItem): boolean {
  * Two things differ from the other harnesses and shape the implementation:
  *
  * - **No system-prompt hook.** The Codex SDK exposes no way to append
- *   instructions to the agent's system prompt, so the pi-pipe prompt is
+ *   instructions to the agent's system prompt, so the claude-pipe prompt is
  *   prepended to the first user message of each thread. Codex keeps the whole
  *   thread transcript, so later turns (and turns after a restart, which resume
  *   the same thread) inherit it without paying for it again.
@@ -112,7 +112,7 @@ export class CodexClient implements ModelClient {
   private readonly abortControllers = new Map<string, AbortController>()
 
   constructor(
-    private config: PiPipeConfig,
+    private config: ClaudePipeConfig,
     private readonly store: SessionStore,
     private readonly logger: Logger
   ) {
@@ -183,7 +183,7 @@ export class CodexClient implements ModelClient {
     const abort = new AbortController()
     this.abortControllers.set(conversationKey, abort)
 
-    // A thread with no id has never taken a turn, so the pi-pipe instructions
+    // A thread with no id has never taken a turn, so the claude-pipe instructions
     // aren't in its transcript yet. Every later turn — including one that
     // resumes the thread after a restart — replays them from Codex's history.
     const prompt =

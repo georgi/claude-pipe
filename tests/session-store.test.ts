@@ -8,7 +8,7 @@ import { SessionStore, sessionForHarness } from '../src/core/session-store.js'
 
 describe('SessionStore', () => {
   it('persists and reloads session records', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
 
     const store = new SessionStore(path)
@@ -24,7 +24,7 @@ describe('SessionStore', () => {
   })
 
   it('clears an existing session record', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
 
     const store = new SessionStore(path)
@@ -39,7 +39,7 @@ describe('SessionStore', () => {
   })
 
   it('releases lockfile after persist', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
     const lockPath = `${path}.lock`
 
@@ -52,7 +52,7 @@ describe('SessionStore', () => {
   })
 
   it('handles concurrent writes without corruption', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
 
     const store = new SessionStore(path)
@@ -76,7 +76,7 @@ describe('SessionStore', () => {
   })
 
   it('entries() returns a snapshot independent of subsequent writes', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
     const store = new SessionStore(path)
     await store.init()
@@ -91,7 +91,7 @@ describe('SessionStore', () => {
   })
 
   it('clear() on an unknown key is a no-op', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
     const store = new SessionStore(path)
     await store.init()
@@ -101,14 +101,14 @@ describe('SessionStore', () => {
   })
 
   it('reads back an empty map when the file does not exist or is unreadable', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const store = new SessionStore(join(dir, 'never-existed.json'))
     await store.init()
     expect(store.entries()).toEqual({})
   })
 
   it('breaks stale lock and succeeds', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-pipe-test-'))
+    const dir = await mkdtemp(join(tmpdir(), 'claude-pipe-test-'))
     const path = join(dir, 'sessions.json')
     const lockPath = `${path}.lock`
 

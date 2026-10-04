@@ -1,12 +1,12 @@
-# pi-pipe
+# claude-pipe
 
-Pi Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It runs on a configurable **agent harness** — the [Pi Coding Agent SDK](https://pi.dev/docs/latest/sdk) (multi-provider; default), the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic models), or the [OpenAI Codex SDK](https://developers.openai.com/codex/sdk/) (OpenAI models). All three expose the same chat behavior, so you can switch with one setting.
+Claude Pipe is a personal AI assistant you run on your own machine. It answers you on the channels you already use (Telegram, Discord) or your terminal. It runs on a configurable **agent harness** — the [Pi Coding Agent SDK](https://pi.dev/docs/latest/sdk) (multi-provider; default), the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic models), or the [OpenAI Codex SDK](https://developers.openai.com/codex/sdk/) (OpenAI models). All three expose the same chat behavior, so you can switch with one setting.
 
 Inspired by [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
 ## What it does
 
-Pi Pipe connects your chat apps (or terminal) to a Pi coding agent. When you send a message, it:
+Claude Pipe connects your chat apps (or terminal) to a Pi coding agent. When you send a message, it:
 
 1. Picks up your message
 2. Passes it to Pi (with access to your workspace)
@@ -21,8 +21,8 @@ You'll need [Node.js](https://nodejs.org/) 20.18.1+ (required by the Pi SDK's tr
 **1. Clone and install**
 
 ```bash
-git clone https://github.com/georgi/claude-pipe.git pi-pipe
-cd pi-pipe
+git clone https://github.com/georgi/claude-pipe.git
+cd claude-pipe
 npm install
 ```
 
@@ -41,7 +41,7 @@ First run starts the interactive setup wizard:
 5. **Set workspace** — directory the agent can access (defaults to current directory)
 6. **Set personality** — give your assistant a name and description
 
-Settings are saved to `~/.pi-pipe/settings.json`.
+Settings are saved to `~/.claude-pipe/settings.json`.
 
 **3. Start the bot**
 
@@ -65,7 +65,7 @@ Send a message to your bot (or type in terminal if using CLI mode) and Pi will r
 
 ## Architecture
 
-Pi Pipe is a single Node.js process. One event bus, pluggable channels, one agent loop.
+Claude Pipe is a single Node.js process. One event bus, pluggable channels, one agent loop.
 
 ```
 ┌─────────┐  ┌─────────┐  ┌─────────┐
@@ -121,7 +121,7 @@ During a turn, tool call progress is shown as editable status messages (🔧 →
 
 ### Pi instructions extension
 
-pi-pipe's house instructions (concise communication style, attachment / inline-keyboard / memory marker protocols, plus your personality) are contributed to the agent through a Pi extension registered on the `DefaultResourceLoader`. The extension hooks `before_agent_start` and appends its content to the chained system prompt. Pi's normal discovery still runs alongside — your workspace `AGENTS.md`, extensions installed in `~/.pi/agent/extensions/`, and skills in `~/.pi/agent/skills/` all load as usual.
+claude-pipe's house instructions (concise communication style, attachment / inline-keyboard / memory marker protocols, plus your personality) are contributed to the agent through a Pi extension registered on the `DefaultResourceLoader`. The extension hooks `before_agent_start` and appends its content to the chained system prompt. Pi's normal discovery still runs alongside — your workspace `AGENTS.md`, extensions installed in `~/.pi/agent/extensions/`, and skills in `~/.pi/agent/skills/` all load as usual.
 
 ### Key Files
 
@@ -134,11 +134,11 @@ pi-pipe's house instructions (concise communication style, attachment / inline-k
 | `src/channels/manager.ts`   | Owns channel lifecycle and outbound dispatch                         |
 | `src/core/session-store.ts` | Persists session-file paths to a JSON file for cross-restart resume  |
 | `src/commands/handler.ts`   | Slash command interception and execution                             |
-| `src/config/load.ts`        | Loads and validates settings from `~/.pi-pipe/settings.json`         |
+| `src/config/load.ts`        | Loads and validates settings from `~/.claude-pipe/settings.json`     |
 
 ## Configuration reference
 
-Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboarding wizard.
+Configuration is stored in `~/.claude-pipe/settings.json` and created by the onboarding wizard.
 
 ```json
 {
@@ -187,7 +187,7 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 > install with `npm install --omit=optional` — the binary is an optional
 > dependency of `@openai/codex`, and only the `codex` harness needs it.
 
-The `codex` harness accepts an optional `codex` block in `~/.pi-pipe/settings.json`.
+The `codex` harness accepts an optional `codex` block in `~/.claude-pipe/settings.json`.
 Its defaults match how the `pi` and `claude` harnesses already run — full workspace
 access and no interactive approvals, because a chat bot has nobody at a terminal to
 answer an approval prompt and a blocked turn would just hang.
@@ -215,7 +215,7 @@ answer an approval prompt and a blocked turn would just hang.
 | `reasoningEffort`  | Optional: `minimal` … `max` — omitted means the Codex default                                                               |
 
 Because the Codex SDK has no hook for appending to the agent's system prompt,
-pi-pipe prepends its instructions (chat style, attachment / keyboard / memory
+claude-pipe prepends its instructions (chat style, attachment / keyboard / memory
 markers) to the first message of each Codex thread. Later turns inherit them from
 the thread transcript, including after a restart.
 
@@ -234,28 +234,28 @@ The `codex` harness shells out to the bundled `codex` CLI, which reads its own
 credentials: run `codex login` once for a ChatGPT sign-in, or set `CODEX_API_KEY`
 (or `OPENAI_API_KEY`) in the environment.
 
-Set them in your shell profile or in `~/.pi-pipe/.env`.
+Set them in your shell profile or in `~/.claude-pipe/.env`.
 
 ### Advanced configuration via environment variables
 
-For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the project root.
+For options not in the settings file, use a `.env` file in `~/.claude-pipe/` or the project root.
 
-| Variable                          | What it does                                                                       |
-| --------------------------------- | ---------------------------------------------------------------------------------- |
-| `PIPIPE_HARNESS`                  | Agent harness: `pi` (default), `claude`, or `codex` (overrides the settings value) |
-| `PIPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)             |
-| `PIPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                              |
-| `PIPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                                    |
-| `PIPIPE_SUMMARY_PROMPT_TEMPLATE`  | Template for summary requests (supports `{{workspace}}` and `{{request}}`)         |
-| `PIPIPE_TRANSCRIPT_LOG_ENABLED`   | Log conversations to a file                                                        |
-| `PIPIPE_TRANSCRIPT_LOG_PATH`      | Path for transcript log file                                                       |
-| `PIPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation                                           |
-| `PIPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                         |
-| `PIPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                                |
-| `PIPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)                    |
-| `PIPIPE_DISCORD_ALLOW_DMS`        | `true`/`false`: accept Discord DMs (default: only when an allowlist is set)        |
-| `PIPIPE_DISCORD_USE_THREADS`      | Auto-create a Discord thread per session (`true`/`false`, default: `true`)         |
-| `PIPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                                    |
+| Variable                              | What it does                                                                       |
+| ------------------------------------- | ---------------------------------------------------------------------------------- |
+| `CLAUDEPIPE_HARNESS`                  | Agent harness: `pi` (default), `claude`, or `codex` (overrides the settings value) |
+| `CLAUDEPIPE_SESSION_STORE_PATH`       | Where to save session data (default: `{workspace}/data/sessions.json`)             |
+| `CLAUDEPIPE_MAX_TOOL_ITERATIONS`      | Max tool calls per turn (default: 20)                                              |
+| `CLAUDEPIPE_SUMMARY_PROMPT_ENABLED`   | Enable summary prompt templates                                                    |
+| `CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE`  | Template for summary requests (supports `{{workspace}}` and `{{request}}`)         |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED`   | Log conversations to a file                                                        |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_PATH`      | Path for transcript log file                                                       |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES` | Max transcript file size before rotation                                           |
+| `CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                         |
+| `CLAUDEPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                                |
+| `CLAUDEPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)                    |
+| `CLAUDEPIPE_DISCORD_ALLOW_DMS`        | `true`/`false`: accept Discord DMs (default: only when an allowlist is set)        |
+| `CLAUDEPIPE_DISCORD_USE_THREADS`      | Auto-create a Discord thread per session (`true`/`false`, default: `true`)         |
+| `CLAUDEPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                                    |
 
 ### Permissions
 
@@ -272,7 +272,7 @@ npm run test:run # run tests once
 ## Features
 
 - **Multi-channel support**: Works with Telegram, Discord, and CLI
-- **Discord session threads**: Mentioning the bot (or running a slash command) in a text channel opens a thread and continues there. Each thread is its own session, so parallel conversations never share context, and follow-ups in the thread need no mention. Disable with `PIPIPE_DISCORD_USE_THREADS=false`.
+- **Discord session threads**: Mentioning the bot (or running a slash command) in a text channel opens a thread and continues there. Each thread is its own session, so parallel conversations never share context, and follow-ups in the thread need no mention. Disable with `CLAUDEPIPE_DISCORD_USE_THREADS=false`.
 - **Bidirectional media attachments**: Full support for sending and receiving images, videos, documents, and audio files
   - Receive attachments from users via Telegram and Discord
   - Send attachments back to users in agent responses

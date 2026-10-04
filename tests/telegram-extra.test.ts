@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageBus } from '../src/core/bus.js'
 import { TelegramChannel } from '../src/channels/telegram.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 
-function makeConfig(): PiPipeConfig {
+function makeConfig(): ClaudePipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
@@ -16,7 +16,7 @@ function makeConfig(): PiPipeConfig {
     transcriptLog: { enabled: false, path: '/tmp/t' },
     sessionStorePath: '/tmp/sessions.json',
     maxToolIterations: 20
-  } as PiPipeConfig
+  } as ClaudePipeConfig
 }
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }

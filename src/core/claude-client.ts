@@ -1,7 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore, sessionForHarness } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
@@ -35,7 +35,7 @@ export class ClaudeClient implements ModelClient {
   private readonly abortControllers = new Map<string, AbortController>()
 
   constructor(
-    private config: PiPipeConfig,
+    private config: ClaudePipeConfig,
     private readonly store: SessionStore,
     private readonly logger: Logger
   ) {

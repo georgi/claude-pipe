@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 import { MessageBus } from '../src/core/bus.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 import { TelegramChannel } from '../src/channels/telegram.js'
 
-function makeConfig(): PiPipeConfig {
+function makeConfig(): ClaudePipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',

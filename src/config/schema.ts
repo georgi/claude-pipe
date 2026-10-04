@@ -28,7 +28,7 @@ const cliChannelSchema = z.object({
 })
 
 /**
- * Runtime configuration schema for Pi Pipe.
+ * Runtime configuration schema for Claude Pipe.
  */
 export const configSchema = z.object({
   /**
@@ -136,4 +136,4 @@ export const configSchema = z.object({
     })
 })
 
-export type PiPipeConfig = z.infer<typeof configSchema>
+export type ClaudePipeConfig = z.infer<typeof configSchema>

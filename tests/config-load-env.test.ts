@@ -17,26 +17,26 @@ import { homedir } from 'node:os'
 const mockedHomedir = homedir as unknown as ReturnType<typeof vi.fn>
 
 const ENV_KEYS = [
-  'PIPIPE_HARNESS',
-  'PIPIPE_MODEL',
-  'PIPIPE_WORKSPACE',
-  'PIPIPE_TELEGRAM_ENABLED',
-  'PIPIPE_TELEGRAM_TOKEN',
-  'PIPIPE_TELEGRAM_ALLOW_FROM',
-  'PIPIPE_DISCORD_ENABLED',
-  'PIPIPE_DISCORD_TOKEN',
-  'PIPIPE_DISCORD_ALLOW_FROM',
-  'PIPIPE_DISCORD_ALLOW_CHANNELS',
-  'PIPIPE_CLI_ENABLED',
-  'PIPIPE_CLI_ALLOW_FROM',
-  'PIPIPE_SUMMARY_PROMPT_ENABLED',
-  'PIPIPE_SUMMARY_PROMPT_TEMPLATE',
-  'PIPIPE_TRANSCRIPT_LOG_ENABLED',
-  'PIPIPE_TRANSCRIPT_LOG_PATH',
-  'PIPIPE_TRANSCRIPT_LOG_MAX_BYTES',
-  'PIPIPE_TRANSCRIPT_LOG_MAX_FILES',
-  'PIPIPE_SESSION_STORE_PATH',
-  'PIPIPE_MAX_TOOL_ITERATIONS'
+  'CLAUDEPIPE_HARNESS',
+  'CLAUDEPIPE_MODEL',
+  'CLAUDEPIPE_WORKSPACE',
+  'CLAUDEPIPE_TELEGRAM_ENABLED',
+  'CLAUDEPIPE_TELEGRAM_TOKEN',
+  'CLAUDEPIPE_TELEGRAM_ALLOW_FROM',
+  'CLAUDEPIPE_DISCORD_ENABLED',
+  'CLAUDEPIPE_DISCORD_TOKEN',
+  'CLAUDEPIPE_DISCORD_ALLOW_FROM',
+  'CLAUDEPIPE_DISCORD_ALLOW_CHANNELS',
+  'CLAUDEPIPE_CLI_ENABLED',
+  'CLAUDEPIPE_CLI_ALLOW_FROM',
+  'CLAUDEPIPE_SUMMARY_PROMPT_ENABLED',
+  'CLAUDEPIPE_SUMMARY_PROMPT_TEMPLATE',
+  'CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED',
+  'CLAUDEPIPE_TRANSCRIPT_LOG_PATH',
+  'CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES',
+  'CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES',
+  'CLAUDEPIPE_SESSION_STORE_PATH',
+  'CLAUDEPIPE_MAX_TOOL_ITERATIONS'
 ]
 
 describe('loadConfig', () => {
@@ -44,7 +44,7 @@ describe('loadConfig', () => {
   const originalEnv: Record<string, string | undefined> = {}
 
   beforeEach(async () => {
-    fakeHome = await mkdtemp(join(tmpdir(), 'pi-pipe-load-config-'))
+    fakeHome = await mkdtemp(join(tmpdir(), 'claude-pipe-load-config-'))
     mockedHomedir.mockReturnValue(fakeHome)
     for (const k of ENV_KEYS) {
       originalEnv[k] = process.env[k]
@@ -62,12 +62,12 @@ describe('loadConfig', () => {
   })
 
   it('falls back to env vars when no settings file exists (cli channel)', async () => {
-    process.env.PIPIPE_MODEL = 'claude-haiku-4-5'
-    process.env.PIPIPE_WORKSPACE = '/tmp/env-ws'
-    process.env.PIPIPE_CLI_ENABLED = 'true'
-    process.env.PIPIPE_CLI_ALLOW_FROM = 'alice,bob'
-    process.env.PIPIPE_SESSION_STORE_PATH = '/tmp/sessions.json'
-    process.env.PIPIPE_MAX_TOOL_ITERATIONS = '7'
+    process.env.CLAUDEPIPE_MODEL = 'claude-haiku-4-5'
+    process.env.CLAUDEPIPE_WORKSPACE = '/tmp/env-ws'
+    process.env.CLAUDEPIPE_CLI_ENABLED = 'true'
+    process.env.CLAUDEPIPE_CLI_ALLOW_FROM = 'alice,bob'
+    process.env.CLAUDEPIPE_SESSION_STORE_PATH = '/tmp/sessions.json'
+    process.env.CLAUDEPIPE_MAX_TOOL_ITERATIONS = '7'
 
     vi.resetModules()
     const { loadConfig } = await import('../src/config/load.js')
@@ -82,14 +82,14 @@ describe('loadConfig', () => {
   })
 
   it('parses telegram/discord env-var channel configuration', async () => {
-    process.env.PIPIPE_MODEL = 'gpt-5'
-    process.env.PIPIPE_WORKSPACE = '/tmp/x'
-    process.env.PIPIPE_TELEGRAM_ENABLED = 'true'
-    process.env.PIPIPE_TELEGRAM_TOKEN = 'tg-tok'
-    process.env.PIPIPE_TELEGRAM_ALLOW_FROM = '100,200'
-    process.env.PIPIPE_DISCORD_ENABLED = 'true'
-    process.env.PIPIPE_DISCORD_TOKEN = 'dc-tok'
-    process.env.PIPIPE_DISCORD_ALLOW_CHANNELS = 'chan-a,chan-b'
+    process.env.CLAUDEPIPE_MODEL = 'gpt-5'
+    process.env.CLAUDEPIPE_WORKSPACE = '/tmp/x'
+    process.env.CLAUDEPIPE_TELEGRAM_ENABLED = 'true'
+    process.env.CLAUDEPIPE_TELEGRAM_TOKEN = 'tg-tok'
+    process.env.CLAUDEPIPE_TELEGRAM_ALLOW_FROM = '100,200'
+    process.env.CLAUDEPIPE_DISCORD_ENABLED = 'true'
+    process.env.CLAUDEPIPE_DISCORD_TOKEN = 'dc-tok'
+    process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS = 'chan-a,chan-b'
 
     vi.resetModules()
     const { loadConfig } = await import('../src/config/load.js')
@@ -104,9 +104,9 @@ describe('loadConfig', () => {
   })
 
   it('selects the codex harness and applies its defaults', async () => {
-    process.env.PIPIPE_HARNESS = 'codex'
-    process.env.PIPIPE_MODEL = 'gpt-5.1-codex'
-    process.env.PIPIPE_WORKSPACE = '/tmp/x'
+    process.env.CLAUDEPIPE_HARNESS = 'codex'
+    process.env.CLAUDEPIPE_MODEL = 'gpt-5.1-codex'
+    process.env.CLAUDEPIPE_WORKSPACE = '/tmp/x'
 
     vi.resetModules()
     const { loadConfig } = await import('../src/config/load.js')
@@ -121,10 +121,10 @@ describe('loadConfig', () => {
     })
   })
 
-  it('falls back to the pi harness for an unrecognised PIPIPE_HARNESS', async () => {
-    process.env.PIPIPE_HARNESS = 'gemini'
-    process.env.PIPIPE_MODEL = 'gpt-5'
-    process.env.PIPIPE_WORKSPACE = '/tmp/x'
+  it('falls back to the pi harness for an unrecognised CLAUDEPIPE_HARNESS', async () => {
+    process.env.CLAUDEPIPE_HARNESS = 'gemini'
+    process.env.CLAUDEPIPE_MODEL = 'gpt-5'
+    process.env.CLAUDEPIPE_WORKSPACE = '/tmp/x'
 
     vi.resetModules()
     const { loadConfig } = await import('../src/config/load.js')
@@ -132,12 +132,12 @@ describe('loadConfig', () => {
   })
 
   it('honours transcript-log env vars', async () => {
-    process.env.PIPIPE_MODEL = 'claude-sonnet-4-5'
-    process.env.PIPIPE_WORKSPACE = '/tmp/x'
-    process.env.PIPIPE_TRANSCRIPT_LOG_ENABLED = 'true'
-    process.env.PIPIPE_TRANSCRIPT_LOG_PATH = '/tmp/transcripts.jsonl'
-    process.env.PIPIPE_TRANSCRIPT_LOG_MAX_BYTES = '500'
-    process.env.PIPIPE_TRANSCRIPT_LOG_MAX_FILES = '4'
+    process.env.CLAUDEPIPE_MODEL = 'claude-sonnet-4-5'
+    process.env.CLAUDEPIPE_WORKSPACE = '/tmp/x'
+    process.env.CLAUDEPIPE_TRANSCRIPT_LOG_ENABLED = 'true'
+    process.env.CLAUDEPIPE_TRANSCRIPT_LOG_PATH = '/tmp/transcripts.jsonl'
+    process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_BYTES = '500'
+    process.env.CLAUDEPIPE_TRANSCRIPT_LOG_MAX_FILES = '4'
 
     vi.resetModules()
     const { loadConfig } = await import('../src/config/load.js')
@@ -150,7 +150,7 @@ describe('loadConfig', () => {
   })
 
   it('forwards an explicit codex block from settings.json', async () => {
-    const settingsDir = join(fakeHome, '.pi-pipe')
+    const settingsDir = join(fakeHome, '.claude-pipe')
     const fsp = await import('node:fs/promises')
     await fsp.mkdir(settingsDir, { recursive: true })
     await fsp.writeFile(
@@ -187,7 +187,7 @@ describe('loadConfig', () => {
   })
 
   it('applies codex defaults when settings.json omits the block', async () => {
-    const settingsDir = join(fakeHome, '.pi-pipe')
+    const settingsDir = join(fakeHome, '.claude-pipe')
     const fsp = await import('node:fs/promises')
     await fsp.mkdir(settingsDir, { recursive: true })
     await fsp.writeFile(
@@ -215,8 +215,8 @@ describe('loadConfig', () => {
     })
   })
 
-  it('loads from ~/.pi-pipe/settings.json when present', async () => {
-    const settingsDir = join(fakeHome, '.pi-pipe')
+  it('loads from ~/.claude-pipe/settings.json when present', async () => {
+    const settingsDir = join(fakeHome, '.claude-pipe')
     await writeFile.bind(null) // ensure import OK
     // Create the dir and file
     const fsp = await import('node:fs/promises')
@@ -253,7 +253,7 @@ describe('loadConfig', () => {
   })
 
   it('does not override existing env vars with settings.env', async () => {
-    const settingsDir = join(fakeHome, '.pi-pipe')
+    const settingsDir = join(fakeHome, '.claude-pipe')
     const fsp = await import('node:fs/promises')
     await fsp.mkdir(settingsDir, { recursive: true })
     await fsp.writeFile(

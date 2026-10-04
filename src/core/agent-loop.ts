@@ -1,6 +1,6 @@
 import type { CommandHandler } from '../commands/handler.js'
 import type { ChannelManager } from '../channels/manager.js'
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 import type { DailyLog } from '../memory/daily-log.js'
 import type { MemoryStore } from '../memory/store.js'
 import { parseMemoryMarker } from '../memory/marker.js'
@@ -36,7 +36,7 @@ export class AgentLoop {
 
   constructor(
     private readonly bus: MessageBus,
-    private readonly config: PiPipeConfig,
+    private readonly config: ClaudePipeConfig,
     private readonly client: ModelClient,
     private readonly logger: Logger
   ) {}

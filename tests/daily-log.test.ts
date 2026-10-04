@@ -11,7 +11,7 @@ describe('DailyLog', () => {
   let dir: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pi-pipe-daily-log-'))
+    dir = await mkdtemp(join(tmpdir(), 'claude-pipe-daily-log-'))
   })
 
   afterEach(async () => {

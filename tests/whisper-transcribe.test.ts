@@ -333,7 +333,7 @@ describe('downloadToTemp', () => {
     vi.resetAllMocks()
   })
 
-  it('writes the response body to a file under tmpdir/pi-pipe-audio', async () => {
+  it('writes the response body to a file under tmpdir/claude-pipe-audio', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       arrayBuffer: async () => new ArrayBuffer(8)
@@ -343,7 +343,7 @@ describe('downloadToTemp', () => {
     const { downloadToTemp } = await import('../src/audio/whisper.js')
     const path = await downloadToTemp('https://example.com/file.ogg', '.ogg')
 
-    expect(path).toContain('pi-pipe-audio')
+    expect(path).toContain('claude-pipe-audio')
     expect(path.endsWith('.ogg')).toBe(true)
     expect(fetchMock).toHaveBeenCalledWith('https://example.com/file.ogg')
 

@@ -7,7 +7,7 @@ import {
   stopCommand
 } from '../src/commands/definitions/utility.js'
 import type { CommandContext } from '../src/commands/types.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 
 function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
@@ -27,14 +27,14 @@ describe('reloadCommand', () => {
       model: 'old-model',
       workspace: '/old',
       personality: { name: 'Old', traits: 'grumpy' }
-    } as unknown as PiPipeConfig
+    } as unknown as ClaudePipeConfig
 
-    const reloadConfig = (): PiPipeConfig =>
+    const reloadConfig = (): ClaudePipeConfig =>
       ({
         model: 'new-model',
         workspace: '/new',
         personality: { name: 'New', traits: 'cheerful' }
-      }) as PiPipeConfig
+      }) as ClaudePipeConfig
 
     const cmd = reloadCommand(config, reloadConfig)
     const result = await cmd.execute(makeCtx())
@@ -47,16 +47,17 @@ describe('reloadCommand', () => {
   })
 
   it('returns plain output when personality is missing', async () => {
-    const config = { model: 'old', workspace: '/x' } as unknown as PiPipeConfig
-    const reloadConfig = (): PiPipeConfig => ({ model: 'fresh', workspace: '/y' }) as PiPipeConfig
+    const config = { model: 'old', workspace: '/x' } as unknown as ClaudePipeConfig
+    const reloadConfig = (): ClaudePipeConfig =>
+      ({ model: 'fresh', workspace: '/y' }) as ClaudePipeConfig
 
     const result = await reloadCommand(config, reloadConfig).execute(makeCtx())
     expect(result.content).not.toContain('Personality')
   })
 
   it('returns error when reloadConfig throws', async () => {
-    const config = { model: 'old', workspace: '/x' } as unknown as PiPipeConfig
-    const reloadConfig = (): PiPipeConfig => {
+    const config = { model: 'old', workspace: '/x' } as unknown as ClaudePipeConfig
+    const reloadConfig = (): ClaudePipeConfig => {
       throw new Error('broken settings file')
     }
 

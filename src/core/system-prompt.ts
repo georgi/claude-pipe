@@ -1,4 +1,4 @@
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 
 /**
  * Base system prompt shared by every agent harness (Pi, Claude, Codex, …).
@@ -10,7 +10,7 @@ import type { PiPipeConfig } from '../config/schema.js'
  * assistant talks or what markers it understands.
  */
 export const BASE_SYSTEM_PROMPT = [
-  'You are a personal AI assistant running inside a chat app (Telegram, Discord, or CLI) via pi-pipe.',
+  'You are a personal AI assistant running inside a chat app (Telegram, Discord, or CLI) via claude-pipe.',
   '',
   '## Communication style',
   '- Be direct and concise — your human is reading on a phone, not a desktop.',
@@ -58,7 +58,7 @@ export const BASE_SYSTEM_PROMPT = [
 ].join('\n')
 
 /** Builds the full system prompt: base instructions + optional personality. */
-export function buildSystemPrompt(config: PiPipeConfig): string {
+export function buildSystemPrompt(config: ClaudePipeConfig): string {
   if (!config.personality?.name) return BASE_SYSTEM_PROMPT
   const { name, traits } = config.personality
   return [

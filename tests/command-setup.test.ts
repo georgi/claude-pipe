@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { setupCommands } from '../src/commands/setup.js'
 import type { CommandDependencies } from '../src/commands/setup.js'
 import type { CommandDefinition } from '../src/commands/types.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 
 function makeDeps(): CommandDependencies {
-  const config: PiPipeConfig = {
+  const config: ClaudePipeConfig = {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
     channels: {

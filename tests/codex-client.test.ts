@@ -171,7 +171,7 @@ describe('CodexClient (Codex SDK)', () => {
     )
   })
 
-  it('prepends the pi-pipe instructions to the first turn only', async () => {
+  it('prepends the claude-pipe instructions to the first turn only', async () => {
     const { CodexClient } = await import('../src/core/codex-client.js')
     const thread = makeThread([
       { type: 'thread.started', thread_id: 'thread-1' },

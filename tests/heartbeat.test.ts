@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageBus } from '../src/core/bus.js'
 import { Heartbeat, createHeartbeat } from '../src/core/heartbeat.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 
 const fakeLogger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })
 
@@ -136,7 +136,7 @@ describe('Heartbeat', () => {
 })
 
 describe('createHeartbeat', () => {
-  it('reads heartbeat block from PiPipeConfig and converts minutes to ms', () => {
+  it('reads heartbeat block from ClaudePipeConfig and converts minutes to ms', () => {
     const cfg = {
       heartbeat: {
         enabled: true,
@@ -144,14 +144,14 @@ describe('createHeartbeat', () => {
         defaultChannel: 'telegram',
         defaultChatId: 'group-42'
       }
-    } as unknown as PiPipeConfig
+    } as unknown as ClaudePipeConfig
 
     const hb = createHeartbeat(cfg, new MessageBus(), fakeLogger())
     expect(hb).toBeInstanceOf(Heartbeat)
   })
 
   it('uses sensible defaults when heartbeat block is missing', () => {
-    const hb = createHeartbeat({} as PiPipeConfig, new MessageBus(), fakeLogger())
+    const hb = createHeartbeat({} as ClaudePipeConfig, new MessageBus(), fakeLogger())
     expect(hb).toBeInstanceOf(Heartbeat)
   })
 })

@@ -12,7 +12,7 @@ import {
 import { getModel } from '@earendil-works/pi-ai'
 import type { Model } from '@earendil-works/pi-ai'
 
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 import type { ModelClient } from './model-client.js'
 import { SessionStore, sessionForHarness } from './session-store.js'
 import { buildSystemPrompt } from './system-prompt.js'
@@ -22,7 +22,7 @@ import { summarizeToolInput } from './tool-format.js'
 import type { AgentTurnUpdate, Logger, ToolContext } from './types.js'
 
 /**
- * A Pi extension that contributes pi-pipe's instructions to the agent via the
+ * A Pi extension that contributes claude-pipe's instructions to the agent via the
  * `before_agent_start` hook. The factory closes over a getter so config edits
  * (e.g. `/pi_model` switching the active model) are picked up without
  * re-creating the session.
@@ -113,7 +113,7 @@ function extractErrorText(result: unknown): string {
  * On first turn the session file is persisted so cross-restart resumption
  * uses `SessionManager.open(filePath)`.
  *
- * The pi-pipe system prompt (communication style + attachment / keyboard /
+ * The claude-pipe system prompt (communication style + attachment / keyboard /
  * memory marker protocol) is contributed by a Pi extension that hooks
  * `before_agent_start` — no SDK internals are mutated.
  *
@@ -130,7 +130,7 @@ export class PiClient implements ModelClient {
   private readonly agentDir: string
 
   constructor(
-    private config: PiPipeConfig,
+    private config: ClaudePipeConfig,
     private readonly store: SessionStore,
     private readonly logger: Logger
   ) {

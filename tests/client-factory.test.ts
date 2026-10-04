@@ -4,7 +4,7 @@ import { createModelClient } from '../src/core/client-factory.js'
 import { PiClient } from '../src/core/pi-client.js'
 import { ClaudeClient } from '../src/core/claude-client.js'
 import { CodexClient } from '../src/core/codex-client.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   AuthStorage: { create: vi.fn(() => ({})) },
@@ -32,13 +32,13 @@ vi.mock('@openai/codex-sdk', () => ({
   }
 }))
 
-function makeConfig(harness: 'pi' | 'claude' | 'codex'): PiPipeConfig {
+function makeConfig(harness: 'pi' | 'claude' | 'codex'): ClaudePipeConfig {
   return {
     harness,
     model: 'claude-sonnet-4-5',
     workspace: '/tmp',
     transcriptLog: { enabled: false, path: '/tmp/t.jsonl' }
-  } as unknown as PiPipeConfig
+  } as unknown as ClaudePipeConfig
 }
 
 const store = {

@@ -20,7 +20,7 @@ describe('discoverSkills', () => {
   let fakeHome: string
 
   beforeEach(async () => {
-    fakeHome = await mkdtemp(join(tmpdir(), 'pi-pipe-skills-home-'))
+    fakeHome = await mkdtemp(join(tmpdir(), 'claude-pipe-skills-home-'))
     mockedHomedir.mockReturnValue(fakeHome)
   })
 
@@ -134,7 +134,7 @@ describe('discoverSkills', () => {
   })
 
   it('resolves symlinks when scanning skills', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'pi-pipe-skill-target-'))
+    const target = await mkdtemp(join(tmpdir(), 'claude-pipe-skill-target-'))
     await writeFile(
       join(target, 'SKILL.md'),
       '---\nname: linked\ndescription: Linked skill\nuser-invocable: true\n---',

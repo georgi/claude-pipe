@@ -29,7 +29,7 @@ function isHelpMode(): boolean {
 /** Show help message */
 function showHelp(): void {
   console.log(
-    '\nPi Pipe - Bot for Telegram and Discord using the Pi Coding Agent SDK\n\n' +
+    '\nClaude Pipe - Bot for Telegram and Discord using the Pi Coding Agent SDK\n\n' +
       'Usage:\n' +
       '  npm run dev [-- options]   Start the bot in development mode (tsx)\n' +
       '  npm start [-- options]     Start the compiled build (node dist/index.js)\n\n' +
@@ -42,7 +42,7 @@ function showHelp(): void {
   )
 }
 
-/** Boots the Pi Pipe runtime and starts channel + agent loops. */
+/** Boots the Claude Pipe runtime and starts channel + agent loops. */
 async function main(): Promise<void> {
   // Handle help mode
   if (isHelpMode()) {

@@ -1,6 +1,6 @@
 # Image and Media Attachments
 
-Pi Pipe supports **bidirectional** image and media attachments for both Telegram and Discord channels. Agents can receive attachments from users and send attachments back in responses. This document describes how attachments flow through the system.
+Claude Pipe supports **bidirectional** image and media attachments for both Telegram and Discord channels. Agents can receive attachments from users and send attachments back in responses. This document describes how attachments flow through the system.
 
 ## Supported Attachment Types
 

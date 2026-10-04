@@ -1,11 +1,11 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 import { TelegramChannel } from '../src/channels/telegram.js'
 import { DiscordChannel } from '../src/channels/discord.js'
 import { MessageBus } from '../src/core/bus.js'
 
-function makeConfig(): PiPipeConfig {
+function makeConfig(): ClaudePipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',

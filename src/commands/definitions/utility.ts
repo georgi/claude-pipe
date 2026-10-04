@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { PiPipeConfig } from '../../config/schema.js'
+import type { ClaudePipeConfig } from '../../config/schema.js'
 import type { CommandDefinition, CommandResult } from '../types.js'
 import type { CommandRegistry } from '../registry.js'
 
@@ -84,8 +84,8 @@ export function statusCommand(
  * Reloads configuration from disk without restarting.
  */
 export function reloadCommand(
-  config: PiPipeConfig,
-  reloadConfig: () => PiPipeConfig
+  config: ClaudePipeConfig,
+  reloadConfig: () => ClaudePipeConfig
 ): CommandDefinition {
   return {
     name: 'reload',

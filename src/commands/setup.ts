@@ -1,6 +1,6 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 import { loadConfig } from '../config/load.js'
 import type { ModelClient } from '../core/model-client.js'
 import type { SessionStore } from '../core/session-store.js'
@@ -31,7 +31,7 @@ import type { CommandDefinition } from './types.js'
  * Dependencies required by built-in commands.
  */
 export interface CommandDependencies {
-  config: PiPipeConfig
+  config: ClaudePipeConfig
   pi: ModelClient
   sessionStore: SessionStore
 }

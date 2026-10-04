@@ -1,8 +1,8 @@
-# Pi Pipe Build Spec (v1)
+# Claude Pipe Build Spec (v1)
 
 - Status: Ready for implementation
 - Date: 2026-02-08
-- Source of truth: `/Users/mg/workspace/pi-pipe/PRD.md`
+- Source of truth: `/Users/mg/workspace/claude-pipe/PRD.md`
 
 ## 1. Goals
 
@@ -24,7 +24,7 @@ Build a local TypeScript bot for Telegram and Discord using the Pi Coding Agent 
 ## 3. Proposed Repository Layout
 
 ```text
-pi-pipe/
+claude-pipe/
   package.json
   tsconfig.json
   .env.example
@@ -106,7 +106,7 @@ export type SessionMap = Record<string, SessionRecord>
 
 ```ts
 // src/config/schema.ts
-export interface PiPipeConfig {
+export interface ClaudePipeConfig {
   model: string
   workspace: string
   channels: {
@@ -131,8 +131,8 @@ export interface PiPipeConfig {
 
 Config source order:
 
-1. `~/.pi-pipe/settings.json` (written by the onboarding wizard).
-2. Environment overrides (`PIPIPE_*`).
+1. `~/.claude-pipe/settings.json` (written by the onboarding wizard).
+2. Environment overrides (`CLAUDEPIPE_*`).
 
 ## 7. Session Store Spec
 
@@ -151,7 +151,7 @@ Responsibilities:
 - Maintain one `AgentSession` per `conversationKey` in memory.
 - On first turn: `createAgentSession({ cwd, model, resourceLoader, sessionManager: SessionManager.create(cwd) })` and persist `session.sessionFile`.
 - On cold start with a stored sessionFile: `SessionManager.open(filePath)` before `createAgentSession`.
-- Register a Pi extension (`DefaultResourceLoader.extensionFactories`) that hooks `before_agent_start` and returns `{ systemPrompt }` carrying pi-pipe's communication-style + marker-protocol instructions.
+- Register a Pi extension (`DefaultResourceLoader.extensionFactories`) that hooks `before_agent_start` and returns `{ systemPrompt }` carrying claude-pipe's communication-style + marker-protocol instructions.
 - Subscribe to `session.subscribe(...)` events and translate them into channel-visible updates.
 - On cancel: `await session.abort()`.
 
@@ -160,12 +160,12 @@ Pi SDK options used:
 - `cwd`: workspace path
 - `agentDir`: `getAgentDir()` (default `~/.pi/agent`)
 - `model`: resolved via `ModelRegistry.find()` / `getModel()` from a config string
-- `resourceLoader`: `DefaultResourceLoader` with Pi's normal discovery left enabled — `AGENTS.md`, user-installed extensions in `~/.pi/agent/extensions/`, and skills in `~/.pi/agent/skills/` all load — plus pi-pipe's instructions extension contributed via `extensionFactories`
+- `resourceLoader`: `DefaultResourceLoader` with Pi's normal discovery left enabled — `AGENTS.md`, user-installed extensions in `~/.pi/agent/extensions/`, and skills in `~/.pi/agent/skills/` all load — plus claude-pipe's instructions extension contributed via `extensionFactories`
 - `sessionManager`: `SessionManager.create(cwd)` or `SessionManager.open(filePath)`
 
 ## 9. Tools
 
-pi-pipe uses Pi SDK's built-in tools by default — no `customTools` are passed in v1:
+claude-pipe uses Pi SDK's built-in tools by default — no `customTools` are passed in v1:
 
 **File tools:** `read`, `write`, `edit`, `grep`, `find`, `ls`.
 
@@ -282,5 +282,5 @@ Do not log secrets or full file contents.
 ## 17. Definition of Done
 
 - All acceptance tests above pass locally.
-- PRD in `/Users/mg/workspace/pi-pipe/PRD.md` remains consistent with implementation.
+- PRD in `/Users/mg/workspace/claude-pipe/PRD.md` remains consistent with implementation.
 - Build spec checkpoints are traceable in code modules.

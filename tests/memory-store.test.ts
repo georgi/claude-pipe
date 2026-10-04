@@ -14,7 +14,7 @@ describe('MemoryStore', () => {
   let store: MemoryStore
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pi-pipe-memory-'))
+    dir = await mkdtemp(join(tmpdir(), 'claude-pipe-memory-'))
     store = new MemoryStore(join(dir, 'memory.sqlite'))
     store.init()
   })

@@ -1,4 +1,4 @@
-# Pi Pipe PRD (v1)
+# Claude Pipe PRD (v1)
 
 - Status: Approved for planning
 - Date: 2026-02-08
@@ -8,7 +8,7 @@
 
 ## 1. Product Summary
 
-Pi Pipe is a local, single-user TypeScript bot for Telegram and Discord powered by the Pi Coding Agent SDK. Inspired by the architecture and patterns from [openclaw/openclaw](https://github.com/openclaw/openclaw).
+Claude Pipe is a local, single-user TypeScript bot for Telegram and Discord powered by the Pi Coding Agent SDK. Inspired by the architecture and patterns from [openclaw/openclaw](https://github.com/openclaw/openclaw).
 
 ## 2. Objective
 

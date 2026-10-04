@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DiscordChannel } from '../src/channels/discord.js'
 import { MessageBus } from '../src/core/bus.js'
-import type { PiPipeConfig } from '../src/config/schema.js'
+import type { ClaudePipeConfig } from '../src/config/schema.js'
 
 const GUILD_TEXT = 0
 const PUBLIC_THREAD = 11
@@ -11,7 +11,7 @@ function makeConfig(overrides?: {
   allowChannels?: string[]
   useThreads?: boolean
   threadAutoArchiveMinutes?: 60 | 1440 | 4320 | 10080
-}): PiPipeConfig {
+}): ClaudePipeConfig {
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',
@@ -30,7 +30,7 @@ function makeConfig(overrides?: {
     transcriptLog: { enabled: false, path: '/tmp/transcript.jsonl' },
     sessionStorePath: '/tmp/sessions.json',
     maxToolIterations: 20
-  } as unknown as PiPipeConfig
+  } as unknown as ClaudePipeConfig
 }
 
 /** A guild text channel that supports the history fetch done on mention. */

@@ -23,8 +23,8 @@ describe('runOnboarding', () => {
   let logSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(async () => {
-    fakeHome = await mkdtemp(join(tmpdir(), 'pi-pipe-wizard-home-'))
-    workspace = await mkdtemp(join(tmpdir(), 'pi-pipe-wizard-ws-'))
+    fakeHome = await mkdtemp(join(tmpdir(), 'claude-pipe-wizard-home-'))
+    workspace = await mkdtemp(join(tmpdir(), 'claude-pipe-wizard-ws-'))
     mockedHomedir.mockReturnValue(fakeHome)
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
@@ -72,7 +72,7 @@ describe('runOnboarding', () => {
       'witty and short' // personality traits
     ])
 
-    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.channel).toBe('cli')
     expect(parsed.harness).toBe('pi')
@@ -87,7 +87,7 @@ describe('runOnboarding', () => {
 
     // The welcome banner was emitted via console.log
     const banners = logSpy.mock.calls.map((c) => String(c[0])).join('\n')
-    expect(banners).toContain('Welcome to Pi Pipe')
+    expect(banners).toContain('Welcome to Claude Pipe')
   })
 
   it('reconfigure flow keeps existing values when user accepts defaults', async () => {
@@ -138,7 +138,7 @@ describe('runOnboarding', () => {
       'snappy'
     ])
 
-    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.model).toBe('claude-sonnet-4-5')
   })
@@ -225,7 +225,7 @@ describe('runOnboarding', () => {
       'brief'
     ])
 
-    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.channel).toBe('telegram')
     expect(parsed.token).toBe('tg-bot-token-xyz')
@@ -242,7 +242,7 @@ describe('runOnboarding', () => {
       'brief'
     ])
 
-    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.channel).toBe('discord')
     expect(parsed.token).toBe('dc-bot-token-xyz')
@@ -259,7 +259,7 @@ describe('runOnboarding', () => {
       'snappy'
     ])
 
-    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.model).toBe('kimi-k2')
   })
@@ -274,7 +274,7 @@ describe('runOnboarding', () => {
       'snappy'
     ])
 
-    const settingsPath = join(fakeHome, '.pi-pipe', 'settings.json')
+    const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.harness).toBe('claude')
   })

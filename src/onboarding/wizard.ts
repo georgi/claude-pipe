@@ -296,8 +296,8 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
   const isReconfigure = !!existingSettings
   console.log(
     isReconfigure
-      ? '\n⚙️  Reconfiguring Pi Pipe\n   Press Enter to keep current values.\n'
-      : "\n🚀 Welcome to Pi Pipe!\n   Let's get you set up.\n"
+      ? '\n⚙️  Reconfiguring Claude Pipe\n   Press Enter to keep current values.\n'
+      : "\n🚀 Welcome to Claude Pipe!\n   Let's get you set up.\n"
   )
 
   const rl = createInterface()

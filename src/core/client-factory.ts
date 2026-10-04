@@ -1,4 +1,4 @@
-import type { PiPipeConfig } from '../config/schema.js'
+import type { ClaudePipeConfig } from '../config/schema.js'
 import { ClaudeClient } from './claude-client.js'
 import { CodexClient } from './codex-client.js'
 import { PiClient } from './pi-client.js'
@@ -13,7 +13,7 @@ import { SessionStore } from './session-store.js'
  * everything downstream depends only on the {@link ModelClient} interface.
  */
 export function createModelClient(
-  config: PiPipeConfig,
+  config: ClaudePipeConfig,
   store: SessionStore,
   logger: Logger
 ): ModelClient {
