@@ -161,6 +161,7 @@ Configuration is stored in `~/.pi-pipe/settings.json` and created by the onboard
 | `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications)                               |
 | `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                                                          |
 | `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels); thread messages match their parent channel too                                     |
+| `allowDMs`      | Discord-only: accept direct messages. Omitted = only when `allowFrom` is non-empty (DMs bypass `allowChannels`)                                             |
 | `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default), `claude` (Claude Agent SDK, Anthropic only), or `codex` (OpenAI Codex SDK, OpenAI only) |
 | `model`         | Model name (e.g. `claude-opus-5`, `gpt-5.1-codex`, `kimi-k2`, or `provider/model-id`; the `provider/model-id` form requires the `pi` harness)               |
 | `workspace`     | Root directory the agent can access                                                                                                                         |
@@ -252,6 +253,7 @@ For options not in the settings file, use a `.env` file in `~/.pi-pipe/` or the 
 | `PIPIPE_TRANSCRIPT_LOG_MAX_FILES` | Number of rotated transcript files to keep                                         |
 | `PIPIPE_CLI_ENABLED`              | Enable CLI channel (`true`/`false`)                                                |
 | `PIPIPE_DISCORD_ALLOW_CHANNELS`   | Comma-separated allowed Discord channel IDs (empty = allow all)                    |
+| `PIPIPE_DISCORD_ALLOW_DMS`        | `true`/`false`: accept Discord DMs (default: only when an allowlist is set)        |
 | `PIPIPE_DISCORD_USE_THREADS`      | Auto-create a Discord thread per session (`true`/`false`, default: `true`)         |
 | `PIPIPE_CLI_ALLOW_FROM`           | Comma-separated allowed sender IDs for CLI mode                                    |
 

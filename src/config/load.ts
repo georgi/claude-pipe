@@ -77,6 +77,7 @@ export function loadConfig(): PiPipeConfig {
           token: discordEnabled ? s.token : '',
           allowFrom: discordEnabled ? s.allowFrom : [],
           allowChannels: discordEnabled ? s.allowChannels : undefined,
+          allowDMs: discordEnabled ? s.allowDMs : undefined,
           useThreads: discordEnabled
             ? parseOptionalBool(process.env.PIPIPE_DISCORD_USE_THREADS)
             : undefined
@@ -111,6 +112,7 @@ export function loadConfig(): PiPipeConfig {
         token: process.env.PIPIPE_DISCORD_TOKEN ?? '',
         allowFrom: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_FROM),
         allowChannels: parseCsv(process.env.PIPIPE_DISCORD_ALLOW_CHANNELS),
+        allowDMs: parseOptionalBool(process.env.PIPIPE_DISCORD_ALLOW_DMS),
         useThreads: parseOptionalBool(process.env.PIPIPE_DISCORD_USE_THREADS)
       },
       cli: {

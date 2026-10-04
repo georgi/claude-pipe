@@ -27,6 +27,8 @@ export interface Settings {
   allowFrom: string[]
   // Optional allowlist of Discord channel IDs. Empty/missing means allow all channels.
   allowChannels?: string[]
+  // Accept Discord DMs. Omitted means: only when allowFrom is non-empty.
+  allowDMs?: boolean
   // Which agent harness drives conversations. Defaults to 'pi' when omitted.
   harness?: 'pi' | 'claude' | 'codex'
   // Codex-harness options; ignored by the other harnesses.
