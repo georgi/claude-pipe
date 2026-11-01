@@ -137,10 +137,14 @@ export function setupCommands(
 
   // Platform IDs are separate namespaces. Resolve against live config so
   // /reload revokes admin access too; public access never implies admin.
+  // An explicit `adminFrom` narrows admins below the sender allowlist.
   const adminIds =
     options.adminIds ??
-    ((channel: import('../core/types.js').ChannelName, senderId: string) =>
-      config.channels[channel]?.allowFrom.includes(senderId) === true)
+    ((channel: import('../core/types.js').ChannelName, senderId: string) => {
+      const policy = config.channels[channel]
+      if (!policy) return false
+      return (policy.adminFrom ?? policy.allowFrom).includes(senderId)
+    })
 
   return { registry, handler: new CommandHandler(registry, adminIds) }
 }

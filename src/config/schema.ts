@@ -5,7 +5,10 @@ const channelSchema = z.object({
   token: z.string(),
   allowFrom: z.array(z.string().trim().min(1)).default([]),
   // Only literal true grants public access to the configured agent.
-  publicAccess: z.boolean().optional()
+  publicAccess: z.boolean().optional(),
+  // Sender IDs allowed to run admin commands (/restart, /hot_reload, /reload,
+  // /config_set, ...). Omitted = every allowFrom sender; [] = nobody.
+  adminFrom: z.array(z.string().trim().min(1)).optional()
 })
 
 const discordChannelSchema = channelSchema.extend({
@@ -26,7 +29,10 @@ const discordChannelSchema = channelSchema.extend({
 
 const cliChannelSchema = z.object({
   enabled: z.boolean().default(false),
-  allowFrom: z.array(z.string().trim().min(1)).default(['local-user'])
+  allowFrom: z.array(z.string().trim().min(1)).default(['local-user']),
+  // Sender IDs allowed to run admin commands (/restart, /hot_reload, /reload,
+  // /config_set, ...). Omitted = every allowFrom sender; [] = nobody.
+  adminFrom: z.array(z.string().trim().min(1)).optional()
 })
 
 /**

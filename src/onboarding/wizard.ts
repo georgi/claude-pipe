@@ -344,6 +344,9 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
       ...(sameChannel && existingSettings?.allowChannels
         ? { allowChannels: existingSettings.allowChannels }
         : {}),
+      ...(sameChannel && existingSettings?.adminFrom
+        ? { adminFrom: existingSettings.adminFrom }
+        : {}),
       ...(sameChannel && existingSettings?.allowDMs !== undefined
         ? { allowDMs: existingSettings.allowDMs }
         : {}),

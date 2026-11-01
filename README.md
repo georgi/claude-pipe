@@ -160,6 +160,7 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 | `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                                                            |
 | `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications)                               |
 | `allowFrom`     | Array of trusted user IDs (empty or omitted = deny everyone)                                                                                                |
+| `adminFrom`     | Optional user IDs allowed to run admin commands (`/restart`, `/hot_reload`, `/reload`, `/config_set`, ...). Omitted = every `allowFrom` user; `[]` = nobody |
 | `publicAccess`  | Remote channels only: literal `true` explicitly allows every identified sender to invoke the configured agent. Default: disabled.                           |
 | `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels); thread messages match their parent channel too                                     |
 | `allowDMs`      | Discord-only: accept direct messages. Omitted = only when `allowFrom` is non-empty (DMs bypass `allowChannels`)                                             |
@@ -319,7 +320,12 @@ and before Discord history fetching, thread creation, and slash-command deferral
 The agent loop checks again before command dispatch or model execution, using current
 configuration. Revocation blocks queued work but does not cancel already-running turns.
 Default command admins are allowlisted users on their own channel, resolved live;
-public users do not automatically become command admins. Programmatic `adminIds`
+public users do not automatically become command admins. Set `adminFrom` to limit
+admin commands (`/restart`, `/hot_reload`, `/reload`, `/config_set`, `/config_get`,
+`/pi_model`, `/session_list`) to a subset of senders, or `[]` to disable them; on the legacy
+environment path use `CLAUDEPIPE_TELEGRAM_ADMIN_FROM` / `CLAUDEPIPE_DISCORD_ADMIN_FROM` /
+`CLAUDEPIPE_CLI_ADMIN_FROM` (unset or empty = every allowlisted sender). This only
+limits commands: any allowed sender can still ask the agent to run tools. Programmatic `adminIds`
 overrides remain an explicit trusted-application API.
 
 ### Agent authority and deployment boundary

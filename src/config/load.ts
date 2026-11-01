@@ -13,6 +13,12 @@ function parseCsv(input: string | undefined): string[] {
     .filter(Boolean)
 }
 
+/** Parses an optional CSV env value, leaving it unset when absent or empty. */
+function parseOptionalCsv(input: string | undefined): string[] | undefined {
+  if (input === undefined || input.trim() === '') return undefined
+  return parseCsv(input)
+}
+
 /** Parses an optional boolean env value, leaving it unset when absent. */
 function parseOptionalBool(input: string | undefined): boolean | undefined {
   if (input === undefined || input === '') return undefined
@@ -71,13 +77,15 @@ export function loadConfig(): ClaudePipeConfig {
           enabled: telegramEnabled,
           token: telegramEnabled ? s.token : '',
           allowFrom: telegramEnabled ? s.allowFrom : [],
-          publicAccess: telegramEnabled ? s.publicAccess : false
+          publicAccess: telegramEnabled ? s.publicAccess : false,
+          adminFrom: telegramEnabled ? s.adminFrom : undefined
         },
         discord: {
           enabled: discordEnabled,
           token: discordEnabled ? s.token : '',
           allowFrom: discordEnabled ? s.allowFrom : [],
           publicAccess: discordEnabled ? s.publicAccess : false,
+          adminFrom: discordEnabled ? s.adminFrom : undefined,
           allowChannels: discordEnabled ? s.allowChannels : undefined,
           allowDMs: discordEnabled ? s.allowDMs : undefined,
           useThreads: discordEnabled
@@ -90,7 +98,10 @@ export function loadConfig(): ClaudePipeConfig {
             ? s.allowFrom
             : process.env.CLAUDEPIPE_CLI_ALLOW_FROM === undefined
               ? ['local-user']
-              : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+              : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM),
+          adminFrom: cliEnabled
+            ? s.adminFrom
+            : parseOptionalCsv(process.env.CLAUDEPIPE_CLI_ADMIN_FROM)
         }
       },
       summaryPrompt: {
@@ -112,13 +123,15 @@ export function loadConfig(): ClaudePipeConfig {
         enabled: process.env.CLAUDEPIPE_TELEGRAM_ENABLED === 'true',
         token: process.env.CLAUDEPIPE_TELEGRAM_TOKEN ?? '',
         publicAccess: process.env.CLAUDEPIPE_TELEGRAM_PUBLIC_ACCESS === 'true',
-        allowFrom: parseCsv(process.env.CLAUDEPIPE_TELEGRAM_ALLOW_FROM)
+        allowFrom: parseCsv(process.env.CLAUDEPIPE_TELEGRAM_ALLOW_FROM),
+        adminFrom: parseOptionalCsv(process.env.CLAUDEPIPE_TELEGRAM_ADMIN_FROM)
       },
       discord: {
         enabled: process.env.CLAUDEPIPE_DISCORD_ENABLED === 'true',
         token: process.env.CLAUDEPIPE_DISCORD_TOKEN ?? '',
         publicAccess: process.env.CLAUDEPIPE_DISCORD_PUBLIC_ACCESS === 'true',
         allowFrom: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_FROM),
+        adminFrom: parseOptionalCsv(process.env.CLAUDEPIPE_DISCORD_ADMIN_FROM),
         allowChannels: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS),
         allowDMs: parseOptionalBool(process.env.CLAUDEPIPE_DISCORD_ALLOW_DMS),
         useThreads: parseOptionalBool(process.env.CLAUDEPIPE_DISCORD_USE_THREADS)
@@ -128,7 +141,8 @@ export function loadConfig(): ClaudePipeConfig {
         allowFrom:
           process.env.CLAUDEPIPE_CLI_ALLOW_FROM === undefined
             ? ['local-user']
-            : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+            : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM),
+        adminFrom: parseOptionalCsv(process.env.CLAUDEPIPE_CLI_ADMIN_FROM)
       }
     },
     summaryPrompt: {
