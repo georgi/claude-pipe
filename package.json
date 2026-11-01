@@ -1,6 +1,7 @@
 {
   "name": "claude-pipe",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "TypeScript bot for Telegram and Discord powered by the Pi Coding Agent SDK. Inspired by openclaw/openclaw.",
   "type": "module",
