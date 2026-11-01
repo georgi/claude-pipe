@@ -159,7 +159,8 @@ Configuration is stored in `~/.claude-pipe/settings.json` and created by the onb
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `channel`       | Platform to use: `telegram`, `discord`, or `cli`                                                                                                            |
 | `token`         | Bot token from [BotFather](https://t.me/botfather) or [Discord Developer Portal](https://discord.com/developers/applications)                               |
-| `allowFrom`     | Array of allowed user IDs (empty = allow everyone)                                                                                                          |
+| `allowFrom`     | Array of trusted user IDs (empty or omitted = deny everyone)                                                                                                |
+| `publicAccess`  | Remote channels only: literal `true` explicitly allows every identified sender to invoke the configured agent. Default: disabled.                           |
 | `allowChannels` | Discord-only: channel ID allowlist (empty/missing = allow all channels); thread messages match their parent channel too                                     |
 | `allowDMs`      | Discord-only: accept direct messages. Omitted = only when `allowFrom` is non-empty (DMs bypass `allowChannels`)                                             |
 | `harness`       | Agent harness: `pi` (Pi Coding Agent SDK, multi-provider; default), `claude` (Claude Agent SDK, Anthropic only), or `codex` (OpenAI Codex SDK, OpenAI only) |
@@ -286,3 +287,55 @@ npm run test:run # run tests once
 
 - Runs locally, not designed for server deployment
 - No scheduled or background tasks
+
+## Access control and upgrade notes
+
+Empty remote sender allowlists now **deny everyone**. Existing settings and `.env`
+files are not automatically made public. Populate `allowFrom` with your platform
+user IDs (not usernames or chat IDs), then restart. Missing remote lists also deny
+access; malformed lists or non-boolean JSON `publicAccess` fail configuration validation.
+The wizard collects IDs, keeps existing IDs only on the same platform, and always
+writes `publicAccess: false`. Re-running setup disables a previous public opt-in.
+
+For a deliberately public, isolated instance, set `"publicAccess": true` in
+`~/.claude-pipe/settings.json`, or use `CLAUDEPIPE_TELEGRAM_PUBLIC_ACCESS=true` /
+`CLAUDEPIPE_DISCORD_PUBLIC_ACCESS=true` on the legacy environment configuration path.
+Only the exact environment value `true` opts in. Settings take precedence over these
+public-access environment flags. Public access overrides the sender list but does
+not bypass Discord `allowChannels` or `allowDMs`; public DMs require `allowDMs: true`.
+`allowDMs: true` alone never grants sender access. Startup logs warn about public
+channels and enabled channels with no allowed senders.
+
+CLI uses local stdin and trusts the OS account controlling the process. Its default
+sender is `local-user`, with a default allowlist of `["local-user"]` when no list is
+configured. An explicitly empty CLI list denies input, including older CLI settings
+containing `[]`; update those to `["local-user"]`. A custom
+`CLAUDEPIPE_CLI_SENDER_ID` needs a matching `CLAUDEPIPE_CLI_ALLOW_FROM` (or settings
+entry). This ID is a local label, not an authentication credential. Do not expose
+stdin through a network service. CLI has no public-access switch.
+
+Sender authorization runs before Telegram media downloads/transcription and callbacks,
+and before Discord history fetching, thread creation, and slash-command deferral.
+The agent loop checks again before command dispatch or model execution, using current
+configuration. Revocation blocks queued work but does not cancel already-running turns.
+Default command admins are allowlisted users on their own channel, resolved live;
+public users do not automatically become command admins. Programmatic `adminIds`
+overrides remain an explicit trusted-application API.
+
+### Agent authority and deployment boundary
+
+An allowed sender can invoke the configured agent, not merely send chat text.
+Claude still uses `bypassPermissions`; Codex defaults to `danger-full-access` with
+no approvals. Pi installs a tool/path guardrail, but that is not an OS sandbox and
+must not be treated as one. This change controls who may invoke these capabilities;
+it does not reduce harness permissions or make public execution safe on a personal host.
+Public access is an explicit grant of the agent's capabilities to arbitrary senders.
+Use a dedicated sandbox/container or OS account, no personal files or credentials,
+and restricted mounts/network access for any public deployment.
+
+Telegram and Discord SDK/API sender IDs are the remote identity boundary. Bot tokens,
+local settings, the in-process message bus, installed extensions, and harness tools
+are trusted. Conversation state is shared by chat/thread, and memory/workspace are
+shared across users; there is no tenant isolation. Replies in a group can be read by
+other group members. Use private chats for sensitive work and separate instances
+for users who should not share data. Keep bot credentials and settings OS-protected.

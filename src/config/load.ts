@@ -70,12 +70,14 @@ export function loadConfig(): ClaudePipeConfig {
         telegram: {
           enabled: telegramEnabled,
           token: telegramEnabled ? s.token : '',
-          allowFrom: telegramEnabled ? s.allowFrom : []
+          allowFrom: telegramEnabled ? s.allowFrom : [],
+          publicAccess: telegramEnabled ? s.publicAccess : false
         },
         discord: {
           enabled: discordEnabled,
           token: discordEnabled ? s.token : '',
           allowFrom: discordEnabled ? s.allowFrom : [],
+          publicAccess: discordEnabled ? s.publicAccess : false,
           allowChannels: discordEnabled ? s.allowChannels : undefined,
           allowDMs: discordEnabled ? s.allowDMs : undefined,
           useThreads: discordEnabled
@@ -84,7 +86,11 @@ export function loadConfig(): ClaudePipeConfig {
         },
         cli: {
           enabled: cliEnabled || process.env.CLAUDEPIPE_CLI_ENABLED === 'true',
-          allowFrom: cliEnabled ? s.allowFrom : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+          allowFrom: cliEnabled
+            ? s.allowFrom
+            : process.env.CLAUDEPIPE_CLI_ALLOW_FROM === undefined
+              ? ['local-user']
+              : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
         }
       },
       summaryPrompt: {
@@ -105,11 +111,13 @@ export function loadConfig(): ClaudePipeConfig {
       telegram: {
         enabled: process.env.CLAUDEPIPE_TELEGRAM_ENABLED === 'true',
         token: process.env.CLAUDEPIPE_TELEGRAM_TOKEN ?? '',
+        publicAccess: process.env.CLAUDEPIPE_TELEGRAM_PUBLIC_ACCESS === 'true',
         allowFrom: parseCsv(process.env.CLAUDEPIPE_TELEGRAM_ALLOW_FROM)
       },
       discord: {
         enabled: process.env.CLAUDEPIPE_DISCORD_ENABLED === 'true',
         token: process.env.CLAUDEPIPE_DISCORD_TOKEN ?? '',
+        publicAccess: process.env.CLAUDEPIPE_DISCORD_PUBLIC_ACCESS === 'true',
         allowFrom: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_FROM),
         allowChannels: parseCsv(process.env.CLAUDEPIPE_DISCORD_ALLOW_CHANNELS),
         allowDMs: parseOptionalBool(process.env.CLAUDEPIPE_DISCORD_ALLOW_DMS),
@@ -117,7 +125,10 @@ export function loadConfig(): ClaudePipeConfig {
       },
       cli: {
         enabled: process.env.CLAUDEPIPE_CLI_ENABLED === 'true',
-        allowFrom: parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
+        allowFrom:
+          process.env.CLAUDEPIPE_CLI_ALLOW_FROM === undefined
+            ? ['local-user']
+            : parseCsv(process.env.CLAUDEPIPE_CLI_ALLOW_FROM)
       }
     },
     summaryPrompt: {

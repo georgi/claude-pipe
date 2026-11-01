@@ -5,7 +5,7 @@ import { CliChannel } from '../src/channels/cli.js'
 import { MessageBus } from '../src/core/bus.js'
 
 function makeConfig(opts: { enabled?: boolean; allowFrom?: string[] } = {}) {
-  const { enabled = true, allowFrom = [] } = opts
+  const { enabled = true, allowFrom = ['local-user'] } = opts
   return {
     model: 'claude-sonnet-4-5',
     workspace: '/tmp/workspace',

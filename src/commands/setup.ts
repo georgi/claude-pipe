@@ -135,10 +135,12 @@ export function setupCommands(
   // Help must be registered last so it can list all commands including custom ones
   registry.register(helpCommand(registry))
 
-  const adminIds = options.adminIds ?? [
-    ...config.channels.telegram.allowFrom,
-    ...config.channels.discord.allowFrom
-  ]
+  // Platform IDs are separate namespaces. Resolve against live config so
+  // /reload revokes admin access too; public access never implies admin.
+  const adminIds =
+    options.adminIds ??
+    ((channel: import('../core/types.js').ChannelName, senderId: string) =>
+      config.channels[channel]?.allowFrom.includes(senderId) === true)
 
   return { registry, handler: new CommandHandler(registry, adminIds) }
 }

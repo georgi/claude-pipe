@@ -195,6 +195,45 @@ describe('runOnboarding', () => {
     expect(updated.token).toBe('existing-token-9876')
   })
 
+  it('switching platforms does not carry over trusted senders or public access', async () => {
+    const existing = {
+      channel: 'telegram' as const,
+      token: 'old-token',
+      allowFrom: ['123'],
+      publicAccess: true,
+      model: 'claude-sonnet-4-5',
+      workspace
+    }
+    const updated = (await runWithAnswers(
+      ['2', 'discord-token', '1', '1', workspace, 'Bot', 'brief', ''],
+      existing
+    )) as any
+    expect(updated.channel).toBe('discord')
+    expect(updated.allowFrom).toEqual([])
+    expect(updated.publicAccess).toBe(false)
+  })
+
+  it('same-platform setup preserves restrictions and turns off public access', async () => {
+    const existing = {
+      channel: 'discord' as const,
+      token: 'token',
+      allowFrom: ['123'],
+      allowChannels: ['room'],
+      allowDMs: false,
+      publicAccess: true,
+      model: 'claude-sonnet-4-5',
+      workspace
+    }
+    const updated = (await runWithAnswers(
+      ['', '', '1', '1', workspace, 'Bot', 'brief', ''],
+      existing
+    )) as any
+    expect(updated.allowFrom).toEqual(['123'])
+    expect(updated.allowChannels).toEqual(['room'])
+    expect(updated.allowDMs).toBe(false)
+    expect(updated.publicAccess).toBe(false)
+  })
+
   it('hints when no API key is set in the environment', async () => {
     const originalAnthropic = process.env.ANTHROPIC_API_KEY
     const originalOpenai = process.env.OPENAI_API_KEY
@@ -222,13 +261,16 @@ describe('runOnboarding', () => {
       '1', // model preset
       workspace,
       'Pi',
-      'brief'
+      'brief',
+      '123, 456'
     ])
 
     const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')
     const parsed = JSON.parse(await readFile(settingsPath, 'utf-8'))
     expect(parsed.channel).toBe('telegram')
     expect(parsed.token).toBe('tg-bot-token-xyz')
+    expect(parsed.allowFrom).toEqual(['123', '456'])
+    expect(parsed.publicAccess).toBe(false)
   })
 
   it('runs the discord credentials flow and stores the bot token', async () => {
@@ -239,7 +281,8 @@ describe('runOnboarding', () => {
       '1', // model preset
       workspace,
       'Pi',
-      'brief'
+      'brief',
+      '123, 456'
     ])
 
     const settingsPath = join(fakeHome, '.claude-pipe', 'settings.json')

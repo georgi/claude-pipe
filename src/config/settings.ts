@@ -25,6 +25,8 @@ export interface Settings {
   channel: 'telegram' | 'discord' | 'cli'
   token: string
   allowFrom: string[]
+  // Explicitly expose the selected remote channel and its agent to everyone.
+  publicAccess?: boolean
   // Optional allowlist of Discord channel IDs. Empty/missing means allow all channels.
   allowChannels?: string[]
   // Accept Discord DMs. Omitted means: only when allowFrom is non-empty.

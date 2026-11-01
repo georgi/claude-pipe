@@ -312,10 +312,42 @@ export async function runOnboarding(existingSettings?: Settings): Promise<Settin
     const workspace = await chooseWorkspace(rl, existingSettings?.workspace)
     const personality = await choosePersonality(rl, existingSettings?.personality)
 
+    // Never transfer sender identities or public access across platforms.
+    const sameChannel = existingSettings?.channel === channel
+    let allowFrom = sameChannel
+      ? existingSettings.allowFrom
+      : channel === 'cli'
+        ? ['local-user']
+        : []
+    if (channel !== 'cli') {
+      const answer = await ask(
+        rl,
+        `Allowed sender IDs, comma-separated [${allowFrom.join(',')}]; blank keeps current (empty denies everyone): `
+      )
+      if (answer.trim())
+        allowFrom = answer
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      if (allowFrom.length === 0)
+        console.log('No senders allowed. Add your user ID to allowFrom before using the bot.')
+      console.log(
+        'Public access is disabled by setup. Enable publicAccess: true manually only in an isolated deployment: it exposes agent tools and host access to every sender.'
+      )
+    }
+
     const settings: Settings = {
       channel,
       token,
-      allowFrom: existingSettings?.allowFrom ?? [],
+      allowFrom,
+      publicAccess: false,
+      ...(sameChannel && existingSettings?.allowChannels
+        ? { allowChannels: existingSettings.allowChannels }
+        : {}),
+      ...(sameChannel && existingSettings?.allowDMs !== undefined
+        ? { allowDMs: existingSettings.allowDMs }
+        : {}),
+      ...(existingSettings?.codex ? { codex: existingSettings.codex } : {}),
       harness,
       model,
       workspace,

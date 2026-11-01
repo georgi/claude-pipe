@@ -275,7 +275,13 @@ export class DiscordChannel implements Channel {
     if (message.author.bot) return
 
     const senderId = message.author.id
-    if (!isSenderAllowed(senderId, this.config.channels.discord.allowFrom)) {
+    if (
+      !isSenderAllowed(
+        senderId,
+        this.config.channels.discord.allowFrom,
+        this.config.channels.discord.publicAccess
+      )
+    ) {
       this.logger.warn('channel.discord.denied', { senderId })
       return
     }
@@ -423,7 +429,13 @@ export class DiscordChannel implements Channel {
    */
   private async onInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
     const senderId = interaction.user.id
-    if (!isSenderAllowed(senderId, this.config.channels.discord.allowFrom)) {
+    if (
+      !isSenderAllowed(
+        senderId,
+        this.config.channels.discord.allowFrom,
+        this.config.channels.discord.publicAccess
+      )
+    ) {
       this.logger.warn('channel.discord.denied', { senderId })
       await interaction.reply({ content: 'You are not authorised.', ephemeral: true })
       return
@@ -527,7 +539,11 @@ export class DiscordChannel implements Channel {
           (m) =>
             m.author.id !== this.client?.user?.id &&
             !m.author.bot &&
-            isSenderAllowed(m.author.id, this.config.channels.discord.allowFrom)
+            isSenderAllowed(
+              m.author.id,
+              this.config.channels.discord.allowFrom,
+              this.config.channels.discord.publicAccess
+            )
         )
         .map((m) => {
           // Strip the closing tag so a message cannot break out of the block.

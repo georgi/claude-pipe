@@ -26,6 +26,11 @@ describe('TelegramChannel', () => {
 
   beforeEach(() => {
     vi.resetAllMocks()
+    // Typing indicators must not call the live Telegram API in unit tests.
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true })
+    })) as unknown as typeof fetch
   })
 
   afterEach(() => {

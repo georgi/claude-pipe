@@ -382,14 +382,14 @@ describe('DiscordChannel', () => {
       expect(await published(bus)).toBe(true)
     })
 
-    it('accepts DMs from anyone when allowDMs is explicitly true', async () => {
+    it('rejects unlisted senders even when allowDMs is explicitly true', async () => {
       const bus = new MessageBus()
       const channel = new DiscordChannel(makeConfig({ allowFrom: [], allowDMs: true }), bus, logger)
       ;(channel as any).client = { user: { id: 'bot' } }
 
       await (channel as any).onMessage(dmMessage('anyone'))
 
-      expect(await published(bus)).toBe(true)
+      expect(await published(bus)).toBe(false)
     })
 
     it('rejects DMs when allowDMs is false even for allowlisted senders', async () => {
