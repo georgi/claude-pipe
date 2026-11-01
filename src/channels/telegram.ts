@@ -527,7 +527,13 @@ export class TelegramChannel implements Channel {
     if (!message?.from) return
 
     const senderId = String(message.from.id)
-    if (!isSenderAllowed(senderId, this.config.channels.telegram.allowFrom)) {
+    if (
+      !isSenderAllowed(
+        senderId,
+        this.config.channels.telegram.allowFrom,
+        this.config.channels.telegram.publicAccess
+      )
+    ) {
       this.logger.warn('channel.telegram.denied', { senderId })
       return
     }
@@ -771,7 +777,13 @@ export class TelegramChannel implements Channel {
     query: NonNullable<TelegramUpdate['callback_query']>
   ): Promise<void> {
     const senderId = String(query.from.id)
-    if (!isSenderAllowed(senderId, this.config.channels.telegram.allowFrom)) {
+    if (
+      !isSenderAllowed(
+        senderId,
+        this.config.channels.telegram.allowFrom,
+        this.config.channels.telegram.publicAccess
+      )
+    ) {
       this.logger.warn('channel.telegram.callback_denied', { senderId })
       return
     }

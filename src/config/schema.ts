@@ -3,7 +3,9 @@ import { z } from 'zod'
 const channelSchema = z.object({
   enabled: z.boolean(),
   token: z.string(),
-  allowFrom: z.array(z.string())
+  allowFrom: z.array(z.string().trim().min(1)).default([]),
+  // Only literal true grants public access to the configured agent.
+  publicAccess: z.boolean().optional()
 })
 
 const discordChannelSchema = channelSchema.extend({
@@ -24,7 +26,7 @@ const discordChannelSchema = channelSchema.extend({
 
 const cliChannelSchema = z.object({
   enabled: z.boolean().default(false),
-  allowFrom: z.array(z.string()).default([])
+  allowFrom: z.array(z.string().trim().min(1)).default(['local-user'])
 })
 
 /**

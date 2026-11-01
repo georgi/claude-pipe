@@ -1,3 +1,4 @@
+import { isSenderAllowed } from '../channels/base.js'
 import type { CommandHandler } from '../commands/handler.js'
 import type { ChannelManager } from '../channels/manager.js'
 import type { ClaudePipeConfig } from '../config/schema.js'
@@ -85,6 +86,13 @@ export class AgentLoop {
   }
 
   private async processMessage(inbound: InboundMessage): Promise<void> {
+    // Recheck at execution time, including queued messages after /reload.
+    const channel = this.config.channels[inbound.channel]
+    const publicAccess = channel && 'publicAccess' in channel ? channel.publicAccess : false
+    if (!channel?.enabled || !isSenderAllowed(inbound.senderId, channel.allowFrom, publicAccess)) {
+      this.logger.warn('agent.denied', { channel: inbound.channel, senderId: inbound.senderId })
+      return
+    }
     const conversationKey = `${inbound.channel}:${inbound.chatId}`
     this.logger.info('agent.inbound', {
       conversationKey,

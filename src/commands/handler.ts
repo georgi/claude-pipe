@@ -12,7 +12,7 @@ import type { CommandResult, PermissionLevel } from './types.js'
 export class CommandHandler {
   constructor(
     private readonly registry: CommandRegistry,
-    private readonly adminIds: string[] = []
+    private readonly adminIds: string[] | ((channel: ChannelName, senderId: string) => boolean) = []
   ) {}
 
   /**
@@ -46,7 +46,11 @@ export class CommandHandler {
     const command = this.registry.get(name)
     if (!command) return null
 
-    const senderLevel: PermissionLevel = this.adminIds.includes(senderId) ? 'admin' : 'user'
+    const isAdmin =
+      typeof this.adminIds === 'function'
+        ? this.adminIds(channel, senderId)
+        : this.adminIds.includes(senderId)
+    const senderLevel: PermissionLevel = isAdmin ? 'admin' : 'user'
     if (command.permission === 'admin' && senderLevel !== 'admin') {
       return { content: 'You do not have permission to use this command.', error: true }
     }

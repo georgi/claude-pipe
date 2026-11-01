@@ -18,7 +18,11 @@ export interface Channel {
 /**
  * Shared helper for allow-list decisions.
  */
-export function isSenderAllowed(senderId: string, allowFrom: string[]): boolean {
-  if (allowFrom.length === 0) return true
-  return allowFrom.includes(senderId)
+export function isSenderAllowed(
+  senderId: string,
+  allowFrom: readonly string[] = [],
+  publicAccess = false
+): boolean {
+  if (!senderId.trim()) return false
+  return publicAccess === true || allowFrom.includes(senderId)
 }

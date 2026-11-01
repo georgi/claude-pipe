@@ -30,6 +30,21 @@ export class ChannelManager {
   /** Starts all adapters and launches outbound dispatcher. */
   async startAll(): Promise<void> {
     for (const channel of this.channels) {
+      const policy = this.config.channels[channel.name]
+      if (policy?.enabled) {
+        if ('publicAccess' in policy && policy.publicAccess === true) {
+          this.logger.warn('channel.public_access', {
+            channel: channel.name,
+            warning:
+              'Every sender can invoke agent tools with this process permissions. Use an isolated deployment without secrets.'
+          })
+        } else if (policy.allowFrom.length === 0) {
+          this.logger.warn('channel.no_allowed_senders', {
+            channel: channel.name,
+            warning: 'Empty allowFrom denies everyone. Configure trusted sender IDs.'
+          })
+        }
+      }
       await channel.start()
     }
 
