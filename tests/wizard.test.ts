@@ -200,6 +200,7 @@ describe('runOnboarding', () => {
       channel: 'telegram' as const,
       token: 'old-token',
       allowFrom: ['123'],
+      adminFrom: ['123'],
       publicAccess: true,
       model: 'claude-sonnet-4-5',
       workspace
@@ -210,6 +211,7 @@ describe('runOnboarding', () => {
     )) as any
     expect(updated.channel).toBe('discord')
     expect(updated.allowFrom).toEqual([])
+    expect(updated.adminFrom).toBeUndefined()
     expect(updated.publicAccess).toBe(false)
   })
 
@@ -220,6 +222,7 @@ describe('runOnboarding', () => {
       allowFrom: ['123'],
       allowChannels: ['room'],
       allowDMs: false,
+      adminFrom: ['123'],
       publicAccess: true,
       model: 'claude-sonnet-4-5',
       workspace
@@ -231,6 +234,7 @@ describe('runOnboarding', () => {
     expect(updated.allowFrom).toEqual(['123'])
     expect(updated.allowChannels).toEqual(['room'])
     expect(updated.allowDMs).toBe(false)
+    expect(updated.adminFrom).toEqual(['123'])
     expect(updated.publicAccess).toBe(false)
   })
 

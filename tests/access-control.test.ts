@@ -213,6 +213,51 @@ describe('configuration migration', () => {
     }
   )
 
+  it('loads adminFrom from settings for the selected channel only', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pipe-admin-'))
+    vi.stubEnv('CLAUDE_PIPE_CONFIG_DIR', dir)
+    try {
+      writeFileSync(
+        join(dir, 'settings.json'),
+        JSON.stringify({
+          channel: 'discord',
+          token: 'test',
+          allowFrom: ['1', '2'],
+          adminFrom: ['1'],
+          model: 'test',
+          workspace: '/tmp'
+        })
+      )
+      const cfg = loadConfig()
+      expect(cfg.channels.discord.adminFrom).toEqual(['1'])
+      expect(cfg.channels.telegram.adminFrom).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    [undefined, undefined],
+    ['', undefined],
+    ['1, 2', ['1', '2']]
+  ])('parses CLAUDEPIPE_*_ADMIN_FROM=%s', (value, expected) => {
+    const dir = mkdtempSync(join(tmpdir(), 'pipe-env-admin-'))
+    vi.stubEnv('CLAUDE_PIPE_CONFIG_DIR', dir)
+    if (value !== undefined) {
+      vi.stubEnv('CLAUDEPIPE_TELEGRAM_ADMIN_FROM', value)
+      vi.stubEnv('CLAUDEPIPE_DISCORD_ADMIN_FROM', value)
+      vi.stubEnv('CLAUDEPIPE_CLI_ADMIN_FROM', value)
+    }
+    try {
+      const cfg = loadConfig()
+      expect(cfg.channels.telegram.adminFrom).toEqual(expected)
+      expect(cfg.channels.discord.adminFrom).toEqual(expected)
+      expect(cfg.channels.cli?.adminFrom).toEqual(expected)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it.each(['', 'false', '1', 'TRUE', 'true'])(
     'only literal env true enables public access (%s)',
     (value) => {

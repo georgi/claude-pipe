@@ -107,6 +107,58 @@ describe('setupCommands', () => {
     expect(denied?.error).toBe(true)
   })
 
+  it.each(['/restart', '/hot_reload', '/hr', '/reload', '/config_set model x'])(
+    'adminFrom narrows %s to listed admins, not every allowlisted sender',
+    async (text) => {
+      const deps = makeDeps()
+      deps.config.channels.telegram.allowFrom = ['admin1', 'member']
+      deps.config.channels.telegram.adminFrom = ['admin1']
+      const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+      const { handler } = setupCommands(deps)
+
+      const denied = await handler.execute(text, 'telegram', '42', 'member')
+      expect(denied).toEqual({
+        content: 'You do not have permission to use this command.',
+        error: true
+      })
+      expect(deps.config.model).toBe('claude-sonnet-4-5')
+      expect(exit).not.toHaveBeenCalled()
+      exit.mockRestore()
+    }
+  )
+
+  it('lets adminFrom senders run admin commands', async () => {
+    const deps = makeDeps()
+    deps.config.channels.telegram.allowFrom = ['admin1', 'member']
+    deps.config.channels.telegram.adminFrom = ['admin1']
+    const { handler } = setupCommands(deps)
+
+    const result = await handler.execute('/session_list', 'telegram', '42', 'admin1')
+    expect(result?.error).toBeUndefined()
+  })
+
+  it('empty adminFrom disables admin commands for everyone', async () => {
+    const deps = makeDeps()
+    deps.config.channels.telegram.adminFrom = []
+    const { handler } = setupCommands(deps)
+
+    const denied = await handler.execute('/session_list', 'telegram', '42', 'admin1')
+    expect(denied?.error).toBe(true)
+    // User-level commands keep working.
+    const ping = await handler.execute('/ping', 'telegram', '42', 'admin1')
+    expect(ping?.error).toBeUndefined()
+  })
+
+  it('resolves adminFrom against live config', async () => {
+    const deps = makeDeps()
+    const { handler } = setupCommands(deps)
+    expect((await handler.execute('/session_list', 'telegram', '42', 'admin1'))?.error).toBe(
+      undefined
+    )
+    deps.config.channels.telegram.adminFrom = ['someone-else']
+    expect((await handler.execute('/session_list', 'telegram', '42', 'admin1'))?.error).toBe(true)
+  })
+
   it('handler recognises aliases for built-in commands', () => {
     const { handler } = setupCommands(makeDeps())
 
